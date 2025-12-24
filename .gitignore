@@ -1,0 +1,21 @@
+# Media
+videos/
+*.mp4
+*.mov
+*.avi
+
+# Python
+py/
+.venv/
+__pycache__/
+*.pyc
+
+# Logs / cache
+logs/
+cache/
+tmp/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store

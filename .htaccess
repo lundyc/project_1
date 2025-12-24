@@ -1,0 +1,14 @@
+# Disable directory listings
+Options -Indexes
+
+# Block access to Python directory
+RewriteEngine On
+RewriteRule ^py(/|$) - [F,L]
+
+# Block access to virtual environment
+RewriteRule ^\.venv(/|$) - [F,L]
+
+# Block direct access to sensitive file types
+<FilesMatch "\.(py|sh|log|env|venv)$">
+    Require all denied
+</FilesMatch>

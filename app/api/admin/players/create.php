@@ -1,0 +1,44 @@
+<?php
+
+require_once __DIR__ . '/../../../lib/auth.php';
+require_once __DIR__ . '/../../../lib/audit_service.php';
+require_once __DIR__ . '/../../../lib/player_repository.php';
+require_once __DIR__ . '/../../../lib/player_input.php';
+
+auth_boot();
+
+if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+          http_response_code(405);
+          echo '405 Method Not Allowed';
+          exit;
+}
+
+$context = require_club_admin_access();
+$user = $context['user'];
+$clubId = $context['club_id'];
+
+$input = $_POST;
+$rawInput = file_get_contents('php://input');
+if (empty($input) && $rawInput) {
+          $decoded = json_decode($rawInput, true);
+          if (is_array($decoded)) {
+                    $input = $decoded;
+          }
+}
+
+$displayName = isset($input['display_name']) ? trim((string)$input['display_name']) : '';
+if ($displayName === '') {
+          $_SESSION['player_create_error'] = 'Display name is required.';
+          $_SESSION['player_create_input'] = $input;
+          redirect('/admin/players/create');
+}
+
+$payload = normalize_player_payload($input, $clubId);
+
+$playerId = create_player_for_club($clubId, $payload);
+
+$auditData = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+audit($clubId, (int)$user['id'], 'player', $playerId, 'created', null, $auditData);
+
+$_SESSION['player_flash_success'] = 'Player created.';
+redirect('/admin/players');
