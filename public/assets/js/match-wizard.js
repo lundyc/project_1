@@ -476,37 +476,20 @@
                               const data = await res.json().catch(() => ({}));
 
                               const status = (data.status || 'pending').toLowerCase();
-                              const downloadedBytes = Number(data.downloaded_bytes) || 0;
-                              let totalBytes = Number(data.total_bytes) || 0;
+                              const downloadedBytes = Number(data.downloaded ?? data.downloaded_bytes) || 0;
+                              const totalBytes = Number(data.total ?? data.total_bytes) || 0;
                               const message = data.message || data.error || data.status || '';
                               const error = data.error || (status === 'failed' ? message : null);
                               let percent = Number(data.percent);
-                              if (!Number.isFinite(percent) || percent === 0) {
-                                        if (totalBytes > 0) {
-                                                  percent = Math.round((downloadedBytes / totalBytes) * 100);
-                                        } else if (data.formats) {
-                                                  const formatPercents = Object.values(data.formats)
-                                                            .map((fmt) => Number(fmt.percent) || 0)
-                                                            .filter((val) => val > 0);
-                                                  if (formatPercents.length) {
-                                                            percent = Math.round(
-                                                                      formatPercents.reduce((sum, val) => sum + val, 0) / formatPercents.length
-                                                            );
-                                                  }
-                                        }
+                              if (!Number.isFinite(percent)) {
+                                        percent = 0;
                               }
-                              percent = Math.max(0, Math.min(100, Number(percent) || 0));
-
-                              if (!totalBytes && data.formats) {
-                                        totalBytes = Object.values(data.formats)
-                                                  .map((fmt) => Number(fmt.total_bytes) || 0)
-                                                  .reduce((sum, val) => sum + val, 0);
-                              }
+                              percent = Math.max(0, Math.min(100, percent));
 
                               console.debug('VEO status poll', { matchId, status, percent, message });
 
                               const isCompleted = ['complete', 'completed', 'ready'].includes(status);
-                              const finalPath = data.path ? `${data.path}/standard/match_${matchId}_standard.mp4` : null;
+                              const finalPath = data.path || null;
 
                               if (isCompleted) {
                                         setProgress(

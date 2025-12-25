@@ -179,30 +179,15 @@
                               }
                               const data = await res.json().catch(() => ({}));
                               const status = (data.status || 'pending').toLowerCase();
-                              const downloadedBytes = Number(data.downloaded_bytes) || 0;
-                              let totalBytes = Number(data.total_bytes) || 0;
+                              const downloadedBytes = Number(data.downloaded ?? data.downloaded_bytes) || 0;
+                              const totalBytes = Number(data.total ?? data.total_bytes) || 0;
                               let percent = Number(data.percent);
-                              if (!Number.isFinite(percent) || percent === 0) {
-                                        if (totalBytes > 0) {
-                                                  percent = Math.round((downloadedBytes / totalBytes) * 100);
-                                        } else if (data.formats) {
-                                                  const percents = Object.values(data.formats)
-                                                            .map((fmt) => Number(fmt.percent) || 0)
-                                                            .filter((val) => val > 0);
-                                                  if (percents.length) {
-                                                            percent = Math.round(percents.reduce((sum, val) => sum + val, 0) / percents.length);
-                                                  }
-                                        }
+                              if (!Number.isFinite(percent)) {
+                                        percent = 0;
                               }
-                              percent = Math.max(0, Math.min(100, Number(percent) || 0));
+                              percent = Math.max(0, Math.min(100, percent));
 
-                              if (!totalBytes && data.formats) {
-                                        totalBytes = Object.values(data.formats)
-                                                  .map((fmt) => Number(fmt.total_bytes) || 0)
-                                                  .reduce((sum, val) => sum + val, 0);
-                              }
-
-                              const finalPath = data.path ? `${data.path}/standard/match_${cfg.matchId}_standard.mp4` : null;
+                              const finalPath = data.path || null;
                               const message = data.message || data.error || data.status || '';
                               const error = data.error || (status === 'failed' ? message : null);
                               const isComplete = ['complete', 'completed', 'ready'].includes(status);

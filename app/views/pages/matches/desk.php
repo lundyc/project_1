@@ -54,13 +54,14 @@ $title = 'Analysis Desk';
 $headExtras = '<link href="' . htmlspecialchars($base) . '/assets/css/desk.css?v=' . time() . '" rel="stylesheet">';
 $projectRoot = realpath(__DIR__ . '/../../..');
 $matchId = (int)$match['id'];
+$isVeo = (($match['video_source_type'] ?? '') === 'veo');
 $standardRelative = '/videos/matches/match_' . $matchId . '/source/veo/standard/match_' . $matchId . '_standard.mp4';
 $standardAbsolute = $projectRoot
           ? $projectRoot . DIRECTORY_SEPARATOR . 'videos' . DIRECTORY_SEPARATOR . 'matches' . DIRECTORY_SEPARATOR . 'match_' . $matchId . DIRECTORY_SEPARATOR . 'source' . DIRECTORY_SEPARATOR . 'veo' . DIRECTORY_SEPARATOR . 'standard' . DIRECTORY_SEPARATOR . 'match_' . $matchId . '_standard.mp4'
           : '';
 $videoReady = $standardAbsolute && is_file($standardAbsolute);
 $videoPath = $videoReady ? $standardRelative : ($match['video_source_path'] ?? '');
-$videoSrc = $videoReady ? $standardRelative : '';
+$videoSrc = $isVeo ? $standardRelative : ($videoReady ? $standardRelative : '');
 
 $deskConfig = [
           'basePath' => $base,
@@ -149,7 +150,7 @@ ob_start();
                                                                       <?= $videoReady ? 'src="' . htmlspecialchars($videoSrc) . '"' : '' ?>>
                                                             </video>
                                                             <div id="deskVideoPlaceholder" class="text-center text-muted mb-3<?= $videoReady ? ' d-none' : '' ?>">
-                                                                      Video will appear once the download completes.
+                                                                      <?= $isVeo ? 'This VEO standard video is downloading; it will appear once ready.' : 'Video will appear once the download completes.' ?>
                                                             </div>
                                                             <div class="panel p-3 rounded-md panel-dark mt-3<?= $videoReady ? ' d-none' : '' ?>" id="deskVideoProgressPanel">
                                                                       <div class="d-flex justify-content-between align-items-center mb-2">
