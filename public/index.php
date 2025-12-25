@@ -111,6 +111,11 @@ route('/api/match-video/retry', function () {
           require __DIR__ . '/../app/api/match-video/retry.php';
 });
 
+route('/api/match-video/start', function () {
+          require_auth();
+          require __DIR__ . '/../app/api/matches/video_veo.php';
+});
+
 route('/api/match-players/list', function () {
           require_auth();
           require __DIR__ . '/../app/api/match-players/list.php';

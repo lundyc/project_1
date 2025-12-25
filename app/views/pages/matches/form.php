@@ -219,9 +219,7 @@ ob_start();
       data-initial-download-progress="<?= (int)$initialDownloadProgress ?>"
       data-initial-veo-url="<?= htmlspecialchars($initialVeoUrl) ?>">
 
-          <?php if ($isEdit): ?>
-                    <input type="hidden" name="match_id" value="<?= $matchIdValue ?>">
-          <?php endif; ?>
+          <input type="hidden" id="matchIdInput" name="match_id" value="<?= $matchIdValue ? (int)$matchIdValue : '' ?>">
 
           <div class="wizard-step-panel is-active" data-step="1">
                     <div class="panel p-3 rounded-md">

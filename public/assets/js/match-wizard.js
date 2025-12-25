@@ -36,9 +36,11 @@
           const veoInlineSizeText = document.getElementById('veoInlineSizeText');
           const veoInlineError = document.getElementById('veoInlineError');
           const veoInlineRetryBtn = document.getElementById('veoInlineRetryBtn');
+          const matchIdInput = document.getElementById('matchIdInput');
 
           let currentStep = 1;
           let isSubmitting = false;
+          let isCreatingMatch = false;
           let pollTimer = null;
           let matchId = cfg.matchId || null;
 
@@ -84,6 +86,27 @@
                     }
           }
 
+          function updateMatchId(value, { persist = true } = {}) {
+                    const parsed = Number(value);
+                    const normalized = Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+                    matchId = normalized;
+                    cfg.matchId = normalized;
+                    if (matchIdInput) {
+                              matchIdInput.value = normalized ? normalized.toString() : '';
+                    }
+                    if (!cfg.updateEndpoint && cfg.basePath && normalized) {
+                              cfg.updateEndpoint = `${cfg.basePath}/api/matches/${normalized}/edit`;
+                    }
+                    if (persist) {
+                              saveState({ matchId: normalized });
+                    }
+                    return normalized;
+          }
+
+          if (matchId) {
+                    updateMatchId(matchId, { persist: false });
+          }
+
           function setStatusBadge(status) {
                     const badges = [statusBadge, veoInlineBadge].filter(Boolean);
                     if (!badges.length) return;
@@ -121,8 +144,7 @@
                     if (!targetMatchId) {
                               return;
                     }
-                    matchId = targetMatchId;
-                    cfg.matchId = targetMatchId;
+                    updateMatchId(targetMatchId, { persist: false });
                     saveState({ matchId: targetMatchId, lineupReady: true });
                     if (window.MatchWizardLineup && typeof window.MatchWizardLineup.setMatchId === 'function') {
                               window.MatchWizardLineup.setMatchId(targetMatchId);
@@ -328,6 +350,44 @@
                     return true;
           }
 
+          async function ensureMatchCreatedForVideo() {
+                    if (matchId) {
+                              showStep(2);
+                              return matchId;
+                    }
+                    if (isCreatingMatch) {
+                              return matchId;
+                    }
+
+                    isCreatingMatch = true;
+                    const originalText = step1Next ? step1Next.textContent : '';
+                    if (step1Next) {
+                              step1Next.disabled = true;
+                              step1Next.textContent = 'Saving...';
+                    }
+
+                    try {
+                              const data = await saveMatch('upload');
+                              const newId = updateMatchId(data.match_id || matchId);
+                              if (!newId) {
+                                        throw new Error('Match id missing from response');
+                              }
+                              setFlash('success', 'Match saved. Continue to video.');
+                              showStep(2);
+                              return newId;
+                    } catch (e) {
+                              setFlash('danger', e.message || 'Unable to create match');
+                              showStep(1);
+                              throw e;
+                    } finally {
+                              isCreatingMatch = false;
+                              if (step1Next) {
+                                        step1Next.disabled = false;
+                                        step1Next.textContent = originalText;
+                              }
+                    }
+          }
+
           async function callJson(url, payload) {
                     const res = await fetch(url, {
                               method: 'POST',
@@ -348,13 +408,22 @@
 
           async function saveMatch(videoMode) {
                     const payload = collectPayload(videoMode);
-                    const endpoint = cfg.isEdit && cfg.updateEndpoint ? cfg.updateEndpoint : cfg.createEndpoint;
+                    let endpoint = '';
+                    if (cfg.isEdit && cfg.updateEndpoint) {
+                              endpoint = cfg.updateEndpoint;
+                    } else if (!cfg.isEdit && matchId) {
+                              endpoint = `${cfg.basePath}/api/matches/${matchId}/edit`;
+                    } else {
+                              endpoint = cfg.createEndpoint;
+                    }
                     if (!endpoint) {
                               throw new Error('Missing endpoint');
                     }
                     const data = await callJson(endpoint, payload);
-                    matchId = data.match_id || matchId || cfg.matchId;
-                    cfg.matchId = matchId;
+                    const returnedId = data.match_id || matchId || cfg.matchId;
+                    if (returnedId) {
+                              updateMatchId(returnedId);
+                    }
                     return data;
           }
 
@@ -365,9 +434,9 @@
                               throw new Error('VEO URL required');
                     }
 
-                    const startUrl = `${cfg.basePath}/api/matches/${matchId}/video/veo/start`;
+                    const startUrl = `${cfg.basePath}/api/match-video/start`;
                     console.info('Starting VEO download', { matchId, startUrl, veoUrl });
-                    await callJson(startUrl, { veo_url: veoUrl });
+                    await callJson(startUrl, { match_id: matchId, veo_url: veoUrl });
                     console.info('VEO download spawned, starting polling', { matchId });
                     saveState({ matchId, videoType: 'veo', veoUrl });
                     setProgress('downloading', 0, null, 'Starting download...', 'Starting download...', 0, 0);
@@ -500,6 +569,14 @@
                               return;
                     }
 
+                    if (!matchId) {
+                              try {
+                                        await ensureMatchCreatedForVideo();
+                              } catch {
+                                        return;
+                              }
+                    }
+
                     const mode = getVideoMode();
                     if (mode === 'veo' && (!veoInput || !veoInput.value.trim())) {
                               setFlash('danger', 'VEO URL required to start the download.');
@@ -548,8 +625,7 @@
                     }
 
                     if (stored && stored.matchId) {
-                              matchId = stored.matchId;
-                              cfg.matchId = stored.matchId;
+                              updateMatchId(stored.matchId, { persist: false });
                               if (stored.lineupReady) {
                                         goToLineupStep(stored.matchId);
                                         return;
@@ -599,10 +675,16 @@
                               videoModeRadios.forEach((radio) => radio.addEventListener('change', toggleVideoInputs));
                     }
                     if (step1Next) {
-                              step1Next.addEventListener('click', () => {
+                              step1Next.addEventListener('click', async () => {
                                         clearFlash();
-                                        if (validateStep1()) {
-                                                  showStep(2);
+                                        if (!validateStep1()) {
+                                                  showStep(1);
+                                                  return;
+                                        }
+                                        try {
+                                                  await ensureMatchCreatedForVideo();
+                                        } catch {
+                                                  // Error already surfaced
                                         }
                               });
                     }

@@ -15,7 +15,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
           exit;
 }
 
-$matchId = isset($matchId) ? (int)$matchId : (int)($_POST['match_id'] ?? 0);
 $input = $_POST;
 $rawInput = file_get_contents('php://input');
 if (empty($input) && $rawInput) {
@@ -24,6 +23,8 @@ if (empty($input) && $rawInput) {
                     $input = $decoded;
           }
 }
+
+$matchId = isset($matchId) ? (int)$matchId : (int)($input['match_id'] ?? 0);
 
 $projectRoot = realpath(__DIR__ . '/../../..');
 if ($projectRoot === false) {

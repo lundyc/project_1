@@ -15,7 +15,16 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
           exit;
 }
 
-$matchId = isset($matchId) ? (int)$matchId : (int)($_POST['match_id'] ?? 0);
+$input = $_POST;
+$rawInput = file_get_contents('php://input');
+if (empty($input) && $rawInput) {
+          $decoded = json_decode($rawInput, true);
+          if (is_array($decoded)) {
+                    $input = $decoded;
+          }
+}
+
+$matchId = isset($matchId) ? (int)$matchId : (int)($input['match_id'] ?? 0);
 if ($matchId <= 0) {
           http_response_code(400);
           echo json_encode(['ok' => false, 'error' => 'Match id required']);
