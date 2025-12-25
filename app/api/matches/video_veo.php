@@ -4,15 +4,156 @@ require_once __DIR__ . '/../../lib/auth.php';
 require_once __DIR__ . '/../../lib/match_permissions.php';
 require_once __DIR__ . '/../../lib/db.php';
 
+if (!function_exists('match_wizard_log_path')) {
+          function match_wizard_log_path(): ?string
+          {
+                    static $path;
+                    if ($path !== null) {
+                              return $path;
+                    }
+                    $root = realpath(__DIR__ . '/../../..');
+                    if ($root === false) {
+                              return null;
+                    }
+                    $dir = $root . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'logs';
+                    @mkdir($dir, 0777, true);
+                    return $path = $dir . DIRECTORY_SEPARATOR . 'match_wizard_debug.log';
+          }
+}
+
+if (!function_exists('log_match_wizard_event')) {
+          function log_match_wizard_event(?int $matchId, string $stage, string $message, array $context = []): void
+          {
+                    $logPath = match_wizard_log_path();
+                    $timestamp = date('c');
+                    $parts = ["[$timestamp]", "[stage:$stage]"];
+                    if ($matchId !== null) {
+                              $parts[] = "[match:$matchId]";
+                    }
+                    $parts[] = $message;
+                    if ($context) {
+                              $encoded = json_encode($context, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                              if ($encoded !== false) {
+                                        $parts[] = $encoded;
+                              }
+                    }
+                    $line = implode(' ', $parts);
+                    if ($logPath) {
+                              file_put_contents($logPath, $line . PHP_EOL, FILE_APPEND | LOCK_EX);
+                    }
+                    error_log($line);
+          }
+}
+
+if (!function_exists('sanitize_environment_array')) {
+          function sanitize_environment_array(array $values): array
+          {
+                    $result = [];
+                    $maskPatterns = ['PASS', 'SECRET', 'TOKEN', 'KEY', 'AUTH'];
+                    foreach ($values as $key => $value) {
+                              $upper = strtoupper($key);
+                              $masked = false;
+                              foreach ($maskPatterns as $pattern) {
+                                        if (strpos($upper, $pattern) !== false) {
+                                                  $result[$key] = '***';
+                                                  $masked = true;
+                                                  break;
+                                        }
+                              }
+                              if ($masked) {
+                                        continue;
+                              }
+                              if (is_scalar($value)) {
+                                        $result[$key] = $value;
+                              } elseif (is_array($value)) {
+                                        $result[$key] = json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                              } else {
+                                        $result[$key] = (string)$value;
+                              }
+                    }
+                    return $result;
+          }
+}
+
+if (!function_exists('veo_spawn_log_path')) {
+          function veo_spawn_log_path(): ?string
+          {
+                    static $path;
+                    if ($path !== null) {
+                              return $path;
+                    }
+                    $root = realpath(__DIR__ . '/../../..');
+                    if ($root === false) {
+                              return null;
+                    }
+                    $dir = $root . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'logs';
+                    @mkdir($dir, 0777, true);
+                    return $path = $dir . DIRECTORY_SEPARATOR . 'veo_spawn_debug.log';
+          }
+}
+
+if (!function_exists('record_veo_spawn_entry')) {
+          function record_veo_spawn_entry(array $entry): void
+          {
+                    $path = veo_spawn_log_path();
+                    if (!$path) {
+                              return;
+                    }
+                    $lines = ['[SPAWN] ' . date('c')];
+                    foreach ($entry as $key => $value) {
+                              if (is_array($value)) {
+                                        $value = json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                              } else {
+                                        $value = (string)$value;
+                              }
+                              $safe = str_replace(["\r", "\n"], ['\\r', '\\n'], trim($value));
+                              $lines[] = sprintf('%s=%s', $key, $safe);
+                    }
+                    $lines[] = '';
+                    file_put_contents($path, implode(PHP_EOL, $lines), FILE_APPEND | LOCK_EX);
+          }
+}
+
 auth_boot();
 require_auth();
 
 header('Content-Type: application/json');
 
-if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
-          http_response_code(405);
-          echo json_encode(['ok' => false, 'error' => 'Method not allowed']);
+$projectRoot = realpath(__DIR__ . '/../../..');
+if ($projectRoot === false) {
+          http_response_code(500);
+          echo json_encode(['ok' => false, 'error' => 'Unable to resolve project root', 'error_code' => 'project_root_missing']);
           exit;
+}
+
+$veoLog = $projectRoot . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'logs' . DIRECTORY_SEPARATOR . 'veo_download.log';
+@mkdir(dirname($veoLog), 0777, true);
+
+function log_veo_activity(int $matchId, string $message): void
+{
+          global $veoLog;
+          log_match_wizard_event($matchId, 'veo_download', $message);
+          $line = date('Y-m-d H:i:s') . ' [VEO][match:' . $matchId . '] ' . $message;
+          if (isset($veoLog)) {
+                    file_put_contents($veoLog, $line . PHP_EOL, FILE_APPEND);
+          }
+}
+
+function respond_error(int $status, string $message, string $errorCode, ?int $matchId = null, array $context = []): void
+{
+          log_match_wizard_event($matchId, 'veo_start_error', $message, array_merge(['error_code' => $errorCode], $context));
+          http_response_code($status);
+          echo json_encode(array_merge([
+                    'ok' => false,
+                    'error' => $message,
+                    'error_code' => $errorCode,
+                    'match_id' => $matchId,
+          ], $context), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+          exit;
+}
+
+if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+          respond_error(405, 'Method not allowed', 'method_not_allowed');
 }
 
 $input = $_POST;
@@ -25,45 +166,34 @@ if (empty($input) && $rawInput) {
 }
 
 $matchId = isset($matchId) ? (int)$matchId : (int)($input['match_id'] ?? 0);
-
-$projectRoot = realpath(__DIR__ . '/../../..');
-if ($projectRoot === false) {
-          http_response_code(500);
-          echo json_encode(['ok' => false, 'error' => 'Unable to resolve project root']);
-          exit;
-}
-
-$logFile = $projectRoot . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'logs' . DIRECTORY_SEPARATOR . 'veo_download.log';
-@mkdir(dirname($logFile), 0777, true);
-
-function log_veo(int $matchId, string $message, string $logFile): void
-{
-          $prefix = '[VEO][match:' . $matchId . '] ';
-          $line = date('Y-m-d H:i:s') . ' ' . $prefix . $message;
-          error_log($prefix . $message);
-          file_put_contents($logFile, $line . PHP_EOL, FILE_APPEND);
-}
-
-log_veo($matchId, 'API start payload=' . json_encode($input), $logFile);
+$veoUrl = trim($input['veo_url'] ?? $input['url'] ?? '');
 
 if ($matchId <= 0) {
-          http_response_code(400);
-          echo json_encode(['ok' => false, 'error' => 'Match id required']);
-          exit;
+          respond_error(400, 'Match id required', 'match_id_required');
 }
 
-$veoUrl = trim($input['veo_url'] ?? $input['url'] ?? '');
 if ($veoUrl === '' || !preg_match('#^https?://.+#i', $veoUrl)) {
-          http_response_code(422);
-          echo json_encode(['ok' => false, 'error' => 'Invalid VEO URL']);
-          exit;
+          respond_error(422, 'Invalid VEO URL', 'invalid_veo_url', $matchId, ['payload' => $input]);
 }
+
+log_veo_activity($matchId, 'API start payload=' . json_encode($input, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+log_match_wizard_event($matchId, 'veo_start_payload', 'Start payload received', ['veo_url' => $veoUrl]);
 
 $filename = 'match_' . $matchId . '_raw.mp4';
 $publicPath = '/videos/raw/' . $filename;
 $absolutePath = $projectRoot . DIRECTORY_SEPARATOR . 'videos' . DIRECTORY_SEPARATOR . 'raw' . DIRECTORY_SEPARATOR . $filename;
 @mkdir(dirname($absolutePath), 0777, true);
-log_veo($matchId, 'Output path (public)=' . $publicPath . ' absolute=' . $absolutePath, $logFile);
+log_match_wizard_event($matchId, 'veo_public_path', 'Configured video path', ['public' => $publicPath, 'absolute' => $absolutePath]);
+
+$progressDir = $projectRoot . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'video_progress';
+@mkdir($progressDir, 0777, true);
+$progressFile = $progressDir . DIRECTORY_SEPARATOR . $matchId . '.json';
+
+$pyDir = $projectRoot . DIRECTORY_SEPARATOR . 'py';
+$script = $pyDir . DIRECTORY_SEPARATOR . 'veo_downloader.py';
+if (!file_exists($script)) {
+          respond_error(500, 'Downloader script missing', 'python_not_started', $matchId, ['script' => $script]);
+}
 
 $pdo = db();
 $matchStmt = $pdo->prepare('SELECT club_id FROM matches WHERE id = :id LIMIT 1');
@@ -71,80 +201,190 @@ $matchStmt->execute(['id' => $matchId]);
 $match = $matchStmt->fetch();
 
 if (!$match) {
-          http_response_code(404);
-          echo json_encode(['ok' => false, 'error' => 'Match not found']);
-          exit;
+          respond_error(404, 'Match not found', 'match_not_found', $matchId);
 }
 
 $user = current_user();
 $roles = $_SESSION['roles'] ?? [];
 if (!can_manage_match_for_club($user, $roles, (int)$match['club_id'])) {
-          http_response_code(403);
-          echo json_encode(['ok' => false, 'error' => 'Forbidden']);
-          exit;
+          respond_error(403, 'Forbidden', 'match_forbidden', $matchId);
 }
+
 $insertData = [
           'match_id' => $matchId,
           'source_type' => 'veo',
           'source_url' => $veoUrl,
-          'source_path' => $publicPath, // must never be null
+          'source_path' => $publicPath,
           'download_status' => 'starting',
           'download_progress' => 0,
           'error_message' => null,
 ];
-log_veo($matchId, 'DB params=' . json_encode($insertData), $logFile);
+log_match_wizard_event($matchId, 'match_video_db', 'Preparing match video record', $insertData);
 
 try {
           $pdo->prepare('DELETE FROM match_videos WHERE match_id = :match_id')->execute(['match_id' => $matchId]);
           $sql = 'INSERT INTO match_videos (match_id, source_type, source_url, source_path, download_status, download_progress, error_message, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())';
           $stmt = $pdo->prepare($sql);
           $stmt->execute(array_values($insertData));
-          $videoId = (int)$pdo->lastInsertId();
 } catch (PDOException $e) {
-          log_veo($matchId, 'Database error: ' . $e->getMessage(), $logFile);
-          http_response_code(500);
-          echo json_encode(['ok' => false, 'error' => 'Database error']);
-          exit;
+          respond_error(500, 'Database error', 'match_video_db_error', $matchId, ['db_error' => $e->getMessage()]);
 }
-
-$pyDir = $projectRoot . DIRECTORY_SEPARATOR . 'py';
-$script = $pyDir . DIRECTORY_SEPARATOR . 'veo_downloader.py';
-if (!file_exists($script)) {
-          log_veo($matchId, 'Script missing: ' . $script, $logFile);
-          http_response_code(500);
-          echo json_encode(['ok' => false, 'error' => 'Downloader script missing']);
-          exit;
-}
-
-$python = $pyDir . DIRECTORY_SEPARATOR . '.venv' . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'python';
-
-$progressDir = $projectRoot . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'video_progress';
-@mkdir($progressDir, 0777, true);
-$progressFile = $progressDir . DIRECTORY_SEPARATOR . $matchId . '.json';
 
 $initialProgress = [
           'status' => 'starting',
+          'stage' => 'metadata',
           'percent' => 0,
           'downloaded_bytes' => 0,
           'total_bytes' => 0,
-          'message' => 'Starting download',
-          'updated_at' => date('Y-m-d H:i:s'),
+          'message' => 'Preparing download',
+          'path' => $publicPath,
+          'pid' => null,
+          'error_code' => null,
+          'last_seen_at' => date('c'),
+          'updated_at' => date('c'),
 ];
-file_put_contents($progressFile, json_encode($initialProgress));
+
+if (file_put_contents($progressFile, json_encode($initialProgress, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) === false) {
+          respond_error(500, 'Progress file not writable', 'progress_file_not_writable', $matchId, ['progress_file' => $progressFile]);
+}
+log_match_wizard_event($matchId, 'progress_init', 'Initialized progress file', ['path' => $progressFile]);
+log_veo_activity($matchId, 'Initialized progress file at ' . $progressFile);
+
+$pythonCandidates = [
+          $pyDir . DIRECTORY_SEPARATOR . '.venv' . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'python',
+          '/usr/bin/python3',
+          'python3',
+];
+$pythonPath = null;
+$usingVirtualEnv = false;
+$permissionIssue = false;
+foreach ($pythonCandidates as $candidate) {
+          if (!file_exists($candidate)) {
+                    continue;
+          }
+          if (!is_executable($candidate)) {
+                    $permissionIssue = true;
+                    continue;
+          }
+          $pythonPath = $candidate;
+          if (strpos($candidate, DIRECTORY_SEPARATOR . '.venv' . DIRECTORY_SEPARATOR) !== false) {
+                    $usingVirtualEnv = true;
+          }
+          break;
+}
+
+if ($pythonPath === null) {
+          $errorCode = $permissionIssue ? 'permission_denied' : 'python_not_started';
+          $errorMessage = $permissionIssue ? 'Python interpreter not executable' : 'Python interpreter not available';
+          respond_error(500, $errorMessage, $errorCode, $matchId, ['candidates' => $pythonCandidates]);
+}
+
+log_match_wizard_event($matchId, 'python_resolved', 'Python interpreter resolved', ['python_path' => $pythonPath, 'virtualenv' => $usingVirtualEnv ? 'active' : 'missing']);
+if (!$usingVirtualEnv) {
+          log_match_wizard_event($matchId, 'veo_warning', 'Virtualenv not loaded; falling back to system Python', ['python_path' => $pythonPath]);
+}
+
+$runtimeLog = $projectRoot . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'logs' . DIRECTORY_SEPARATOR . 'veo_downloader_runtime.log';
+@mkdir(dirname($runtimeLog), 0777, true);
 
 $cmd = sprintf(
-          '%s %s %d %s > /dev/null 2>&1 &',
-          escapeshellcmd($python),
+          'cd %s && %s %s %d %s >> %s 2>&1 & echo $!',
+          escapeshellarg($projectRoot),
+          escapeshellcmd($pythonPath),
           escapeshellarg($script),
           $matchId,
-          escapeshellarg($veoUrl)
+          escapeshellarg($veoUrl),
+          escapeshellarg($runtimeLog)
 );
 
-log_veo($matchId, 'Spawning downloader (detached) cmd=' . $cmd, $logFile);
-exec($cmd);
+$sanitizedEnv = sanitize_environment_array($_ENV);
+$sanitizedServer = sanitize_environment_array($_SERVER);
+$spawnContext = [
+          'cmd' => $cmd,
+          'python_path' => $pythonPath,
+          'virtualenv' => $usingVirtualEnv ? 'active' : 'missing',
+          'project_root' => $projectRoot,
+          'script' => $script,
+          'runtime_log' => $runtimeLog,
+          'progress_file' => $progressFile,
+          'video_path' => $publicPath,
+          'cwd' => getcwd(),
+          'user' => get_current_user(),
+          'uid' => function_exists('posix_getuid') ? posix_getuid() : null,
+          'euid' => function_exists('posix_geteuid') ? posix_geteuid() : null,
+          'env.PATH' => getenv('PATH') ?: '',
+          'env.VIRTUAL_ENV' => getenv('VIRTUAL_ENV') ?: 'none',
+          'env' => $sanitizedEnv,
+          'server' => $sanitizedServer,
+];
 
-echo json_encode([
+$descriptorSpec = [
+          1 => ['pipe', 'w'],
+          2 => ['pipe', 'w'],
+];
+$process = proc_open($cmd, $descriptorSpec, $pipes);
+if (!is_resource($process)) {
+          respond_error(500, 'Unable to spawn downloader process', 'python_not_started', $matchId, ['cmd' => $cmd]);
+}
+
+$stdout = stream_get_contents($pipes[1]);
+$stderr = stream_get_contents($pipes[2]);
+foreach ($pipes as $pipe) {
+          fclose($pipe);
+}
+$status = proc_get_status($process);
+$pid = $status['pid'] ?? null;
+$exitCode = proc_close($process);
+if (!$pid) {
+          if (preg_match('/\d+/', trim($stdout), $matches)) {
+                    $pid = (int)$matches[0];
+          }
+}
+
+$spawnContext['stdout'] = $stdout;
+$spawnContext['stderr'] = $stderr;
+$spawnContext['pid'] = $pid;
+$spawnContext['exit_code'] = $exitCode;
+record_veo_spawn_entry($spawnContext);
+
+if ($exitCode !== 0) {
+          respond_error(500, 'Downloader spawn failed', 'python_not_started', $matchId, ['stderr' => trim($stderr)]);
+}
+
+log_match_wizard_event($matchId, 'veo_spawned', 'Downloader process started', ['pid' => $pid, 'cmd' => $cmd]);
+log_veo_activity($matchId, 'Spawning downloader command');
+
+$finalProgress = $initialProgress;
+$finalProgress['pid'] = $pid;
+$finalProgress['message'] = 'Downloader launched';
+$finalProgress['last_seen_at'] = date('c');
+$finalProgress['updated_at'] = date('c');
+
+if (file_put_contents($progressFile, json_encode($finalProgress, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) === false) {
+          respond_error(500, 'Unable to update progress status', 'progress_file_not_writable', $matchId, ['progress_file' => $progressFile]);
+}
+
+$response = [
           'ok' => true,
           'status' => 'starting',
+          'match_id' => $matchId,
           'video_path' => $publicPath,
-]);
+          'spawn' => [
+                    'pid' => $pid,
+                    'cmd' => $cmd,
+                    'exit_code' => $exitCode,
+                    'stdout' => trim($stdout),
+                    'stderr' => trim($stderr),
+                    'runtime_log' => '/storage/logs/veo_downloader_runtime.log',
+          ],
+          'diagnostics' => [
+                    'progress_file' => '/storage/video_progress/' . $matchId . '.json',
+                    'log_path' => '/storage/logs/match_wizard_debug.log',
+                    'spawn_log' => '/storage/logs/veo_spawn_debug.log',
+          ],
+];
+if (!$usingVirtualEnv) {
+          $response['warning_code'] = 'venv_not_loaded';
+}
+
+echo json_encode($response, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);

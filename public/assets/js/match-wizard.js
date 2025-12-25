@@ -3,6 +3,11 @@
           const form = document.getElementById('matchWizardForm');
           if (!form) return;
 
+          const debugMode = Boolean(cfg.debugConsole);
+          const debugMessages = document.getElementById('matchDebugMessages');
+          const debugJson = document.getElementById('matchDebugJson');
+          const debugClearBtn = document.getElementById('matchDebugClearBtn');
+
           const stateKey = 'matchWizardState';
           const navSteps = Array.from(document.querySelectorAll('[data-step-nav]'));
           const stepPanels = Array.from(document.querySelectorAll('.wizard-step-panel'));
@@ -206,6 +211,36 @@
                     }
           }
 
+          function logDebug(label, details) {
+                    const timestamp = new Date().toLocaleTimeString([], { hour12: false });
+                    const prefix = `[${timestamp}] ${label}`;
+                    if (debugMessages) {
+                              const row = document.createElement('div');
+                              row.className = 'text-xs';
+                              row.textContent = prefix + (details ? ` ${typeof details === 'string' ? details : JSON.stringify(details)}` : '');
+                              debugMessages.appendChild(row);
+                              debugMessages.scrollTop = debugMessages.scrollHeight;
+                    }
+                    if (debugJson && label.toLowerCase().includes('progress json')) {
+                              debugJson.textContent = typeof details === 'string' ? details : JSON.stringify(details, null, 2);
+                    }
+                    console.debug('[MatchWizard]', label, details);
+          }
+
+          function updateDebugJson(data) {
+                    if (!debugJson || !data) return;
+                    debugJson.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+          }
+
+          function clearDebugOutput() {
+                    if (debugMessages) {
+                              debugMessages.innerHTML = '';
+                    }
+                    if (debugJson) {
+                              debugJson.textContent = '';
+                    }
+          }
+
           function setProgress(status, progress, error, customSummary, statusMessage, downloadedBytes, totalBytes) {
                     const safeProgress = Math.max(0, Math.min(100, Number(progress) || 0));
                     const indeterminate = !totalBytes && status !== 'completed';
@@ -293,9 +328,12 @@
                               veoInlineRetryBtn.classList.toggle('d-none', status !== 'failed');
                     }
 
-                    if (cancelBtn) {
-                              cancelBtn.classList.toggle('d-none', !(status === 'downloading' || status === 'pending'));
-                              cancelBtn.disabled = status === 'completed' || status === 'failed';
+                   if (cancelBtn) {
+                             cancelBtn.classList.toggle('d-none', !(status === 'downloading' || status === 'pending'));
+                             cancelBtn.disabled = status === 'completed' || status === 'failed';
+                   }
+                    if (debugMode) {
+                              logDebug('Status update', { status, progress: safeProgress, error, summary: summaryLabel, stage: statusMessage });
                     }
           }
 
@@ -366,12 +404,13 @@
                               step1Next.textContent = 'Saving...';
                     }
 
-                    try {
-                              const data = await saveMatch('upload');
-                              const newId = updateMatchId(data.match_id || matchId);
-                              if (!newId) {
-                                        throw new Error('Match id missing from response');
-                              }
+                              try {
+                                        const data = await saveMatch('upload');
+                                        logDebug('Match created', { matchId: data.match_id, data });
+                                        const newId = updateMatchId(data.match_id || matchId);
+                                        if (!newId) {
+                                                  throw new Error('Match id missing from response');
+                                        }
                               setFlash('success', 'Match saved. Continue to video.');
                               showStep(2);
                               return newId;
@@ -389,6 +428,9 @@
           }
 
           async function callJson(url, payload) {
+                    if (debugMode) {
+                              logDebug('API request', { url, payload });
+                    }
                     const res = await fetch(url, {
                               method: 'POST',
                               headers: {
@@ -399,8 +441,14 @@
                     });
 
                     const data = await res.json().catch(() => ({}));
+                    if (debugMode) {
+                              logDebug('API response', { url, status: res.status, data });
+                    }
                     if (!res.ok || !data.ok) {
                               const message = data.error || 'Request failed';
+                              if (debugMode) {
+                                        logDebug('API error', { url, status: res.status, message });
+                              }
                               throw new Error(message);
                     }
                     return data;
@@ -436,8 +484,17 @@
 
                     const startUrl = `${cfg.basePath}/api/match-video/start`;
                     console.info('Starting VEO download', { matchId, startUrl, veoUrl });
-                    await callJson(startUrl, { match_id: matchId, veo_url: veoUrl });
+                    if (debugMode) {
+                              logDebug('Spawn request sent', { matchId, startUrl, veoUrl });
+                    }
+                    const spawnData = await callJson(startUrl, { match_id: matchId, veo_url: veoUrl });
                     console.info('VEO download spawned, starting polling', { matchId });
+                    if (debugMode) {
+                              logDebug('Spawn response', spawnData);
+                              if (spawnData.spawn && spawnData.spawn.pid) {
+                                        logDebug('Python PID', spawnData.spawn.pid);
+                              }
+                    }
                     saveState({ matchId, videoType: 'veo', veoUrl });
                     setProgress('downloading', 0, null, 'Starting download...', 'Starting download...', 0, 0);
                     showStep(3);
@@ -474,12 +531,18 @@
                                         throw new Error('Unable to read download progress');
                               }
                               const data = await res.json().catch(() => ({}));
+                              if (debugMode) {
+                                        logDebug('Progress JSON', data);
+                                        updateDebugJson(data);
+                              }
 
                               const status = (data.status || 'pending').toLowerCase();
                               const downloadedBytes = Number(data.downloaded ?? data.downloaded_bytes) || 0;
                               const totalBytes = Number(data.total ?? data.total_bytes) || 0;
                               const message = data.message || data.error || data.status || '';
-                              const error = data.error || (status === 'failed' ? message : null);
+                              const errorCode = data.error_code || null;
+                              const rawError = data.error || (status === 'failed' ? message : null);
+                              const error = errorCode ? `${errorCode}: ${rawError || 'Download failed'}` : rawError;
                               let percent = Number(data.percent);
                               if (!Number.isFinite(percent)) {
                                         percent = 0;
@@ -491,12 +554,12 @@
                               const isCompleted = ['complete', 'completed', 'ready'].includes(status);
                               const finalPath = data.path || null;
 
-                              if (isCompleted) {
-                                        setProgress(
-                                                  'completed',
-                                                  100,
-                                                  null,
-                                                  finalPath ? `Saved to ${finalPath}` : message || null,
+                             if (isCompleted) {
+                                       setProgress(
+                                                 'completed',
+                                                 100,
+                                                 null,
+                                                 finalPath ? `Saved to ${finalPath}` : message || null,
                                                   message || 'Download complete',
                                                   downloadedBytes,
                                                   totalBytes
@@ -506,7 +569,7 @@
                                         stopPolling();
                                         goToLineupStep(matchId);
                               } else if (status === 'failed' || status === 'error') {
-                                        setProgress('failed', percent, error || 'Download failed', null, message || 'Download failed', downloadedBytes, totalBytes);
+                                       setProgress('failed', percent, error || 'Download failed', null, message || 'Download failed', downloadedBytes, totalBytes);
                                         console.warn('VEO download failed', { matchId, error: error || message, percent });
                                         disableContinue();
                                         stopPolling();
@@ -524,11 +587,14 @@
                                         const normalizedStatus = status === 'pending' ? 'starting' : 'downloading';
                                         setProgress(normalizedStatus, percent, null, null, label, downloadedBytes, totalBytes);
                               }
-                    } catch (e) {
-                              console.error('VEO status poll failed', e);
-                              setProgress('failed', 0, e.message || 'Progress check failed', null, null, 0, 0);
-                              stopPolling();
-                    }
+                   } catch (e) {
+                             console.error('VEO status poll failed', e);
+                              if (debugMode) {
+                                        logDebug('Progress poll failed', { error: e.message });
+                              }
+                             setProgress('failed', 0, e.message || 'Progress check failed', null, null, 0, 0);
+                             stopPolling();
+                   }
           }
 
           function startPolling() {
@@ -650,6 +716,10 @@
           }
 
           function init() {
+                    if (debugMode) {
+                              clearDebugOutput();
+                              logDebug('Debug console ready');
+                    }
                     toggleVideoInputs();
                     showStep(1);
                     resumeIfNeeded();
@@ -686,13 +756,19 @@
                     if (cancelBtn) {
                               cancelBtn.addEventListener('click', () => cancelDownload().catch((e) => setFlash('danger', e.message || 'Cancel failed')));
                     }
-                    if (lineupBackBtn) {
-                              lineupBackBtn.addEventListener('click', () => showStep(3));
+                   if (lineupBackBtn) {
+                             lineupBackBtn.addEventListener('click', () => showStep(3));
+                   }
+                    if (debugClearBtn) {
+                              debugClearBtn.addEventListener('click', () => {
+                                        clearDebugOutput();
+                                        logDebug('Debug console cleared');
+                              });
                     }
-                    form.addEventListener('submit', (e) => {
-                              e.preventDefault();
-                              handleSubmit();
-                    });
+                   form.addEventListener('submit', (e) => {
+                             e.preventDefault();
+                             handleSubmit();
+                   });
           }
 
           init();

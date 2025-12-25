@@ -85,6 +85,7 @@ if ($videoDir && is_dir($videoDir)) {
 }
 $hasCurrentVideo = $videoPath && !empty(array_filter($videoFiles, fn($f) => $f['web_path'] === $videoPath));
 
+$debugMode = isset($_GET['debug']) && $_GET['debug'] === '1';
 $wizardConfig = [
           'basePath' => $base,
           'isEdit' => $isEdit,
@@ -97,6 +98,7 @@ $wizardConfig = [
           'initialDownloadProgress' => $initialDownloadProgress,
           'initialVeoUrl' => $initialVeoUrl,
           'pollInterval' => 2000,
+          'debugConsole' => $debugMode,
 ];
 
 $lineupConfig = [
@@ -458,10 +460,24 @@ ob_start();
                                                   <button type="button" class="btn btn-outline-danger d-none" id="wizardCancelBtn">Cancel download</button>
                                                   <a id="wizardContinueBtn" class="btn btn-primary-soft disabled" href="#" aria-disabled="true">Back to matches</a>
                                         </div>
-                                        <p class="text-muted-alt text-sm mt-2 mb-0">We poll every 2 seconds. Leaving the page will not stop the download.</p>
+                                       <p class="text-muted-alt text-sm mt-2 mb-0">We poll every 2 seconds. Leaving the page will not stop the download.</p>
                               </div>
                     </div>
           </div>
+          <?php if ($debugMode): ?>
+                    <div id="matchDebugConsole" class="panel p-3 rounded-md panel-dark mb-3">
+                              <div class="d-flex align-items-center justify-content-between mb-2">
+                                        <div>
+                                                  <div class="text-xs text-muted-alt">Console mode</div>
+                                                  <div class="fw-semibold text-light">Download diagnostics</div>
+                                        </div>
+                                        <button type="button" class="btn btn-sm btn-secondary-soft" id="matchDebugClearBtn">Clear</button>
+                              </div>
+                              <div id="matchDebugMessages" class="debug-console-entries text-xs text-light" style="min-height:120px; max-height:200px; overflow:auto; font-family:monospace; white-space:pre-wrap;"></div>
+                              <div class="text-muted-alt text-xs mt-2 mb-1">Latest progress JSON</div>
+                              <pre id="matchDebugJson" class="bg-surface border border-soft rounded-md p-2" style="max-height:180px; overflow:auto; font-size:0.75rem;"></pre>
+                    </div>
+          <?php endif; ?>
           <div class="wizard-step-panel" data-step="4">
                     <?php require __DIR__ . '/wizard-step-lineup.php'; ?>
           </div>
