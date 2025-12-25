@@ -1,5 +1,6 @@
 # Media
 videos/
+public/videos/
 *.mp4
 *.mov
 *.avi
