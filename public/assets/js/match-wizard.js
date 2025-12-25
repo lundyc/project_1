@@ -198,6 +198,20 @@
                     return `${downloadedLabel} / ${totalLabel}`;
           }
 
+          function resolveLogLink(value) {
+                    if (!value) return null;
+                    if (/^https?:\/\//i.test(value)) {
+                              return value;
+                    }
+                    const baseValue = cfg.basePath || '';
+                    if (!baseValue) {
+                              return value;
+                    }
+                    const trimmedBase = baseValue.endsWith('/') ? baseValue.slice(0, -1) : baseValue;
+                    const normalizedPath = value.startsWith('/') ? value : `/${value}`;
+                    return `${trimmedBase}${normalizedPath}`;
+          }
+
           function applyProgressBar(barElement, progress, indeterminate) {
                     if (!barElement) return;
                     const width = indeterminate ? 100 : progress;
@@ -241,7 +255,7 @@
                     }
           }
 
-          function setProgress(status, progress, error, customSummary, statusMessage, downloadedBytes, totalBytes) {
+          function setProgress(status, progress, error, customSummary, statusMessage, downloadedBytes, totalBytes, issueMessage = null, issueLink = null) {
                     const safeProgress = Math.max(0, Math.min(100, Number(progress) || 0));
                     const indeterminate = !totalBytes && status !== 'completed';
 
@@ -311,15 +325,34 @@
 
                     setStatusBadge(status);
 
-                    const showError = Boolean(error);
-                    if (errorBox) {
-                              errorBox.classList.toggle('d-none', !showError);
-                              errorBox.textContent = error || '';
-                    }
-                    if (veoInlineError) {
-                              veoInlineError.classList.toggle('d-none', !showError);
-                              veoInlineError.textContent = error || '';
-                    }
+                    const issueText = error || issueMessage;
+                    const issueSeverity = error ? 'danger' : issueMessage ? 'warning' : null;
+                    const renderIssue = (element) => {
+                              if (!element) return;
+                              if (!issueText) {
+                                        element.classList.add('d-none');
+                                        element.textContent = '';
+                                        return;
+                              }
+                              element.classList.remove('d-none');
+                              element.textContent = issueText;
+                              if (issueLink) {
+                                        element.appendChild(document.createTextNode(' '));
+                                        const link = document.createElement('a');
+                                        link.href = issueLink;
+                                        link.target = '_blank';
+                                        link.rel = 'noreferrer';
+                                        link.textContent = 'View debug log';
+                                        link.className = 'text-decoration-underline';
+                                        element.appendChild(link);
+                              }
+                              element.classList.remove('alert-danger', 'alert-warning');
+                              if (issueSeverity) {
+                                        element.classList.add(`alert-${issueSeverity}`);
+                              }
+                    };
+                    renderIssue(errorBox);
+                    renderIssue(veoInlineError);
 
                     if (retryBtn) {
                               retryBtn.classList.toggle('d-none', status !== 'failed');
@@ -483,9 +516,11 @@
                     }
 
                     const startUrl = `${cfg.basePath}/api/match-video/start`;
+                    const progressUrl = `${cfg.basePath}/api/match-video/progress?match_id=${matchId}`;
                     console.info('Starting VEO download', { matchId, startUrl, veoUrl });
                     if (debugMode) {
                               logDebug('Spawn request sent', { matchId, startUrl, veoUrl });
+                              logDebug('Progress poll URL', progressUrl);
                     }
                     const spawnData = await callJson(startUrl, { match_id: matchId, veo_url: veoUrl });
                     console.info('VEO download spawned, starting polling', { matchId });
@@ -494,6 +529,13 @@
                               if (spawnData.spawn && spawnData.spawn.pid) {
                                         logDebug('Python PID', spawnData.spawn.pid);
                               }
+                              if (spawnData.spawn && spawnData.spawn.cmd) {
+                                        logDebug('Spawn command', spawnData.spawn.cmd);
+                              }
+                              if (spawnData.diagnostics) {
+                                        logDebug('Diagnostics info', spawnData.diagnostics);
+                              }
+                              logDebug('Progress JSON URL', progressUrl);
                     }
                     saveState({ matchId, videoType: 'veo', veoUrl });
                     setProgress('downloading', 0, null, 'Starting download...', 'Starting download...', 0, 0);
@@ -543,6 +585,7 @@
                               const errorCode = data.error_code || null;
                               const rawError = data.error || (status === 'failed' ? message : null);
                               const error = errorCode ? `${errorCode}: ${rawError || 'Download failed'}` : rawError;
+                              const progressIssue = data.progress_issue || null;
                               let percent = Number(data.percent);
                               if (!Number.isFinite(percent)) {
                                         percent = 0;
@@ -553,6 +596,28 @@
 
                               const isCompleted = ['complete', 'completed', 'ready'].includes(status);
                               const finalPath = data.path || null;
+                              const diagnostics = data.diagnostics || {};
+                              let issueMessage = null;
+                              let issueLink = null;
+                              if (progressIssue === 'stale_progress') {
+                                        const parts = [];
+                                        if (diagnostics.pid) {
+                                                  parts.push(`PID ${diagnostics.pid}`);
+                                        }
+                                        if (diagnostics.stage) {
+                                                  parts.push(`stage ${diagnostics.stage}`);
+                                        }
+                                        if (diagnostics.heartbeat) {
+                                                  parts.push(`heartbeat ${diagnostics.heartbeat}`);
+                                        }
+                                        const logSegment = diagnostics.issue_link || diagnostics.log_path;
+                                        issueLink = resolveLogLink(logSegment);
+                                        const detailText = parts.length ? parts.join(' · ') : 'no recent updates';
+                                        issueMessage = `Stale progress detected (${detailText})`;
+                              }
+                              if (progressIssue && debugMode) {
+                                        logDebug('Progress issue', { progressIssue, diagnostics, log: issueLink });
+                              }
 
                              if (isCompleted) {
                                        setProgress(
@@ -585,7 +650,17 @@
                                                   }
                                         }
                                         const normalizedStatus = status === 'pending' ? 'starting' : 'downloading';
-                                        setProgress(normalizedStatus, percent, null, null, label, downloadedBytes, totalBytes);
+                                        setProgress(
+                                                  normalizedStatus,
+                                                  percent,
+                                                  null,
+                                                  null,
+                                                  label,
+                                                  downloadedBytes,
+                                                  totalBytes,
+                                                  issueMessage,
+                                                  issueLink
+                                        );
                               }
                    } catch (e) {
                              console.error('VEO status poll failed', e);

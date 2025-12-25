@@ -45,6 +45,15 @@ if (!function_exists('log_match_wizard_event')) {
           }
 }
 
+if (!function_exists('log_stage_entry')) {
+          function log_stage_entry(?int $matchId, string $stage, string $message, array $context = []): void
+          {
+                    $allowed = ['php', 'spawn', 'poll'];
+                    $stageLabel = in_array($stage, $allowed, true) ? $stage : 'php';
+                    log_match_wizard_event($matchId, $stageLabel, $message, $context);
+          }
+}
+
 if (!function_exists('sanitize_environment_array')) {
           function sanitize_environment_array(array $values): array
           {
@@ -129,11 +138,17 @@ if ($projectRoot === false) {
 $veoLog = $projectRoot . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'logs' . DIRECTORY_SEPARATOR . 'veo_download.log';
 @mkdir(dirname($veoLog), 0777, true);
 
-function log_veo_activity(int $matchId, string $message): void
+function log_veo_activity(int $matchId, string $message, array $context = []): void
 {
           global $veoLog;
-          log_match_wizard_event($matchId, 'veo_download', $message);
+          log_stage_entry($matchId, 'php', $message, $context);
           $line = date('Y-m-d H:i:s') . ' [VEO][match:' . $matchId . '] ' . $message;
+          if (!empty($context)) {
+                    $encoded = json_encode($context, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                    if ($encoded !== false) {
+                              $line .= ' ' . $encoded;
+                    }
+          }
           if (isset($veoLog)) {
                     file_put_contents($veoLog, $line . PHP_EOL, FILE_APPEND);
           }
@@ -141,7 +156,7 @@ function log_veo_activity(int $matchId, string $message): void
 
 function respond_error(int $status, string $message, string $errorCode, ?int $matchId = null, array $context = []): void
 {
-          log_match_wizard_event($matchId, 'veo_start_error', $message, array_merge(['error_code' => $errorCode], $context));
+          log_stage_entry($matchId, 'php', $message, array_merge(['error_code' => $errorCode], $context));
           http_response_code($status);
           echo json_encode(array_merge([
                     'ok' => false,
@@ -176,14 +191,16 @@ if ($veoUrl === '' || !preg_match('#^https?://.+#i', $veoUrl)) {
           respond_error(422, 'Invalid VEO URL', 'invalid_veo_url', $matchId, ['payload' => $input]);
 }
 
-log_veo_activity($matchId, 'API start payload=' . json_encode($input, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
-log_match_wizard_event($matchId, 'veo_start_payload', 'Start payload received', ['veo_url' => $veoUrl]);
+log_veo_activity($matchId, 'Start payload recorded', [
+          'veo_url' => $veoUrl,
+          'payload' => $input,
+]);
 
 $filename = 'match_' . $matchId . '_raw.mp4';
 $publicPath = '/videos/raw/' . $filename;
 $absolutePath = $projectRoot . DIRECTORY_SEPARATOR . 'videos' . DIRECTORY_SEPARATOR . 'raw' . DIRECTORY_SEPARATOR . $filename;
 @mkdir(dirname($absolutePath), 0777, true);
-log_match_wizard_event($matchId, 'veo_public_path', 'Configured video path', ['public' => $publicPath, 'absolute' => $absolutePath]);
+log_stage_entry($matchId, 'php', 'Configured video path', ['public' => $publicPath, 'absolute' => $absolutePath]);
 
 $progressDir = $projectRoot . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'video_progress';
 @mkdir($progressDir, 0777, true);
@@ -219,7 +236,7 @@ $insertData = [
           'download_progress' => 0,
           'error_message' => null,
 ];
-log_match_wizard_event($matchId, 'match_video_db', 'Preparing match video record', $insertData);
+          log_stage_entry($matchId, 'php', 'Preparing match video record', $insertData);
 
 try {
           $pdo->prepare('DELETE FROM match_videos WHERE match_id = :match_id')->execute(['match_id' => $matchId]);
@@ -232,7 +249,8 @@ try {
 
 $initialProgress = [
           'status' => 'starting',
-          'stage' => 'metadata',
+          'stage' => 'boot',
+          'heartbeat' => date('c'),
           'percent' => 0,
           'downloaded_bytes' => 0,
           'total_bytes' => 0,
@@ -247,8 +265,8 @@ $initialProgress = [
 if (file_put_contents($progressFile, json_encode($initialProgress, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) === false) {
           respond_error(500, 'Progress file not writable', 'progress_file_not_writable', $matchId, ['progress_file' => $progressFile]);
 }
-log_match_wizard_event($matchId, 'progress_init', 'Initialized progress file', ['path' => $progressFile]);
-log_veo_activity($matchId, 'Initialized progress file at ' . $progressFile);
+log_stage_entry($matchId, 'php', 'Initialized progress file', ['path' => $progressFile]);
+log_veo_activity($matchId, 'Progress file created', ['progress_file' => $progressFile]);
 
 $pythonCandidates = [
           $pyDir . DIRECTORY_SEPARATOR . '.venv' . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'python',
@@ -279,22 +297,24 @@ if ($pythonPath === null) {
           respond_error(500, $errorMessage, $errorCode, $matchId, ['candidates' => $pythonCandidates]);
 }
 
-log_match_wizard_event($matchId, 'python_resolved', 'Python interpreter resolved', ['python_path' => $pythonPath, 'virtualenv' => $usingVirtualEnv ? 'active' : 'missing']);
+log_stage_entry($matchId, 'php', 'Python interpreter resolved', ['python_path' => $pythonPath, 'virtualenv' => $usingVirtualEnv ? 'active' : 'missing']);
 if (!$usingVirtualEnv) {
-          log_match_wizard_event($matchId, 'veo_warning', 'Virtualenv not loaded; falling back to system Python', ['python_path' => $pythonPath]);
+          log_stage_entry($matchId, 'php', 'Virtualenv not loaded; falling back to system Python', ['python_path' => $pythonPath]);
 }
 
-$runtimeLog = $projectRoot . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'logs' . DIRECTORY_SEPARATOR . 'veo_downloader_runtime.log';
-@mkdir(dirname($runtimeLog), 0777, true);
+$stdoutLog = $projectRoot . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'logs' . DIRECTORY_SEPARATOR . 'veo_downloader_stdout_' . $matchId . '.log';
+$stderrLog = $projectRoot . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'logs' . DIRECTORY_SEPARATOR . 'veo_downloader_stderr_' . $matchId . '.log';
+@mkdir(dirname($stdoutLog), 0777, true);
+$runtimeLog = $stdoutLog;
 
 $cmd = sprintf(
-          'cd %s && %s %s %d %s >> %s 2>&1 & echo $!',
-          escapeshellarg($projectRoot),
+          'nohup %s %s %d %s >> %s 2>> %s & echo $!',
           escapeshellcmd($pythonPath),
           escapeshellarg($script),
           $matchId,
           escapeshellarg($veoUrl),
-          escapeshellarg($runtimeLog)
+          escapeshellarg($stdoutLog),
+          escapeshellarg($stderrLog)
 );
 
 $sanitizedEnv = sanitize_environment_array($_ENV);
@@ -305,7 +325,8 @@ $spawnContext = [
           'virtualenv' => $usingVirtualEnv ? 'active' : 'missing',
           'project_root' => $projectRoot,
           'script' => $script,
-          'runtime_log' => $runtimeLog,
+          'stdout_log' => $stdoutLog,
+          'stderr_log' => $stderrLog,
           'progress_file' => $progressFile,
           'video_path' => $publicPath,
           'cwd' => getcwd(),
@@ -322,8 +343,14 @@ $descriptorSpec = [
           1 => ['pipe', 'w'],
           2 => ['pipe', 'w'],
 ];
-$process = proc_open($cmd, $descriptorSpec, $pipes);
+log_stage_entry($matchId, 'spawn', 'Downloader spawn command prepared', [
+          'cmd' => $cmd,
+          'stdout_path' => $stdoutLog,
+          'stderr_path' => $stderrLog,
+]);
+$process = proc_open($cmd, $descriptorSpec, $pipes, $projectRoot);
 if (!is_resource($process)) {
+          log_stage_entry($matchId, 'spawn', 'Downloader spawn command failed', ['cmd' => $cmd]);
           respond_error(500, 'Unable to spawn downloader process', 'python_not_started', $matchId, ['cmd' => $cmd]);
 }
 
@@ -347,11 +374,40 @@ $spawnContext['pid'] = $pid;
 $spawnContext['exit_code'] = $exitCode;
 record_veo_spawn_entry($spawnContext);
 
+log_stage_entry($matchId, 'spawn', 'Downloader spawn summary', [
+          'pid' => $pid,
+          'exit_code' => $exitCode,
+          'cwd' => $spawnContext['cwd'] ?? null,
+          'user' => $spawnContext['user'] ?? null,
+          'uid' => $spawnContext['uid'] ?? null,
+          'euid' => $spawnContext['euid'] ?? null,
+          'env.PATH' => $spawnContext['env.PATH'] ?? null,
+          'env.VIRTUAL_ENV' => $spawnContext['env.VIRTUAL_ENV'] ?? null,
+          'stdout_path' => $stdoutLog,
+          'stderr_path' => $stderrLog,
+          'cmd' => $cmd,
+]);
+
+log_stage_entry($matchId, 'spawn', 'Downloader spawn result', [
+          'pid' => $pid,
+          'exit_code' => $exitCode,
+          'stdout_path' => $stdoutLog,
+          'stderr_path' => $stderrLog,
+          'stdout' => trim($stdout),
+          'stderr' => trim($stderr),
+]);
+
 if ($exitCode !== 0) {
+          log_stage_entry($matchId, 'spawn', 'Downloader spawn failed', ['exit_code' => $exitCode, 'stderr' => trim($stderr)]);
           respond_error(500, 'Downloader spawn failed', 'python_not_started', $matchId, ['stderr' => trim($stderr)]);
 }
 
-log_match_wizard_event($matchId, 'veo_spawned', 'Downloader process started', ['pid' => $pid, 'cmd' => $cmd]);
+log_stage_entry($matchId, 'php', 'Downloader process started', [
+          'pid' => $pid,
+          'cmd' => $cmd,
+          'stdout_log' => $stdoutLog,
+          'stderr_log' => $stderrLog,
+]);
 log_veo_activity($matchId, 'Spawning downloader command');
 
 $finalProgress = $initialProgress;
@@ -375,7 +431,8 @@ $response = [
                     'exit_code' => $exitCode,
                     'stdout' => trim($stdout),
                     'stderr' => trim($stderr),
-                    'runtime_log' => '/storage/logs/veo_downloader_runtime.log',
+                    'stdout_log' => '/storage/logs/veo_downloader_stdout_' . $matchId . '.log',
+                    'stderr_log' => '/storage/logs/veo_downloader_stderr_' . $matchId . '.log',
           ],
           'diagnostics' => [
                     'progress_file' => '/storage/video_progress/' . $matchId . '.json',

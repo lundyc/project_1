@@ -120,6 +120,7 @@ $total = isset($decoded['total_bytes']) ? (int)$decoded['total_bytes'] : 0;
 $message = trim((string)($decoded['message'] ?? $decoded['error'] ?? ''));
 $errorCode = $decoded['error_code'] ?? null;
 $pid = $decoded['pid'] ?? null;
+$heartbeat = $decoded['heartbeat'] ?? null;
 $updatedAt = $decoded['updated_at'] ?? $decoded['updatedAt'] ?? null;
 $lastSeenAt = $decoded['last_seen_at'] ?? $updatedAt;
 $path = $decoded['path'] ?? null;
@@ -132,12 +133,12 @@ if ($status === 'completed' && $path) {
 $progressIssue = null;
 if ($lastSeenAt) {
           $lastSeenTs = strtotime($lastSeenAt);
-          if ($lastSeenTs !== false && (time() - $lastSeenTs) > 10) {
+          if ($lastSeenTs !== false && (time() - $lastSeenTs) > 15) {
                     $progressIssue = 'stale_progress';
           }
 }
 
-log_match_wizard_event($matchId, 'progress_polled', 'Progress file polled', [
+log_match_wizard_event($matchId, 'poll', 'Progress file polled', [
           'status' => $status,
           'stage' => $stage,
           'percent' => $percent,
@@ -145,6 +146,18 @@ log_match_wizard_event($matchId, 'progress_polled', 'Progress file polled', [
           'progress_issue' => $progressIssue,
           'error_code' => $errorCode,
 ]);
+
+$diagnostics = [
+          'log_path' => '/storage/logs/match_wizard_debug.log',
+          'progress_issue' => $progressIssue,
+          'last_seen_at' => $lastSeenAt,
+          'heartbeat' => $heartbeat,
+];
+if ($progressIssue === 'stale_progress') {
+          $diagnostics['pid'] = $pid;
+          $diagnostics['stage'] = $stage;
+          $diagnostics['issue_link'] = '/storage/logs/match_wizard_debug.log';
+}
 
 $response = [
           'ok' => true,
@@ -159,14 +172,11 @@ $response = [
           'path' => $path,
           'updated_at' => $updatedAt,
           'last_seen_at' => $lastSeenAt,
+          'heartbeat' => $heartbeat,
           'error_code' => $errorCode,
           'progress_issue' => $progressIssue,
           'progress_file' => $progressFile,
-          'diagnostics' => [
-                    'log_path' => '/storage/logs/match_wizard_debug.log',
-                    'progress_issue' => $progressIssue,
-                    'last_seen_at' => $lastSeenAt,
-          ],
+          'diagnostics' => $diagnostics,
 ];
 
 echo json_encode($response, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);

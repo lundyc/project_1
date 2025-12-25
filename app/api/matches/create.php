@@ -45,6 +45,13 @@ function log_match_wizard_event(?int $matchId, string $stage, string $message, a
           error_log($logMessage);
 }
 
+function log_stage_entry(?int $matchId, string $stage, string $message, array $context = []): void
+{
+          $allowed = ['php', 'spawn', 'poll'];
+          $stageLabel = in_array($stage, $allowed, true) ? $stage : 'php';
+          log_match_wizard_event($matchId, $stageLabel, $message, $context);
+}
+
 auth_boot();
 require_auth();
 
@@ -207,52 +214,52 @@ if ($competitionId !== null) {
           }
 }
  
-$creationPayload = [
-          'club_id' => $clubId,
-          'season_id' => $seasonId,
-          'competition_id' => $competitionId,
-          'home_team_id' => $homeTeamId,
-          'away_team_id' => $awayTeamId,
-          'kickoff_at' => $kickoffAt,
-          'venue' => $venue !== '' ? $venue : null,
-          'referee' => $referee !== '' ? $referee : null,
-          'attendance' => $attendance,
-          'status' => $status,
-          'created_by' => (int)$user['id'],
-          'video_source_type' => $videoType,
-          'video_source_path' => $videoPath,
-];
-log_match_wizard_event(null, 'match_creation_db', 'Inserting match record', $creationPayload);
-try {
-          $matchId = create_match($creationPayload);
+          $creationPayload = [
+                    'club_id' => $clubId,
+                    'season_id' => $seasonId,
+                    'competition_id' => $competitionId,
+                    'home_team_id' => $homeTeamId,
+                    'away_team_id' => $awayTeamId,
+                    'kickoff_at' => $kickoffAt,
+                    'venue' => $venue !== '' ? $venue : null,
+                    'referee' => $referee !== '' ? $referee : null,
+                    'attendance' => $attendance,
+                    'status' => $status,
+                    'created_by' => (int)$user['id'],
+                    'video_source_type' => $videoType,
+                    'video_source_path' => $videoPath,
+          ];
+          log_stage_entry(null, 'php', 'Preparing match record', $creationPayload);
+          try {
+                    $matchId = create_match($creationPayload);
 
-          log_match_wizard_event($matchId, 'match_created', 'Match creation succeeded', [
-                    'video_type' => $videoType,
-                    'match_id' => $matchId,
-          ]);
-          if ($wantsJson) {
-                    respond_match_json(200, [
-                              'ok' => true,
+                    log_stage_entry($matchId, 'php', 'Match created', [
+                              'video_type' => $videoType,
                               'match_id' => $matchId,
-                              'status' => 'match_created',
-                              'debug' => [
-                                        'log_path' => '/storage/logs/match_wizard_debug.log',
-                                        'match_path' => '/matches/' . $matchId,
-                              ],
                     ]);
-          }
+                    if ($wantsJson) {
+                              respond_match_json(200, [
+                                        'ok' => true,
+                                        'match_id' => $matchId,
+                                        'status' => 'match_created',
+                                        'debug' => [
+                                                  'log_path' => '/storage/logs/match_wizard_debug.log',
+                                                  'match_path' => '/matches/' . $matchId,
+                                        ],
+                              ]);
+                    }
 
-          $_SESSION['match_form_success'] = 'Match created';
-          redirect('/matches');
-} catch (\Throwable $e) {
-          log_match_wizard_event(null, 'match_creation_error', 'Unable to persist match', ['error' => $e->getMessage()]);
-          if ($wantsJson) {
-                    respond_match_json(500, [
-                              'ok' => false,
-                              'error' => 'Unable to create match',
-                              'error_code' => 'match_creation_failed',
-                    ]);
+                    $_SESSION['match_form_success'] = 'Match created';
+                    redirect('/matches');
+          } catch (\Throwable $e) {
+                    log_stage_entry(null, 'php', 'Match creation failed', ['error' => $e->getMessage()]);
+                    if ($wantsJson) {
+                              respond_match_json(500, [
+                                        'ok' => false,
+                                        'error' => 'Unable to create match',
+                                        'error_code' => 'match_creation_failed',
+                              ]);
+                    }
+                    $_SESSION['match_form_error'] = 'Unable to create match';
+                    redirect('/matches/create?club_id=' . $clubId);
           }
-          $_SESSION['match_form_error'] = 'Unable to create match';
-          redirect('/matches/create?club_id=' . $clubId);
-}
