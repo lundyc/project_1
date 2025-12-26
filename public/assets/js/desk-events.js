@@ -3,6 +3,7 @@
 (function ($) {
           const cfg = window.DeskConfig;
           if (!cfg) return;
+          console.log('Outcome options loaded', DeskConfig.outcomeOptionsByTypeId);
           const csrfToken = cfg.csrfToken || null;
           if (csrfToken && $.ajaxSetup) {
                     $.ajaxSetup({
@@ -12,7 +13,7 @@
 
           const endpoints = cfg.endpoints || {};
 
-          const $video = $('#deskVideo');
+          const $video = $('#deskVideoPlayer');
           const $timelineList = $('#timelineList');
           const $timelineMatrix = $('#timelineMatrix');
           const $timelineScroll = $('.timeline-scroll');
@@ -41,9 +42,14 @@
           const $importance = $('#importance');
           const $phase = $('#phase');
           const $outcome = $('#outcome');
+          const $outcomeField = $('#outcomeField');
+          const outcomeOptionsByTypeId = cfg.outcomeOptionsByTypeId || {};
           const $zone = $('#zone');
           const $notes = $('#notes');
           const $tagIds = $('#tag_ids');
+          const $undoBtn = $('#eventUndoBtn');
+          const $redoBtn = $('#eventRedoBtn');
+          const undoRedoState = { canUndo: false, canRedo: false };
 
           const $filterTeam = $('#filterTeam');
           const $filterType = $('#filterType');
@@ -279,12 +285,115 @@
                               .replace(/'/g, '&#39;');
           }
 
+          function resolveOutcomeOptions(typeId) {
+                    const key = typeId ? String(typeId) : '';
+                    if (!key) return [];
+                    const candidate = outcomeOptionsByTypeId[key];
+                    if (!Array.isArray(candidate)) return [];
+                    return candidate;
+          }
+
+          function refreshUndoRedoButtons() {
+                    const canUndo = lockOwned && undoRedoState.canUndo;
+                    const canRedo = lockOwned && undoRedoState.canRedo;
+                    if ($undoBtn.length) {
+                              $undoBtn.prop('disabled', !canUndo);
+                    }
+                    if ($redoBtn.length) {
+                              $redoBtn.prop('disabled', !canRedo);
+                    }
+          }
+
+          function setUndoRedoState(state = {}) {
+                    if (state && typeof state === 'object') {
+                              if (typeof state.canUndo === 'boolean') {
+                                        undoRedoState.canUndo = state.canUndo;
+                              } else if ('canUndo' in state) {
+                                        undoRedoState.canUndo = Boolean(state.canUndo);
+                              }
+                              if (typeof state.canRedo === 'boolean') {
+                                        undoRedoState.canRedo = state.canRedo;
+                              } else if ('canRedo' in state) {
+                                        undoRedoState.canRedo = Boolean(state.canRedo);
+                              }
+                    }
+                    refreshUndoRedoButtons();
+          }
+
+          function syncUndoRedoFromMeta(meta) {
+                    if (meta && meta.action_stack) {
+                              setUndoRedoState(meta.action_stack);
+                    }
+          }
+
+          setUndoRedoState(cfg.actionStack || {});
+
+          function refreshOutcomeField(typeId, selectedOutcome = '') {
+                    if (!$outcomeField.length || !$outcome.length) return;
+                    const options = resolveOutcomeOptions(typeId);
+                    console.log('Outcome options for type', typeId, options);
+                    if (!options || !options.length) {
+                              $outcome.html('<option value=\"\"></option>');
+                              $outcome.val('');
+                              $outcomeField.hide();
+                              return;
+                    }
+                    const normalizedSelected = (selectedOutcome || '').toString();
+                    const hasSelected =
+                              normalizedSelected && options.some((opt) => String(opt || '').toLowerCase() === normalizedSelected.toLowerCase());
+                    const html = ['<option value=""></option>'];
+                    options.forEach((opt) => {
+                              html.push(`<option value="${h(opt)}">${h(opt)}</option>`);
+                    });
+                    $outcome.html(html.join(''));
+                    if (hasSelected) {
+                              $outcome.val(normalizedSelected);
+                    } else {
+                              $outcome.val('');
+                    }
+                    $outcomeField.show();
+          }
+
+          function resolveEventTypeId(event) {
+                    if (!event) return null;
+                    if (event.event_type_id) return event.event_type_id;
+                    if (event.event_type && event.event_type.id) return event.event_type.id;
+                    const rawKey = (event.event_type_key || '').toLowerCase().trim();
+                    if (!rawKey) return null;
+                    if (eventTypeKeyMap[rawKey]) {
+                              return eventTypeKeyMap[rawKey].id;
+                    }
+                    const normalized = rawKey.replace(/[_\s]/g, '');
+                    if (eventTypeKeyMap[normalized]) {
+                              return eventTypeKeyMap[normalized].id;
+                    }
+                    return null;
+          }
+
+          function refreshOutcomeFieldForEvent(event) {
+                    const typeId = resolveEventTypeId(event);
+                    const outcome = (event && event.outcome) || '';
+                    refreshOutcomeField(typeId, outcome);
+                    return typeId;
+          }
+
           function fmtTime(sec) {
                     const s = Math.max(0, Math.floor(sec));
                     const m = Math.floor(s / 60);
                     const mm = m.toString().padStart(2, '0');
                     const ss = (s % 60).toString().padStart(2, '0');
                     return `${mm}:${ss}`;
+          }
+
+          function getCurrentVideoSecond() {
+                    if (!$video.length) {
+                              return 0;
+                    }
+                    const rawSeconds = $video[0].currentTime;
+                    if (typeof rawSeconds !== 'number' || Number.isNaN(rawSeconds)) {
+                              return 0;
+                    }
+                    return Math.max(0, Math.floor(rawSeconds));
           }
 
           function showError(msg, detail) {
@@ -485,11 +594,11 @@
                     $tagBoard.find('.qt-tile').show();
           }
 
-         function quickTag(typeKey, typeId, $btn) {
-                   if (!typeKey) {
-                             console.error('Missing event_type_key for quick tag');
-                             return;
-                   }
+          function quickTag(typeKey, typeId, $btn) {
+                    if (!typeKey) {
+                              console.error('Missing event_type_key for quick tag');
+                              return;
+                    }
                     const key = String(typeKey).toLowerCase();
                     const type = resolveTileType({ event_type_key: key, label: ($btn && $btn.data('label')) || '' });
                     if (!type) return;
@@ -497,7 +606,9 @@
                               showError('Lock required to tag', 'Acquire lock to create events');
                               return;
                     }
-                   const sec = $video.length ? Math.floor($video[0].currentTime || 0) : 0;
+                    const currentSecond = getCurrentVideoSecond();
+                    const normalizedSecond = Number.isFinite(currentSecond) ? Math.floor(currentSecond) : 0;
+                    console.log('Quick tag second', normalizedSecond);
                     const $btnNode = $btn && $btn.length ? $btn : $tagBoard.find(`.qt-tile[data-type-id="${type.id}"]`).first();
                     if (!$btnNode || !$btnNode.length) {
                               console.error('Quick tag button not found for type', key);
@@ -505,24 +616,24 @@
                     }
                     const phaseOverride = ($btnNode.data('phase') || '').trim();
                     const importanceOverride = parseInt($btnNode.data('importance'), 10);
-                              const labelOverride = ($btnNode.data('label') || '').trim();
-                              const data = {
-                                        match_id: cfg.matchId,
-                                        event_type_id: type.id,
-                                        event_type_key: key,
-                                        match_second: sec,
-                                        minute: Math.floor(sec / 60),
-                                        team_side: currentTeam || 'home',
-                                        phase: phaseOverride || 'unknown',
-                                        minute_extra: 0,
-                                        importance: Number.isNaN(importanceOverride) ? parseInt(type.default_importance, 10) || 3 : importanceOverride,
-                              };
+                    const labelOverride = ($btnNode.data('label') || '').trim();
+                    const payload = {
+                              match_id: cfg.matchId,
+                              event_type_id: type.id,
+                              event_type_key: key,
+                              minute: Math.floor(normalizedSecond / 60),
+                              team_side: currentTeam || 'home',
+                              phase: phaseOverride || 'unknown',
+                              minute_extra: 0,
+                              importance: Number.isNaN(importanceOverride) ? parseInt(type.default_importance, 10) || 3 : importanceOverride,
+                    };
+                    payload.match_second = normalizedSecond;
                     const url = endpoint('eventCreate');
                     if (!url) {
                               showError('Save failed', 'Missing event endpoint');
                               return;
                     }
-                    $.post(url, data)
+                    $.post(url, payload)
                               .done((res) => {
                                         console.log('Quick tag', res);
                                         if (!res.ok) {
@@ -532,11 +643,12 @@
                                         hideError();
                                         selectedId = null;
                                         setEditorCollapsed(true, 'Click a timeline item to edit details', true);
-                                        showToast(`${labelOverride || type.label} tagged at ${fmtTime(sec)}`);
+                                        showToast(`${labelOverride || type.label} tagged at ${fmtTime(normalizedSecond)}`);
                                         setStatus('Tagged');
+                                        syncUndoRedoFromMeta(res.meta);
                                         loadEvents();
-                             })
-                             .fail((xhr, status, error) => showError('Save failed', xhr.responseText || error || status));
+                              })
+                              .fail((xhr, status, error) => showError('Save failed', xhr.responseText || error || status));
           }
 
           function stopHeartbeat() {
@@ -564,8 +676,9 @@
                     if ($btnAcquire.length) {
                               $btnAcquire.toggle(!isEdit && cfg.canEditRole);
                     }
-                    filterTagGrid();
-                    updateClipUi();
+                   filterTagGrid();
+                   updateClipUi();
+                    refreshUndoRedoButtons();
           }
 function applyLockResponse(res) {
                     const isEdit = !!(res && res.ok && res.mode === 'edit');
@@ -629,16 +742,17 @@ function applyLockResponse(res) {
                               return;
                     }
                     $.getJSON(url, { match_id: cfg.matchId })
-                              .done((res) => {
-                                        if (!res.ok) {
-                                                  showError('Failed to load events', res.error || 'Unknown');
-                                                  return;
-                                        }
-                                        hideError();
-                                        events = applyEventLabelReplacements(res.events || []);
-                                        renderTimeline();
-                                        if (selectedId) selectEvent(selectedId);
-                              })
+                  .done((res) => {
+                            if (!res.ok) {
+                                      showError('Failed to load events', res.error || 'Unknown');
+                                      return;
+                            }
+                            hideError();
+                            events = applyEventLabelReplacements(res.events || []);
+                            syncUndoRedoFromMeta(res.meta);
+                            renderTimeline();
+                            if (selectedId) selectEvent(selectedId);
+                  })
                               .fail((xhr, status, error) => showError('Events load failed', xhr.responseText || error || status));
           }
 
@@ -945,6 +1059,7 @@ function applyLockResponse(res) {
                               $tagIds.val([]);
                               clipState = { id: null, start: null, end: null };
                               updateClipUi();
+                              refreshOutcomeFieldForEvent(null);
                               setEditorCollapsed(true, 'Click a timeline item to edit details', true);
                               return;
                     }
@@ -970,6 +1085,7 @@ function applyLockResponse(res) {
                               clipState = { id: null, start: null, end: null };
                     }
                     updateClipUi();
+                    refreshOutcomeFieldForEvent(ev);
                     const labelText = displayEventLabel(ev, ev.event_type_label || 'Event');
                     setEditorCollapsed(false, `${h(labelText)} - ${fmtTime(ev.match_second)}`, false);
           }
@@ -1030,6 +1146,7 @@ function applyLockResponse(res) {
                                                   return;
                                         }
                                         hideError();
+                                        syncUndoRedoFromMeta(res.meta);
                                         loadEvents();
                                         if (res.event) {
                                                   if (!suppressEditorOpen) {
@@ -1048,6 +1165,37 @@ function applyLockResponse(res) {
                               });
           }
 
+          function performActionStackRequest(endpointKey, label) {
+                    if (!lockOwned || !cfg.canEditRole) {
+                              showError(`${label} failed`, 'Acquire lock to manage events');
+                              return;
+                    }
+                    const url = endpoint(endpointKey);
+                    if (!url) {
+                              showError(`${label} failed`, 'Missing endpoint');
+                              return;
+                    }
+                    $.post(url, { match_id: cfg.matchId })
+                              .done((res) => {
+                                        if (!res.ok) {
+                                                  showError(`${label} failed`, res.error || 'Unknown');
+                                                  return;
+                                        }
+                                        hideError();
+                                        syncUndoRedoFromMeta(res.meta);
+                                        if (res.event) {
+                                                  selectedId = res.event.id;
+                                                  fillForm(res.event);
+                                        } else {
+                                                  selectedId = null;
+                                                  fillForm(null);
+                                        }
+                                        loadEvents();
+                                        setStatus(`${label} applied`);
+                              })
+                              .fail((xhr, status, error) => showError(`${label} failed`, xhr.responseText || error || status));
+          }
+
           function deleteEvent() {
                     if (!lockOwned || !cfg.canEditRole || !$eventId.val()) return;
                     deleteEventById($eventId.val(), false);
@@ -1063,18 +1211,19 @@ function applyLockResponse(res) {
                     }
                     $.post(url, { match_id: cfg.matchId, event_id: eventId })
                               .done((res) => {
-                                        if (!res.ok) {
-                                                  showError('Delete failed', res.error || 'Unknown');
-                                                  return;
-                                        }
-                                        hideError();
-                                        if (String(selectedId) === String(eventId)) {
-                                                  selectedId = null;
-                                                  fillForm(null);
-                                        }
-                                        loadEvents();
-                                        setStatus('Deleted');
-                              })
+                                       if (!res.ok) {
+                                                 showError('Delete failed', res.error || 'Unknown');
+                                                 return;
+                                       }
+                                       hideError();
+                                       syncUndoRedoFromMeta(res.meta);
+                                       if (String(selectedId) === String(eventId)) {
+                                                 selectedId = null;
+                                                 fillForm(null);
+                                       }
+                                       loadEvents();
+                                       setStatus('Deleted');
+                             })
                               .fail((xhr, status, error) => showError('Delete failed', xhr.responseText || error || status));
           }
 
@@ -1282,6 +1431,9 @@ function applyLockResponse(res) {
                               fillForm(null);
                     });
                     $(document).on('click', '#eventDeleteBtn', deleteEvent);
+                    $undoBtn.on('click', () => performActionStackRequest('undoEvent', 'Undo'));
+                    $redoBtn.on('click', () => performActionStackRequest('redoEvent', 'Redo'));
+                    $eventTypeId.on('change', () => refreshOutcomeField($eventTypeId.val(), $outcome.val()));
                     $(document).on('click', '.period-btn', function () {
                               const $btn = $(this);
                               const periodKey = $btn.data('period-key');

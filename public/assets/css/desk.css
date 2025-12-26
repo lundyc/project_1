@@ -741,6 +741,11 @@ body {
   flex: 1 1 auto;
 }
 
+.timeline-actions .timeline-undo-redo {
+  display: inline-flex;
+  gap: 6px;
+}
+
 .timeline-mode {
   display: inline-flex;
   gap: 6px;
@@ -800,6 +805,14 @@ body {
 
 .editor-panel.is-hidden {
   display: none;
+}
+
+#editorPanel {
+  width: 100%;
+}
+
+.timeline-panel + #editorPanel {
+  margin-top: 20px;
 }
 
 .editor-actions,

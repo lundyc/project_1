@@ -5,6 +5,8 @@ require_once __DIR__ . '/../../../lib/match_repository.php';
 require_once __DIR__ . '/../../../lib/match_player_repository.php';
 require_once __DIR__ . '/../../../lib/event_repository.php';
 require_once __DIR__ . '/../../../lib/match_lock_service.php';
+require_once __DIR__ . '/../../../lib/event_outcome_rules.php';
+require_once __DIR__ . '/../../../lib/event_action_stack.php';
 require_once __DIR__ . '/../../../lib/csrf.php';
 
 $user = current_user();
@@ -43,9 +45,23 @@ $awayPlayers = array_values(array_filter($players, fn($p) => $p['team_side'] ===
 
 ensure_default_event_types((int)$match['club_id']);
 
-$eventTypes = db()->prepare('SELECT id, label, type_key, default_importance FROM event_types WHERE club_id = :club_id ORDER BY label ASC');
+$db = db();
+$eventTypes = $db->prepare('SELECT id, label, type_key, default_importance FROM event_types WHERE club_id = :club_id ORDER BY label ASC');
 $eventTypes->execute(['club_id' => (int)$match['club_id']]);
 $eventTypes = $eventTypes->fetchAll();
+$rawOutcomeOptionsByTypeId = get_outcome_options_by_event_type_id($db);
+$outcomeOptions = [];
+$outcomeOptionsByTypeId = [];
+foreach ($eventTypes as $eventType) {
+          $typeId = isset($eventType['id']) ? (int)$eventType['id'] : 0;
+          if ($typeId <= 0) {
+                    continue;
+          }
+          $options = $rawOutcomeOptionsByTypeId[$typeId] ?? [];
+          $sanitized = array_values(array_map('strval', (array)$options));
+          $outcomeOptions[$typeId] = $sanitized;
+          $outcomeOptionsByTypeId[$typeId] = $sanitized;
+}
 
 $tagsStmt = db()->prepare('SELECT id, label FROM tags WHERE club_id IS NULL OR club_id = :club_id ORDER BY label ASC');
 $tagsStmt->execute(['club_id' => (int)$match['club_id']]);
@@ -75,6 +91,9 @@ $deskConfig = [
           'eventTypes' => $eventTypes,
           'tags' => $tags,
           'players' => array_merge($homePlayers, $awayPlayers),
+          'outcomeOptions' => $outcomeOptions,
+          'outcomeOptionsByTypeId' => $outcomeOptionsByTypeId,
+          'actionStack' => get_event_action_stack_status($matchId, (int)$user['id']),
           'lock' => $currentLock ? [
                     'locked_by' => ['id' => (int)$currentLock['locked_by'], 'display_name' => $currentLock['locked_by_name']],
                     'locked_at' => $currentLock['locked_at'],
@@ -94,6 +113,8 @@ $deskConfig = [
                     'eventCreate' => $base . '/api/matches/' . (int)$match['id'] . '/events/create',
                     'eventUpdate' => $base . '/api/matches/' . (int)$match['id'] . '/events/update',
                     'eventDelete' => $base . '/api/matches/' . (int)$match['id'] . '/events/delete',
+                    'undoEvent' => $base . '/api/events/undo',
+                    'redoEvent' => $base . '/api/events/redo',
                     'periodsStart' => $base . '/api/matches/' . (int)$match['id'] . '/periods/start',
                     'periodsEnd' => $base . '/api/matches/' . (int)$match['id'] . '/periods/end',
                   'periodsSet' => $base . '/api/match-periods/set',
@@ -103,6 +124,7 @@ $deskConfig = [
 ];
 
 $footerScripts = '<script>window.DeskConfig = ' . json_encode($deskConfig) . ';</script>';
+$footerScripts .= '<script>console.log(\'DeskConfig.outcomeOptionsByTypeId\', DeskConfig.outcomeOptionsByTypeId);</script>';
 $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-events.js?v=' . time() . '"></script>';
 $videoProgressConfig = [
           'matchId' => $matchId,
@@ -222,149 +244,6 @@ ob_start();
                                                   <div id="tagToast" class="desk-toast" style="display:none;"></div>
                                         </div>
 
-                                        <div id="editorPanel" class="panel-dark editor-panel is-collapsed">
-                                                  <div class="panel-row">
-                                                            <div>
-                                                                      <div class="text-sm text-subtle">Event editor</div>
-                                                                      <div id="editorHint" class="text-xs text-muted-alt">Click a timeline item to edit details</div>
-                                                            </div>
-                                                            <div class="editor-actions">
-                                                                      <button class="ghost-btn ghost-btn-sm desk-editable" id="eventUseTimeBtn" type="button">Use current time</button>
-                                                                      <button class="ghost-btn ghost-btn-sm desk-editable" id="eventNewBtn" type="button">Clear</button>
-                                                            </div>
-                                                  </div>
-                                                  <div class="btn-row mb-2">
-                                                            <button class="ghost-btn ghost-btn-sm desk-editable" id="btnPeriodStart" type="button">Period start</button>
-                                                            <button class="ghost-btn ghost-btn-sm desk-editable" id="btnPeriodEnd" type="button">Period end</button>
-                                                  </div>
-                                                  <input type="hidden" id="eventId">
-                                                  <div class="grid-2 gap-sm">
-                                                            <div>
-                                                                      <label class="field-label">Match second</label>
-                                                                      <input type="number" min="0" class="input-dark desk-editable" id="match_second">
-                                                            </div>
-                                                            <div>
-                                                                      <label class="field-label">Minute / +Extra</label>
-                                                                      <div class="grid-2 gap-xs">
-                                                                                <input type="number" min="0" class="input-dark desk-editable" id="minute">
-                                                                                <input type="number" min="0" class="input-dark desk-editable" id="minute_extra" placeholder="+">
-                                                                      </div>
-                                                            </div>
-                                                  </div>
-
-                                                  <div class="grid-2 gap-sm">
-                                                            <div>
-                                                                      <label class="field-label">Team</label>
-                                                                      <select class="input-dark desk-editable" id="team_side">
-                                                                                <option value="home">Home</option>
-                                                                                <option value="away">Away</option>
-                                                                                <option value="unknown">Unknown</option>
-                                                                      </select>
-                                                            </div>
-                                                            <div>
-                                                                      <label class="field-label">Period</label>
-                                                                      <select class="input-dark desk-editable" id="period_id">
-                                                                                <option value="">None</option>
-                                                                      </select>
-                                                            </div>
-                                                  </div>
-
-                                                  <label class="field-label">Event type</label>
-                                                  <select class="input-dark desk-editable" id="event_type_id">
-                                                            <?php foreach ($eventTypes as $type): ?>
-                                                                      <option value="<?= (int)$type['id'] ?>"><?= htmlspecialchars($type['label']) ?></option>
-                                                            <?php endforeach; ?>
-                                                  </select>
-
-                                                  <div class="grid-2 gap-sm">
-                                                            <div>
-                                                                      <label class="field-label">Player</label>
-                                                                      <select class="input-dark desk-editable" id="match_player_id">
-                                                                                <option value="">None</option>
-                                                                                <?php if (!empty($homePlayers)): ?>
-                                                                                          <optgroup label="Home - <?= htmlspecialchars($match['home_team']) ?>">
-                                                                                                    <?php foreach ($homePlayers as $p): ?>
-                                                                                                              <option value="<?= (int)$p['id'] ?>"><?= htmlspecialchars($p['display_name']) ?></option>
-                                                                                                    <?php endforeach; ?>
-                                                                                          </optgroup>
-                                                                                <?php endif; ?>
-                                                                                <?php if (!empty($awayPlayers)): ?>
-                                                                                          <optgroup label="Away - <?= htmlspecialchars($match['away_team']) ?>">
-                                                                                                    <?php foreach ($awayPlayers as $p): ?>
-                                                                                                              <option value="<?= (int)$p['id'] ?>"><?= htmlspecialchars($p['display_name']) ?></option>
-                                                                                                    <?php endforeach; ?>
-                                                                                          </optgroup>
-                                                                                <?php endif; ?>
-                                                                      </select>
-                                                            </div>
-                                                            <div>
-                                                                      <label class="field-label">Importance</label>
-                                                                      <select class="input-dark desk-editable" id="importance">
-                                                                                <?php for ($i = 1; $i <= 5; $i++): ?>
-                                                                                          <option value="<?= $i ?>"><?= $i ?></option>
-                                                                                <?php endfor; ?>
-                                                                      </select>
-                                                            </div>
-                                                  </div>
-
-                                                  <div class="grid-2 gap-sm">
-                                                            <div>
-                                                                      <label class="field-label">Phase</label>
-                                                                      <input type="text" class="input-dark desk-editable" id="phase" placeholder="unknown">
-                                                            </div>
-                                                            <div class="grid-2 gap-xs">
-                                                                      <div>
-                                                                                <label class="field-label">Outcome</label>
-                                                                                <input type="text" class="input-dark desk-editable" id="outcome">
-                                                                      </div>
-                                                                      <div>
-                                                                                <label class="field-label">Zone</label>
-                                                                                <input type="text" class="input-dark desk-editable" id="zone">
-                                                                      </div>
-                                                            </div>
-                                                  </div>
-
-                                                  <label class="field-label">Notes</label>
-                                                  <textarea class="input-dark desk-editable" rows="2" id="notes"></textarea>
-
-                                                  <label class="field-label">Tags</label>
-                                                  <select multiple class="input-dark desk-editable" id="tag_ids">
-                                                            <?php foreach ($tags as $tag): ?>
-                                                                      <option value="<?= (int)$tag['id'] ?>"><?= htmlspecialchars($tag['label']) ?></option>
-                                                            <?php endforeach; ?>
-                                                  </select>
-
-                                                  <div class="panel-row">
-                                                            <div class="text-sm text-subtle">Clip</div>
-                                                            <div class="text-xs text-muted-alt">Set IN / OUT from video</div>
-                                                  </div>
-                                                  <div class="grid-3 gap-sm">
-                                                            <div>
-                                                                      <label class="field-label">IN (s)</label>
-                                                                      <input type="number" id="clipInText" class="input-dark desk-editable clip-field" readonly>
-                                                                      <div class="text-xs text-muted-alt" id="clip_in_fmt"></div>
-                                                            </div>
-                                                            <div>
-                                                                      <label class="field-label">OUT (s)</label>
-                                                                      <input type="number" id="clipOutText" class="input-dark desk-editable clip-field" readonly>
-                                                                      <div class="text-xs text-muted-alt" id="clip_out_fmt"></div>
-                                                            </div>
-                                                            <div>
-                                                                      <label class="field-label">Duration</label>
-                                                                      <input type="text" id="clipDurationText" class="input-dark" readonly>
-                                                            </div>
-                                                  </div>
-                                                  <div class="panel-row">
-                                                            <div class="btn-row">
-                                                                      <button class="ghost-btn ghost-btn-sm desk-editable" id="clipInBtn" type="button">Set IN</button>
-                                                                      <button class="ghost-btn ghost-btn-sm desk-editable" id="clipOutBtn" type="button">Set OUT</button>
-                                                            </div>
-                                                            <div class="btn-row">
-                                                                      <button class="primary-btn desk-editable" id="eventSaveBtn" type="button">Save edits</button>
-                                                                      <button class="ghost-btn desk-editable" id="eventDeleteBtn" type="button">Delete</button>
-                                                            </div>
-                                                  </div>
-                                        </div>
                               </div>
                     </div>
 
@@ -373,6 +252,10 @@ ob_start();
                                         <div class="text-sm text-subtle">Timeline</div>
                                         <div class="timeline-actions">
                                                   <button id="timelineDeleteAll" class="ghost-btn ghost-btn-sm desk-editable" type="button">Delete all</button>
+                                                  <div class="timeline-undo-redo">
+                                                            <button class="ghost-btn ghost-btn-sm desk-editable" id="eventUndoBtn" type="button" disabled>Undo</button>
+                                                            <button class="ghost-btn ghost-btn-sm desk-editable" id="eventRedoBtn" type="button" disabled>Redo</button>
+                                                  </div>
                                                   <div class="timeline-mode">
                                                             <button type="button" class="ghost-btn ghost-btn-sm timeline-mode-btn is-active" data-mode="list">List</button>
                                                             <button type="button" class="ghost-btn ghost-btn-sm timeline-mode-btn" data-mode="matrix">Matrix</button>
@@ -422,6 +305,150 @@ ob_start();
                               <div class="timeline-scroll">
                                         <div class="timeline-view is-active" id="timelineList"></div>
                                         <div class="timeline-view" id="timelineMatrix"></div>
+                              </div>
+                    </div>
+
+                    <div id="editorPanel" class="panel-dark editor-panel is-collapsed">
+                              <div class="panel-row">
+                                        <div>
+                                                  <div class="text-sm text-subtle">Event editor</div>
+                                                  <div id="editorHint" class="text-xs text-muted-alt">Click a timeline item to edit details</div>
+                                        </div>
+                                        <div class="editor-actions">
+                                                  <button class="ghost-btn ghost-btn-sm desk-editable" id="eventUseTimeBtn" type="button">Use current time</button>
+                                                  <button class="ghost-btn ghost-btn-sm desk-editable" id="eventNewBtn" type="button">Clear</button>
+                                        </div>
+                              </div>
+                              <div class="btn-row mb-2">
+                                        <button class="ghost-btn ghost-btn-sm desk-editable" id="btnPeriodStart" type="button">Period start</button>
+                                        <button class="ghost-btn ghost-btn-sm desk-editable" id="btnPeriodEnd" type="button">Period end</button>
+                              </div>
+                              <input type="hidden" id="eventId">
+                              <div class="grid-2 gap-sm">
+                                        <div>
+                                                  <label class="field-label">Match second</label>
+                                                  <input type="number" min="0" class="input-dark desk-editable" id="match_second">
+                                        </div>
+                                        <div>
+                                                  <label class="field-label">Minute / +Extra</label>
+                                                  <div class="grid-2 gap-xs">
+                                                            <input type="number" min="0" class="input-dark desk-editable" id="minute">
+                                                            <input type="number" min="0" class="input-dark desk-editable" id="minute_extra" placeholder="+">
+                                                  </div>
+                                        </div>
+                              </div>
+
+                              <div class="grid-2 gap-sm">
+                                        <div>
+                                                  <label class="field-label">Team</label>
+                                                  <select class="input-dark desk-editable" id="team_side">
+                                                            <option value="home">Home</option>
+                                                            <option value="away">Away</option>
+                                                            <option value="unknown">Unknown</option>
+                                                  </select>
+                                        </div>
+                                        <div>
+                                                  <label class="field-label">Period</label>
+                                                  <select class="input-dark desk-editable" id="period_id">
+                                                            <option value="">None</option>
+                                                  </select>
+                                        </div>
+                              </div>
+
+                              <label class="field-label">Event type</label>
+                              <select class="input-dark desk-editable" id="event_type_id">
+                                        <?php foreach ($eventTypes as $type): ?>
+                                                  <option value="<?= (int)$type['id'] ?>"><?= htmlspecialchars($type['label']) ?></option>
+                                        <?php endforeach; ?>
+                              </select>
+
+                              <div class="grid-2 gap-sm">
+                                        <div>
+                                                  <label class="field-label">Player</label>
+                                                  <select class="input-dark desk-editable" id="match_player_id">
+                                                            <option value="">None</option>
+                                                            <?php if (!empty($homePlayers)): ?>
+                                                                      <optgroup label="Home - <?= htmlspecialchars($match['home_team']) ?>">
+                                                                                <?php foreach ($homePlayers as $p): ?>
+                                                                                          <option value="<?= (int)$p['id'] ?>"><?= htmlspecialchars($p['display_name']) ?></option>
+                                                                                <?php endforeach; ?>
+                                                                      </optgroup>
+                                                            <?php endif; ?>
+                                                            <?php if (!empty($awayPlayers)): ?>
+                                                                      <optgroup label="Away - <?= htmlspecialchars($match['away_team']) ?>">
+                                                                                <?php foreach ($awayPlayers as $p): ?>
+                                                                                          <option value="<?= (int)$p['id'] ?>"><?= htmlspecialchars($p['display_name']) ?></option>
+                                                                                <?php endforeach; ?>
+                                                                      </optgroup>
+                                                            <?php endif; ?>
+                                                  </select>
+                                        </div>
+                                        <div>
+                                                  <label class="field-label">Importance</label>
+                                                  <select class="input-dark desk-editable" id="importance">
+                                                            <?php for ($i = 1; $i <= 5; $i++): ?>
+                                                                      <option value="<?= $i ?>"><?= $i ?></option>
+                                                            <?php endfor; ?>
+                                                  </select>
+                                        </div>
+                              </div>
+
+                              <div class="grid-2 gap-sm">
+                                        <div>
+                                                  <label class="field-label">Phase</label>
+                                                  <input type="text" class="input-dark desk-editable" id="phase" placeholder="unknown">
+                                        </div>
+                                        <div class="grid-2 gap-xs">
+                                                  <div id="outcomeField" style="display:none;">
+                                                            <label class="field-label">Outcome</label>
+                                                            <select class="input-dark desk-editable" id="outcome"></select>
+                                                  </div>
+                                                  <div>
+                                                            <label class="field-label">Zone</label>
+                                                            <input type="text" class="input-dark desk-editable" id="zone">
+                                                  </div>
+                                        </div>
+                              </div>
+
+                              <label class="field-label">Notes</label>
+                              <textarea class="input-dark desk-editable" rows="2" id="notes"></textarea>
+
+                              <label class="field-label">Tags</label>
+                              <select multiple class="input-dark desk-editable" id="tag_ids">
+                                        <?php foreach ($tags as $tag): ?>
+                                                  <option value="<?= (int)$tag['id'] ?>"><?= htmlspecialchars($tag['label']) ?></option>
+                                        <?php endforeach; ?>
+                              </select>
+
+                              <div class="panel-row">
+                                        <div class="text-sm text-subtle">Clip</div>
+                                        <div class="text-xs text-muted-alt">Set IN / OUT from video</div>
+                              </div>
+                              <div class="grid-3 gap-sm">
+                                        <div>
+                                                  <label class="field-label">IN (s)</label>
+                                                  <input type="number" id="clipInText" class="input-dark desk-editable clip-field" readonly>
+                                                  <div class="text-xs text-muted-alt" id="clip_in_fmt"></div>
+                                        </div>
+                                        <div>
+                                                  <label class="field-label">OUT (s)</label>
+                                                  <input type="number" id="clipOutText" class="input-dark desk-editable clip-field" readonly>
+                                                  <div class="text-xs text-muted-alt" id="clip_out_fmt"></div>
+                                        </div>
+                                        <div>
+                                                  <label class="field-label">Duration</label>
+                                                  <input type="text" id="clipDurationText" class="input-dark" readonly>
+                                        </div>
+                              </div>
+                              <div class="panel-row">
+                                        <div class="btn-row">
+                                                  <button class="ghost-btn ghost-btn-sm desk-editable" id="clipInBtn" type="button">Set IN</button>
+                                                  <button class="ghost-btn ghost-btn-sm desk-editable" id="clipOutBtn" type="button">Set OUT</button>
+                                        </div>
+                                        <div class="btn-row">
+                                                  <button class="primary-btn desk-editable" id="eventSaveBtn" type="button">Save edits</button>
+                                                  <button class="ghost-btn desk-editable" id="eventDeleteBtn" type="button">Delete</button>
+                                        </div>
                               </div>
                     </div>
           </div>

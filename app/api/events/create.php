@@ -14,6 +14,7 @@ require_once __DIR__ . '/../../lib/match_lock_service.php';
 require_once __DIR__ . '/../../lib/match_lock_guard.php';
 require_once __DIR__ . '/../../lib/match_version_service.php';
 require_once __DIR__ . '/../../lib/audit_service.php';
+require_once __DIR__ . '/../../lib/event_action_stack.php';
 require_once __DIR__ . '/../../lib/match_period_repository.php';
 
 auth_boot();
@@ -66,12 +67,22 @@ try {
 try {
           $eventId = event_create($matchId, $payload, $tagIds, (int)$user['id']);
           $event = event_get_by_id($eventId);
+          if ($event) {
+                    record_event_action($matchId, (int)$user['id'], [
+                              'type' => 'create',
+                              'before' => null,
+                              'after' => $event,
+                    ]);
+          }
           $version = bump_events_version($matchId);
           audit((int)$match['club_id'], (int)$user['id'], 'event', $eventId, 'create', null, json_encode($event));
 
           api_success([
                     'event' => $event,
-                    'meta' => ['events_version' => $version],
+                    'meta' => [
+                              'events_version' => $version,
+                              'action_stack' => get_event_action_stack_status($matchId, (int)$user['id']),
+                    ],
           ]);
 } catch (\Throwable $e) {
           api_error('server_error', 500, [], $e);

@@ -4,6 +4,7 @@ require_once __DIR__ . '/../../lib/auth.php';
 require_once __DIR__ . '/../../lib/match_repository.php';
 require_once __DIR__ . '/../../lib/match_permissions.php';
 require_once __DIR__ . '/../../lib/event_repository.php';
+require_once __DIR__ . '/../../lib/event_action_stack.php';
 
 auth_boot();
 require_auth();
@@ -42,5 +43,6 @@ echo json_encode([
           'meta' => [
                     'events_version' => (int)($match['events_version'] ?? 0),
                     'match_id' => $matchId,
+                    'action_stack' => get_event_action_stack_status($matchId, (int)$user['id']),
           ],
 ]);

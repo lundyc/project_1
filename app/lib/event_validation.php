@@ -60,6 +60,28 @@ function normalize_event_payload(array $data): array
 }
 
 /**
+ * Return the type_key for a given event type id.
+ *
+ * @param int $eventTypeId
+ * @return string|null
+ */
+function event_validation_get_event_type_key(int $eventTypeId): ?string
+{
+          static $cache = [];
+
+          if (array_key_exists($eventTypeId, $cache)) {
+                    return $cache[$eventTypeId];
+          }
+
+          $stmt = db()->prepare('SELECT type_key FROM event_types WHERE id = :id LIMIT 1');
+          $stmt->execute(['id' => $eventTypeId]);
+          $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+          $cache[$eventTypeId] = $row['type_key'] ?? null;
+
+          return $cache[$eventTypeId];
+}
+
+/**
  * Trim a string and return null when the result is empty.
  *
  * @param mixed $value
@@ -93,6 +115,16 @@ function validate_event_payload(array $input, int $matchId): array
           $eventTypeId = isset($input['event_type_id']) && $input['event_type_id'] !== '' ? (int)$input['event_type_id'] : 0;
           if ($eventTypeId <= 0) {
                     throw new \RuntimeException('invalid_payload');
+          }
+
+          $typeKey = event_validation_get_event_type_key($eventTypeId);
+          if ($matchSecond === 0 && $typeKey !== 'period_start') {
+                    error_log(sprintf(
+                              'Event created at 0s outside period marker | match=%d event_type_id=%d type_key=%s',
+                              $matchId,
+                              $eventTypeId,
+                              $typeKey ?? 'unknown'
+                    ));
           }
 
           $periodId = isset($input['period_id']) && $input['period_id'] !== '' ? (int)$input['period_id'] : null;
