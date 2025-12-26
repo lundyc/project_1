@@ -86,6 +86,16 @@ route('/api/video_status', function () {
           require __DIR__ . '/../app/api/matches/video_status.php';
 });
 
+route('/api/events/undo', function () {
+          require_auth();
+          require __DIR__ . '/../app/api/events/undo.php';
+});
+
+route('/api/events/redo', function () {
+          require_auth();
+          require __DIR__ . '/../app/api/events/redo.php';
+});
+
 route('/api/teams/create-json', function () {
           require_auth();
           require __DIR__ . '/../app/api/teams/create-json.php';

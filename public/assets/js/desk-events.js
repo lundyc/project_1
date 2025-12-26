@@ -17,6 +17,7 @@
           const $timelineList = $('#timelineList');
           const $timelineMatrix = $('#timelineMatrix');
           const $timelineScroll = $('.timeline-scroll');
+          const $timeline = $('.timeline-panel');
           const $status = $('#deskStatus');
 
           const $lockStatus = $('#lockStatusText');
