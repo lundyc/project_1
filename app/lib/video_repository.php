@@ -35,6 +35,22 @@ function video_repository_absolute_path(string $path): ?string
 }
 
 /**
+ * Apply the optional club filter to queries that are joined with the `matches` table.
+ *
+ * @param int|null $clubId
+ * @param array<string, mixed> &$params
+ * @param array<int, string> &$where
+ * @param string $alias
+ */
+function video_repository_apply_club_filter(?int $clubId, array &$params, array &$where, string $alias = 'm'): void
+{
+          if ($clubId !== null && $clubId > 0) {
+                    $where[] = $alias . '.club_id = :club_id';
+                    $params['club_id'] = $clubId;
+          }
+}
+
+/**
  * @return string|null
  */
 function video_repository_progress_dir(): ?string
@@ -139,10 +155,7 @@ function get_all_videos(?int $clubId = null): array
           $params = [];
           $where = [];
 
-          if ($clubId !== null && $clubId > 0) {
-                    $where[] = 'm.club_id = :club_id';
-                    $params['club_id'] = $clubId;
-          }
+          video_repository_apply_club_filter($clubId, $params, $where);
 
           $sql = <<<SQL
 SELECT mv.*,
@@ -214,10 +227,7 @@ function get_recent_video_ingestions(?int $clubId = null, int $limit = 5): array
           $params = [];
           $where = [];
 
-          if ($clubId !== null && $clubId > 0) {
-                    $where[] = 'm.club_id = :club_id';
-                    $params['club_id'] = $clubId;
-          }
+          video_repository_apply_club_filter($clubId, $params, $where);
 
           $sql = <<<SQL
 SELECT mv.*,
@@ -259,10 +269,7 @@ function count_video_statuses(?int $clubId = null): array
           $params = [];
           $where = [];
 
-          if ($clubId !== null && $clubId > 0) {
-                    $where[] = 'm.club_id = :club_id';
-                    $params['club_id'] = $clubId;
-          }
+          video_repository_apply_club_filter($clubId, $params, $where);
 
           $sql = <<<SQL
 SELECT mv.download_status AS status, COUNT(*) AS total
@@ -297,10 +304,7 @@ function count_matches_with_videos(?int $clubId = null): int
           $params = [];
           $where = [];
 
-          if ($clubId !== null && $clubId > 0) {
-                    $where[] = 'm.club_id = :club_id';
-                    $params['club_id'] = $clubId;
-          }
+          video_repository_apply_club_filter($clubId, $params, $where);
 
           $sql = <<<SQL
 SELECT COUNT(DISTINCT m.id) AS total
@@ -327,10 +331,7 @@ function get_video_match_ids(?int $clubId = null): array
           $params = [];
           $where = [];
 
-          if ($clubId !== null && $clubId > 0) {
-                    $where[] = 'm.club_id = :club_id';
-                    $params['club_id'] = $clubId;
-          }
+          video_repository_apply_club_filter($clubId, $params, $where);
 
           $sql = <<<SQL
 SELECT DISTINCT m.id AS match_id

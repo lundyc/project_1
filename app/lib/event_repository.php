@@ -1,59 +1,7 @@
 <?php
 
 require_once __DIR__ . '/db.php';
-
-/**
- * Normalizes incoming event data to satisfy NOT NULL columns and enums.
- */
-function normalize_event_payload(array $data): array
-{
-          $matchSecond = isset($data['match_second']) && $data['match_second'] !== '' ? (int)$data['match_second'] : 0;
-          if ($matchSecond < 0) {
-                    $matchSecond = 0;
-          }
-
-          $minute = isset($data['minute']) && $data['minute'] !== '' ? (int)$data['minute'] : (int)floor($matchSecond / 60);
-          if ($minute < 0) {
-                    $minute = 0;
-          }
-
-          $minuteExtra = isset($data['minute_extra']) && $data['minute_extra'] !== '' ? (int)$data['minute_extra'] : 0;
-          if ($minuteExtra < 0) {
-                    $minuteExtra = 0;
-          }
-
-          $teamSide = isset($data['team_side']) ? (string)$data['team_side'] : 'unknown';
-          if (!in_array($teamSide, ['home', 'away', 'unknown'], true)) {
-                    $teamSide = 'unknown';
-          }
-
-          $eventTypeId = isset($data['event_type_id']) ? (int)$data['event_type_id'] : 0;
-          if ($eventTypeId <= 0) {
-                    throw new \InvalidArgumentException('event_type_required');
-          }
-
-          $importance = isset($data['importance']) && $data['importance'] !== '' ? (int)$data['importance'] : 3;
-          $importance = max(1, min(5, $importance));
-
-          $phase = isset($data['phase']) && $data['phase'] !== '' ? (string)$data['phase'] : 'unknown';
-          $phase = in_array($phase, ['unknown', 'build_up', 'transition', 'defensive_block', 'set_piece'], true) ? $phase : 'unknown';
-
-          return [
-                    'period_id' => isset($data['period_id']) && $data['period_id'] !== '' ? (int)$data['period_id'] : null,
-                    'match_second' => $matchSecond,
-                    'minute' => $minute,
-                    'minute_extra' => $minuteExtra,
-                    'team_side' => $teamSide,
-                    'event_type_id' => $eventTypeId,
-                    'importance' => $importance,
-                    'phase' => $phase,
-                    'match_player_id' => isset($data['match_player_id']) && $data['match_player_id'] !== '' ? (int)$data['match_player_id'] : null,
-                    'opponent_detail' => $data['opponent_detail'] ?? null,
-                    'outcome' => $data['outcome'] ?? null,
-                    'zone' => $data['zone'] ?? null,
-                    'notes' => $data['notes'] ?? null,
-          ];
-}
+require_once __DIR__ . '/event_validation.php';
 
 function ensure_default_event_types(int $clubId): void
 {
@@ -89,7 +37,7 @@ function ensure_default_event_types(int $clubId): void
           }
 }
 
-function list_events(int $matchId): array
+function event_list_for_match(int $matchId): array
 {
           $pdo = db();
           $stmt = $pdo->prepare(
@@ -149,7 +97,7 @@ function list_events(int $matchId): array
           return $events;
 }
 
-function get_event(int $eventId): ?array
+function event_get_by_id(int $eventId): ?array
 {
           $pdo = db();
           $stmt = $pdo->prepare(
@@ -198,7 +146,7 @@ function get_event(int $eventId): ?array
           return $event;
 }
 
-function create_event(int $matchId, array $data, array $tagIds, int $userId): int
+function event_create(int $matchId, array $data, array $tagIds, int $userId): int
 {
           $pdo = db();
           $pdo->beginTransaction();
@@ -248,7 +196,7 @@ function create_event(int $matchId, array $data, array $tagIds, int $userId): in
           }
 }
 
-function update_event(int $eventId, array $data, array $tagIds, int $userId): void
+function event_update(int $eventId, array $data, array $tagIds, int $userId): void
 {
           $pdo = db();
           $pdo->beginTransaction();
@@ -308,7 +256,7 @@ function update_event(int $eventId, array $data, array $tagIds, int $userId): vo
           }
 }
 
-function delete_event(int $eventId, int $userId): void
+function event_delete(int $eventId, int $userId): void
 {
           $pdo = db();
           $pdo->beginTransaction();

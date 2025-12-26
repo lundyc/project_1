@@ -3,6 +3,12 @@
 (function ($) {
           const cfg = window.DeskConfig;
           if (!cfg) return;
+          const csrfToken = cfg.csrfToken || null;
+          if (csrfToken && $.ajaxSetup) {
+                    $.ajaxSetup({
+                              headers: { 'X-CSRF-Token': csrfToken },
+                    });
+          }
 
           const endpoints = cfg.endpoints || {};
 

@@ -5,6 +5,7 @@ require_once __DIR__ . '/../../../lib/match_repository.php';
 require_once __DIR__ . '/../../../lib/match_player_repository.php';
 require_once __DIR__ . '/../../../lib/event_repository.php';
 require_once __DIR__ . '/../../../lib/match_lock_service.php';
+require_once __DIR__ . '/../../../lib/csrf.php';
 
 $user = current_user();
 $roles = $_SESSION['roles'] ?? [];
@@ -63,6 +64,8 @@ $videoReady = $standardAbsolute && is_file($standardAbsolute);
 $videoPath = $videoReady ? $standardRelative : ($match['video_source_path'] ?? '');
 $videoSrc = $isVeo ? $standardRelative : ($videoReady ? $standardRelative : '');
 
+$csrfToken = get_csrf_token();
+
 $deskConfig = [
           'basePath' => $base,
           'matchId' => $matchId,
@@ -77,6 +80,7 @@ $deskConfig = [
                     'locked_at' => $currentLock['locked_at'],
                     'last_heartbeat_at' => $currentLock['last_heartbeat_at'],
           ] : null,
+          'csrfToken' => $csrfToken,
           'video' => [
                     'source_path' => $videoPath,
                     'full_path' => $videoSrc,
@@ -106,6 +110,7 @@ $videoProgressConfig = [
           'retryUrl' => $base . '/api/match-video/retry',
           'standardPath' => $standardRelative,
           'videoReady' => $videoReady,
+          'csrfToken' => $csrfToken,
 ];
 $footerScripts .= '<script>window.MatchVideoDeskConfig = ' . json_encode($videoProgressConfig) . ';</script>';
 $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/match-video-progress.js?v=' . time() . '"></script>';

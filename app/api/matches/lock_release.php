@@ -4,11 +4,19 @@ require_once __DIR__ . '/../../lib/auth.php';
 require_once __DIR__ . '/../../lib/match_repository.php';
 require_once __DIR__ . '/../../lib/match_permissions.php';
 require_once __DIR__ . '/../../lib/match_lock_service.php';
+require_once __DIR__ . '/../../lib/api_response.php';
+require_once __DIR__ . '/../../lib/csrf.php';
 
 auth_boot();
 require_auth();
 
 header('Content-Type: application/json');
+
+try {
+          require_csrf_token();
+} catch (CsrfException $e) {
+          api_error('invalid_csrf', 403, [], $e);
+}
 
 $matchId = isset($matchId) ? (int)$matchId : (int)($_POST['match_id'] ?? 0);
 

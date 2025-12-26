@@ -16,7 +16,7 @@ function get_clip_for_event(int $eventId): ?array
 
 function create_clip(int $matchId, int $clubId, int $userId, int $eventId, array $payload): array
 {
-          $event = get_event($eventId);
+          $event = event_get_by_id($eventId);
 
           if (!$event || (int)$event['match_id'] !== $matchId) {
                     throw new InvalidArgumentException('Event not found for this match');

@@ -226,7 +226,7 @@ function handle_dynamic_match_routes(string $path): bool
 
                     ensure_default_event_types((int)$match['club_id']);
 
-                    $events = list_events($matchId);
+                    $events = event_list_for_match($matchId);
 
                     $eventTypesStmt = db()->prepare('SELECT id, type_key, label FROM event_types WHERE club_id = :club_id ORDER BY label ASC');
                     $eventTypesStmt->execute(['club_id' => (int)$match['club_id']]);
@@ -271,7 +271,7 @@ function handle_dynamic_match_routes(string $path): bool
 
                     ensure_default_event_types((int)$match['club_id']);
 
-                    $events = list_events($matchId);
+                    $events = event_list_for_match($matchId);
                     $eventTypesStmt = db()->prepare('SELECT id, type_key, label FROM event_types WHERE club_id = :club_id ORDER BY label ASC');
                     $eventTypesStmt->execute(['club_id' => (int)$match['club_id']]);
                     $eventTypes = $eventTypesStmt->fetchAll();

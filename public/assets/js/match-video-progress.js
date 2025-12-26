@@ -3,6 +3,13 @@
           if (!cfg.matchId || !cfg.progressUrl) {
                     return;
           }
+          const csrfToken = cfg.csrfToken || (window.DeskConfig && window.DeskConfig.csrfToken) || null;
+          const fetchHeaders = {
+                    Accept: 'application/json',
+          };
+          if (csrfToken) {
+                    fetchHeaders['X-CSRF-Token'] = csrfToken;
+          }
 
           const statusBadge = document.getElementById('deskInlineStatusBadge');
           const summaryText = document.getElementById('deskInlineSummary');
@@ -157,7 +164,7 @@
                               method: 'POST',
                               headers: {
                                         'Content-Type': 'application/json',
-                                        Accept: 'application/json',
+                                        ...fetchHeaders,
                               },
                               body: JSON.stringify({ match_id: cfg.matchId }),
                     });
@@ -172,7 +179,7 @@
           const pollProgress = async () => {
                     try {
                               const res = await fetch(`${cfg.progressUrl}`, {
-                                        headers: { Accept: 'application/json' },
+                                        headers: fetchHeaders,
                               });
                               if (!res.ok) {
                                         throw new Error('Unable to read download progress');

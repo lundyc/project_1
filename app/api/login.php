@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/../lib/auth.php';
+require_once __DIR__ . '/../lib/csrf.php';
 require_once __DIR__ . '/../lib/user_repository.php';
 
 auth_boot();
@@ -27,5 +28,7 @@ $_SESSION['user'] = [
 ];
 
 $_SESSION['roles'] = load_user_roles((int)$user['id']);
+
+get_csrf_token();
 
 redirect('/');

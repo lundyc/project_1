@@ -34,7 +34,7 @@ if (!can_view_match($user, $roles, (int)$match['club_id']) && !can_manage_match_
           exit;
 }
 
-$events = list_events($matchId);
+$events = event_list_for_match($matchId);
 
 echo json_encode([
           'ok' => true,
