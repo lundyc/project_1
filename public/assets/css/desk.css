@@ -706,6 +706,40 @@ body {
   margin-bottom: 6px;
 }
 
+.timeline-minute-group {
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(148, 163, 184, 0.06);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.timeline-minute-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.timeline-minute-label {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.timeline-minute-count {
+  color: var(--muted);
+}
+
+.timeline-minute-events {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .timeline-item {
   padding: 10px 12px;
   border: 1px solid var(--border);
@@ -715,6 +749,17 @@ body {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.timeline-item--low-importance {
+  opacity: 0.65;
+  filter: saturate(0.85);
+}
+
+.timeline-item--high-importance {
+  border-left-width: 4px;
+  box-shadow: 0 6px 15px rgba(15, 23, 42, 0.5);
+  transform: translateY(-1px);
 }
 
 .timeline-item:hover {
@@ -793,18 +838,122 @@ body {
   position: relative;
 }
 
-.editor-panel {
-  transition: max-height 0.2s ease, opacity 0.2s ease;
-  max-height: 800px;
-}
-
-.editor-panel.is-collapsed {
-  max-height: 64px;
-  opacity: 0.6;
-}
-
-.editor-panel.is-hidden {
+.editor-modal {
+  position: fixed;
+  inset: 0;
   display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 1100;
+}
+
+.editor-modal:not(.is-hidden) {
+  display: flex;
+}
+
+.editor-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(6px);
+}
+
+.editor-modal-card {
+  position: relative;
+  width: min(92vw, 780px);
+  max-height: 90vh;
+  overflow-y: auto;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 20px 40px rgba(2, 6, 23, 0.55);
+  z-index: 1;
+}
+
+.editor-modal-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.editor-modal-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.editor-modal-close {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: #e2e8f0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.editor-modal-close:hover,
+.editor-modal-close:focus-visible {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.editor-tabs-row {
+  margin-top: 18px;
+}
+
+.editor-tabs {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.editor-tab {
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: rgba(15, 23, 42, 0.8);
+  color: #e2e8f0;
+  padding: 6px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.editor-tab.is-active {
+  border-color: #4cc2ff;
+  color: #4cc2ff;
+}
+.editor-tab.is-hidden {
+  display: none;
+}
+
+.editor-tab-panel {
+  display: none;
+  gap: 16px;
+}
+
+.editor-tab-panel.is-active {
+  display: block;
+}
+
+.editor-tab-panels {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.editor-modal-footer {
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+body.editor-modal-open {
+  overflow: hidden;
 }
 
 #editorPanel {

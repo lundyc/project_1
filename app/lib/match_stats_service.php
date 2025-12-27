@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/match_period_repository.php';
 
 function normalize_team_side_value(?string $team): string
 {
@@ -34,7 +35,30 @@ function guess_type_key_from_label(?string $label): ?string
           return null;
 }
 
-function build_match_stats_from_events(array $events, array $eventTypes, int $eventsVersion): array
+function new_team_counts(): array
+{
+          return ['home' => 0, 'away' => 0, 'unknown' => 0];
+}
+
+function resolve_period_category(array $period): string
+{
+          $key = strtolower((string)($period['period_key'] ?? ''));
+          $label = strtolower((string)($period['label'] ?? ''));
+
+          if (str_contains($key, 'et') || str_contains($label, 'extra time') || str_contains($label, 'extra')) {
+                    return 'ET';
+          }
+          if (str_contains($key, 'sh') || str_contains($label, 'second') || str_contains($label, '2nd') || str_contains($label, '2h')) {
+                    return '2H';
+          }
+          if (str_contains($key, 'fh') || str_contains($label, 'first') || str_contains($label, '1st') || str_contains($label, '1h')) {
+                    return '1H';
+          }
+
+          return 'other';
+}
+
+function build_match_stats_from_events(array $events, array $eventTypes, array $periods, int $eventsVersion): array
 {
           $categories = [
                     'goal' => ['goal'],
@@ -52,12 +76,51 @@ function build_match_stats_from_events(array $events, array $eventTypes, int $ev
           ];
 
           $byType = [];
+          $importanceByType = [];
           foreach (array_keys($categories) as $key) {
-                    $byType[$key] = ['home' => 0, 'away' => 0, 'unknown' => 0];
+                    $byType[$key] = new_team_counts();
+                    $importanceByType[$key] = new_team_counts();
           }
+
+          $periodCategoryMap = [];
+          foreach ($periods as $period) {
+                    if (empty($period['id'])) {
+                              continue;
+                    }
+                    $periodCategoryMap[(int)$period['id']] = resolve_period_category($period);
+          }
+
+          $periodGroups = ['1H', '2H', 'ET', 'other'];
+          $byPeriod = [];
+          foreach ($periodGroups as $group) {
+                    $byPeriod[$group] = new_team_counts();
+          }
+
+          $per15Buckets = [];
+          $importanceTotals = new_team_counts();
 
           foreach ($events as $ev) {
                     $team = normalize_team_side_value($ev['team_side'] ?? 'unknown');
+                    $importance = max(1, min(5, (int)($ev['importance'] ?? 3)));
+                    $importanceTotals[$team] += $importance;
+
+                    $matchSecond = max(0, (int)($ev['match_second'] ?? 0));
+                    $bucketIndex = (int)floor($matchSecond / 900);
+                    $bucketLabel = sprintf('%d-%d', $bucketIndex * 15, ($bucketIndex + 1) * 15);
+                    if (!isset($per15Buckets[$bucketIndex])) {
+                              $per15Buckets[$bucketIndex] = [
+                                        'label' => $bucketLabel,
+                                        'home' => 0,
+                                        'away' => 0,
+                                        'unknown' => 0,
+                              ];
+                    }
+                    $per15Buckets[$bucketIndex][$team]++;
+
+                    $periodId = isset($ev['period_id']) ? (int)$ev['period_id'] : 0;
+                    $periodGroup = $periodCategoryMap[$periodId] ?? 'other';
+                    $byPeriod[$periodGroup][$team]++;
+
                     $typeId = (int)($ev['event_type_id'] ?? 0);
                     $typeKey = strtolower((string)($ev['event_type_key'] ?? ''));
                     if (!$typeKey && $typeId && isset($eventTypes[$typeId])) {
@@ -79,16 +142,29 @@ function build_match_stats_from_events(array $events, array $eventTypes, int $ev
                     foreach ($categories as $bucket => $aliases) {
                               if (in_array($typeKey, $aliases, true)) {
                                         $byType[$bucket][$team]++;
+                                        $importanceByType[$bucket][$team] += $importance;
                               }
                     }
           }
 
+          ksort($per15Buckets, SORT_NUMERIC);
+          $per15List = array_values(array_map(function ($bucket) {
+                    return [
+                              'label' => $bucket['label'],
+                              'home' => $bucket['home'],
+                              'away' => $bucket['away'],
+                              'unknown' => $bucket['unknown'],
+                    ];
+          }, $per15Buckets));
+
+          // Set pieces combine corners, free kicks, and penalties per side.
           $setPieces = [
                     'home' => $byType['corner']['home'] + $byType['free_kick']['home'] + $byType['penalty']['home'],
                     'away' => $byType['corner']['away'] + $byType['free_kick']['away'] + $byType['penalty']['away'],
                     'unknown' => $byType['corner']['unknown'] + $byType['free_kick']['unknown'] + $byType['penalty']['unknown'],
           ];
 
+          // Cards group yellow and red counts together.
           $cards = [
                     'home' => $byType['yellow_card']['home'] + $byType['red_card']['home'],
                     'away' => $byType['yellow_card']['away'] + $byType['red_card']['away'],
@@ -101,6 +177,17 @@ function build_match_stats_from_events(array $events, array $eventTypes, int $ev
                     'computed_at' => gmdate('Y-m-d H:i:s'),
                     'events_version_used' => $eventsVersion,
                     'by_type_team' => $byType,
+                    'phase_2' => [
+                              // Totals split by first half, second half, extra time, or other periods.
+                              'by_period' => $byPeriod,
+                              // Match events grouped into 15-minute buckets for trend analysis.
+                              'per_15_minute' => $per15List,
+                              // Importance-weighted counts help highlight high-value activity.
+                              'importance_weighted' => [
+                                        'by_team' => $importanceTotals,
+                                        'by_type_team' => $importanceByType,
+                              ],
+                    ],
                     'totals' => [
                               'set_pieces' => $setPieces,
                               'cards' => $cards,
@@ -144,7 +231,7 @@ function store_match_stats(int $matchId, int $eventsVersion, array $payload): vo
                     'match_id' => $matchId,
                     'events_version' => $eventsVersion,
                     'computed_at' => gmdate('Y-m-d H:i:s'),
-                    'payload' => json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                    'payload' => json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT),
           ]);
 
           db()->prepare('UPDATE matches SET derived_version = :events_version WHERE id = :id')
@@ -165,7 +252,8 @@ function get_or_compute_match_stats(int $matchId, int $eventsVersion, array $eve
                     $typeMap[(int)$type['id']] = $type;
           }
 
-          $stats = build_match_stats_from_events($events, $typeMap, $eventsVersion);
+          $periods = get_match_periods($matchId);
+          $stats = build_match_stats_from_events($events, $typeMap, $periods, $eventsVersion);
           store_match_stats($matchId, $eventsVersion, $stats);
 
           return $stats;

@@ -215,6 +215,7 @@ function handle_dynamic_match_routes(string $path): bool
                     require_once __DIR__ . '/../app/lib/match_permissions.php';
                     require_once __DIR__ . '/../app/lib/event_repository.php';
                     require_once __DIR__ . '/../app/lib/match_stats_service.php';
+                    require_once __DIR__ . '/../app/lib/match_period_repository.php';
 
                     $matchId = (int)$m[1];
                     $match = get_match($matchId);
@@ -243,6 +244,7 @@ function handle_dynamic_match_routes(string $path): bool
                     $eventTypes = $eventTypesStmt->fetchAll();
 
                     $derivedStats = get_or_compute_match_stats((int)$match['id'], (int)$match['events_version'], $events, $eventTypes);
+                    $matchPeriods = get_match_periods($matchId);
 
                     require __DIR__ . '/../app/views/pages/matches/summary.php';
                     return true;

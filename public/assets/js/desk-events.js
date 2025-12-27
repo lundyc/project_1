@@ -31,6 +31,9 @@
           const $tagToast = $('#tagToast');
           const $editorPanel = $('#editorPanel');
           const $editorHint = $('#editorHint');
+          const $editorTabs = $editorPanel.find('.editor-tab');
+          const $editorTabPanels = $editorPanel.find('.editor-tab-panel');
+          const $editorTabOutcome = $('#editorTabOutcome');
 
           const $eventId = $('#eventId');
           const $matchSecond = $('#match_second');
@@ -148,6 +151,10 @@
           let matrixInitialized = false;
           let matrixPan = { active: false, startX: 0, scrollLeft: 0 };
           let resizeTimer = null;
+          let editorDirty = false;
+          let suppressDirtyTracking = false;
+          let activeEditorTab = 'details';
+          let editorOpen = false;
 
           function hexToRgb(hex) {
                     const value = (hex || '').replace('#', '').trim();
@@ -328,10 +335,13 @@
           }
 
           setUndoRedoState(cfg.actionStack || {});
+          setActiveEditorTab('details');
+          updateOutcomeTabVisibility(resolveOutcomeOptions($eventTypeId.val()));
 
           function refreshOutcomeField(typeId, selectedOutcome = '') {
                     if (!$outcomeField.length || !$outcome.length) return;
                     const options = resolveOutcomeOptions(typeId);
+                    updateOutcomeTabVisibility(options);
                     console.log('Outcome options for type', typeId, options);
                     if (!options || !options.length) {
                               $outcome.html('<option value=\"\"></option>');
@@ -779,7 +789,7 @@ function applyLockResponse(res) {
                     const previousScroll = prevViewport.length ? prevViewport[0].scrollLeft : 0;
                     const opts = { ...options, previousScroll };
 
-                    let filtered = events;
+                    let filtered = [...events];
                     if (teamF) filtered = filtered.filter((e) => e.team_side === teamF);
                     if (typeF) filtered = filtered.filter((e) => String(e.event_type_id) === String(typeF));
                     if (playerF) filtered = filtered.filter((e) => String(e.match_player_id) === String(playerF));
@@ -800,31 +810,109 @@ function applyLockResponse(res) {
                     }
           }
 
+          function getEventMinuteBucket(ev) {
+                    if (!ev) {
+                              return 0;
+                    }
+                    const rawMinute = ev.minute;
+                    if (rawMinute !== null && rawMinute !== undefined && String(rawMinute).trim() !== '') {
+                              const normalized = String(rawMinute).split('+')[0];
+                              const parsed = parseInt(normalized, 10);
+                              if (!Number.isNaN(parsed)) {
+                                        return parsed;
+                              }
+                    }
+                    const seconds = typeof ev.match_second === 'number' ? ev.match_second : parseFloat(ev.match_second);
+                    if (!Number.isNaN(seconds)) {
+                              return Math.floor(Math.max(0, seconds) / 60);
+                    }
+                    return 0;
+          }
+
+          function formatEventMinuteText(ev) {
+                    if (!ev) {
+                              return '0';
+                    }
+                    const extra = ev.minute_extra ? `+${ev.minute_extra}` : '';
+                    if (ev.minute !== null && ev.minute !== undefined && String(ev.minute).trim() !== '') {
+                              const minuteText = String(ev.minute);
+                              if (minuteText.includes('+')) {
+                                        return minuteText;
+                              }
+                              return `${minuteText}${extra}`;
+                    }
+                    const bucket = getEventMinuteBucket(ev);
+                    return `${bucket}${extra}`;
+          }
+
+          function buildEventImportanceClass(rawImportance) {
+                    const parsed = parseInt(rawImportance, 10);
+                    const importance = Number.isNaN(parsed) ? 0 : parsed;
+                    if (importance <= 2) {
+                              return ' timeline-item--low-importance';
+                    }
+                    if (importance >= 4) {
+                              return ' timeline-item--high-importance';
+                    }
+                    return '';
+          }
+
           function renderListTimeline(groups, filtered) {
                     let html = '';
                     Object.keys(groups).forEach((label) => {
+                              const periodEvents = groups[label] || [];
+                              if (!periodEvents.length) {
+                                        return;
+                              }
                               html += `<div class="timeline-group">
                                         <div class="timeline-group-title">${h(label)}</div>`;
-                              groups[label].forEach((ev) => {
-                                        const labelText = displayEventLabel(ev, ev.event_type_label || 'Event');
-                                        const accent = eventTypeAccents[String(ev.event_type_id)] || EVENT_NEUTRAL;
-                                        const colorStyle = buildColorStyle(accent);
-                                        const minute = ev.minute !== null ? ev.minute : Math.floor(ev.match_second / 60);
-                                        const badgeClass = ev.team_side === 'home' ? 'badge-home' : ev.team_side === 'away' ? 'badge-away' : 'badge-unknown';
-                                        const player = ev.match_player_name ? `<span>${h(ev.match_player_name)}</span>` : '<span class="text-muted-alt">No player</span>';
-                                        html += `<div class="timeline-item" data-id="${ev.id}" data-second="${ev.match_second}" style="${colorStyle}">
-                                                  <div class="timeline-top">
-                                                            <div><span class="badge-pill ${badgeClass}">${h(ev.team_side || 'unk')}</span> <span class="event-label">${h(labelText)}</span></div>
-                                                            <div class="timeline-actions">
-                                                                      <span class="text-muted-alt text-xs">${minute}' (${fmtTime(ev.match_second)})</span>
-                                                                      <button type="button" class="ghost-btn ghost-btn-sm desk-editable timeline-delete" data-id="${ev.id}">Delete</button>
+                              const minuteBuckets = {};
+                              const minuteOrder = [];
+                              periodEvents.forEach((ev) => {
+                                        const minuteKey = getEventMinuteBucket(ev);
+                                        if (!Object.prototype.hasOwnProperty.call(minuteBuckets, minuteKey)) {
+                                                  minuteBuckets[minuteKey] = [];
+                                                  minuteOrder.push(minuteKey);
+                                        }
+                                        minuteBuckets[minuteKey].push(ev);
+                              });
+                              // Group events by minute so actions from the same minute stack together while keeping the source order intact.
+                              minuteOrder.forEach((minuteKey) => {
+                                        const minuteEvents = minuteBuckets[minuteKey] || [];
+                                        if (!minuteEvents.length) {
+                                                  return;
+                                        }
+                                        const minuteAttr = h(minuteKey);
+                                        const minuteLabel = `${Math.max(0, minuteKey)}'`;
+                                        html += `<div class="timeline-minute-group" data-minute="${minuteAttr}">
+                                                  <div class="timeline-minute-header">
+                                                            <span class="timeline-minute-label">${h(minuteLabel)}</span>
+                                                            <span class="timeline-minute-count text-xs text-muted-alt">${minuteEvents.length} event${minuteEvents.length === 1 ? '' : 's'}</span>
+                                                  </div>
+                                                  <div class="timeline-minute-events">`;
+                                        minuteEvents.forEach((ev) => {
+                                                  const labelText = displayEventLabel(ev, ev.event_type_label || 'Event');
+                                                  const accent = eventTypeAccents[String(ev.event_type_id)] || EVENT_NEUTRAL;
+                                                  const colorStyle = buildColorStyle(accent);
+                                                  const importanceClass = buildEventImportanceClass(ev.importance);
+                                                  const badgeClass = ev.team_side === 'home' ? 'badge-home' : ev.team_side === 'away' ? 'badge-away' : 'badge-unknown';
+                                                  const player = ev.match_player_name ? `<span>${h(ev.match_player_name)}</span>` : '<span class="text-muted-alt">No player</span>';
+                                                  const minuteDisplay = h(formatEventMinuteText(ev));
+                                                  html += `<div class="timeline-item${importanceClass}" data-id="${ev.id}" data-second="${ev.match_second}" style="${colorStyle}">
+                                                            <div class="timeline-top">
+                                                                      <div><span class="badge-pill ${badgeClass}">${h(ev.team_side || 'unk')}</span> <span class="event-label">${h(labelText)}</span></div>
+                                                                      <div class="timeline-actions">
+                                                                                <span class="text-muted-alt text-xs">${minuteDisplay}' (${fmtTime(ev.match_second)})</span>
+                                                                                <button type="button" class="ghost-btn ghost-btn-sm desk-editable timeline-delete" data-id="${ev.id}">Delete</button>
+                                                                      </div>
                                                             </div>
-                                                  </div>
-                                                  <div class="timeline-meta">
-                                                            ${player}
-                                                            <span>${ev.tags && ev.tags.length ? `${ev.tags.length} tags` : ''}</span>
-                                                  </div>
-                                        </div>`;
+                                                            <div class="timeline-meta">
+                                                                      ${player}
+                                                                      <span>${ev.tags && ev.tags.length ? `${ev.tags.length} tags` : ''}</span>
+                                                            </div>
+                                                  </div>`;
+                                        });
+                                        html += '</div></div>';
                               });
                               html += '</div>';
                     });
@@ -933,15 +1021,20 @@ function applyLockResponse(res) {
                               html += '</div>';
                               html += `<div class="matrix-row-events" style="width:${timelineWidth}px">`;
                               row.events.forEach((ev) => {
-                                        const imp = parseInt(ev.importance, 10) || 1;
-                                        const height = 10 + imp * 2;
-                                        const opacity = Math.min(1, 0.4 + imp * 0.1);
+                                        const rawImportance = parseInt(ev.importance, 10);
+                                        const importance = Number.isNaN(rawImportance) ? 1 : rawImportance;
+                                        const baseHeight = 10 + importance * 2;
+                                        const emphasisBoost = importance >= 4 ? 2 : 0;
+                                        const dotHeight = baseHeight + emphasisBoost;
+                                        const dotWidth = 6 + emphasisBoost;
+                                        const opacity = Math.min(1, 0.4 + importance * 0.1);
                                         const baseAccent = eventTypeAccents[String(row.id)] || EVENT_NEUTRAL;
                                         const teamColor = ev.team_side === 'home' ? '#3b82f6' : ev.team_side === 'away' ? '#f97316' : baseAccent;
                                         const posX = ev.match_second * timelineZoom.pixelsPerSecond * timelineZoom.scale;
-                                        const dotStyle = `${buildColorStyle(teamColor)}left:${posX}px; height:${height}px; opacity:${opacity};`;
+                                        const emphasisShadow = importance >= 4 ? 'box-shadow: 0 0 0 2px var(--event-color-strong, rgba(148, 163, 184, 0.55));' : '';
+                                        const dotStyle = `${buildColorStyle(teamColor)}left:${posX}px; height:${dotHeight}px; width:${dotWidth}px; opacity:${opacity}; ${emphasisShadow}`;
                                         const labelText = displayEventLabel(ev, row.label);
-                                        html += `<span class="matrix-dot" data-second="${ev.match_second}" title="${fmtTime(ev.match_second)} - ${h(labelText)} (${h(ev.team_side || 'team')})" style="${dotStyle}"></span>`;
+                                        html += `<span class="matrix-dot" data-second="${ev.match_second}" data-event-id="${ev.id}" title="${fmtTime(ev.match_second)} - ${h(labelText)} (${h(ev.team_side || 'team')})" style="${dotStyle}"></span>`;
                               });
                               html += '</div></div></div>';
                     });
@@ -1034,59 +1127,129 @@ function applyLockResponse(res) {
           }
 
           function setEditorCollapsed(collapsed, hintText, hidePanel = false) {
-                    $editorPanel.toggleClass('is-collapsed', collapsed);
-                    $editorPanel.toggleClass('is-hidden', !!hidePanel);
+                    const shouldHide = !!collapsed || !!hidePanel;
+                    if (shouldHide) {
+                              $editorPanel.addClass('is-hidden');
+                    } else {
+                              $editorPanel.removeClass('is-hidden');
+                    }
+                    $editorPanel.attr('aria-hidden', shouldHide ? 'true' : 'false');
+                    editorOpen = !shouldHide;
+                    document.body && document.body.classList.toggle('editor-modal-open', editorOpen);
                     if (hintText && $editorHint.length) {
                               $editorHint.text(hintText);
                     }
+                    if (shouldHide) {
+                              editorDirty = false;
+                              activeEditorTab = 'details';
+                              setActiveEditorTab('details');
+                    }
+          }
+
+          function withEditorPopulation(fn) {
+                    if (typeof fn !== 'function') return;
+                    suppressDirtyTracking = true;
+                    try {
+                              fn();
+                    } finally {
+                              suppressDirtyTracking = false;
+                    }
+          }
+
+          function setActiveEditorTab(panelName) {
+                    let target = panelName || 'details';
+                    if (target === 'outcome' && $editorTabOutcome.length && $editorTabOutcome.hasClass('is-hidden')) {
+                              target = 'details';
+                    }
+                    activeEditorTab = target;
+                    $editorTabs.each((_, tab) => {
+                              const $tab = $(tab);
+                              const panel = $tab.data('panel');
+                              const isActive = panel === activeEditorTab;
+                              $tab.toggleClass('is-active', isActive);
+                              $tab.attr('aria-selected', isActive ? 'true' : 'false');
+                              $tab.attr('tabindex', isActive ? '0' : '-1');
+                    });
+                    $editorTabPanels.each((_, panel) => {
+                              const $panel = $(panel);
+                              const isActive = $panel.data('panel') === activeEditorTab;
+                              $panel.toggleClass('is-active', isActive);
+                    });
+          }
+
+          function updateOutcomeTabVisibility(options = []) {
+                    const hasOptions = Array.isArray(options) && options.length > 0;
+                    if ($editorTabOutcome.length) {
+                              $editorTabOutcome.toggleClass('is-hidden', !hasOptions);
+                              $editorTabOutcome.attr('aria-hidden', hasOptions ? 'false' : 'true');
+                              if (!hasOptions && activeEditorTab === 'outcome') {
+                                        setActiveEditorTab('details');
+                              }
+                    }
+          }
+
+          function markEditorDirty() {
+                    if (suppressDirtyTracking) return;
+                    editorDirty = true;
+          }
+
+          function attemptCloseEditor() {
+                    if (editorDirty) return;
+                    setEditorCollapsed(true, 'Click a timeline item to edit details', true);
           }
 
           function fillForm(ev) {
                     if (!ev) {
-                              selectedId = null;
-                              $eventId.val('');
-                              $matchSecond.val('');
-                              $minute.val('');
-                              $minuteExtra.val('');
-                              $teamSide.val('home');
-                              $periodId.val('');
-                              $eventTypeId.val('');
-                              $matchPlayerId.val('');
-                              $importance.val('3');
-                              $phase.val('');
-                              $outcome.val('');
-                              $zone.val('');
-                              $notes.val('');
-                              $tagIds.val([]);
-                              clipState = { id: null, start: null, end: null };
-                              updateClipUi();
-                              refreshOutcomeFieldForEvent(null);
+                              withEditorPopulation(() => {
+                                        selectedId = null;
+                                        $eventId.val('');
+                                        $matchSecond.val('');
+                                        $minute.val('');
+                                        $minuteExtra.val('');
+                                        $teamSide.val('home');
+                                        $periodId.val('');
+                                        $eventTypeId.val('');
+                                        $matchPlayerId.val('');
+                                        $importance.val('3');
+                                        $phase.val('');
+                                        $outcome.val('');
+                                        $zone.val('');
+                                        $notes.val('');
+                                        $tagIds.val([]);
+                                        clipState = { id: null, start: null, end: null };
+                                        updateClipUi();
+                                        refreshOutcomeFieldForEvent(null);
+                              });
+                              editorDirty = false;
                               setEditorCollapsed(true, 'Click a timeline item to edit details', true);
                               return;
                     }
 
-                    selectedId = ev.id;
-                    $eventId.val(ev.id);
-                    $matchSecond.val(ev.match_second);
-                    $minute.val(ev.minute);
-                    $minuteExtra.val(ev.minute_extra);
-                    $teamSide.val(ev.team_side || 'unknown');
-                    $periodId.val(ev.period_id);
-                    $eventTypeId.val(ev.event_type_id);
-                    $matchPlayerId.val(ev.match_player_id);
-                    $importance.val(ev.importance || 3);
-                    $phase.val(ev.phase || '');
-                    $outcome.val(ev.outcome || '');
-                    $zone.val(ev.zone || '');
-                    $notes.val(ev.notes || '');
-                    $tagIds.val(ev.tags ? ev.tags.map((t) => t.id) : []);
-                    if (ev.clip_id) {
-                              clipState = { id: ev.clip_id, start: ev.clip_start_second, end: ev.clip_end_second };
-                    } else {
-                              clipState = { id: null, start: null, end: null };
-                    }
-                    updateClipUi();
-                    refreshOutcomeFieldForEvent(ev);
+                    withEditorPopulation(() => {
+                              selectedId = ev.id;
+                              $eventId.val(ev.id);
+                              $matchSecond.val(ev.match_second);
+                              $minute.val(ev.minute);
+                              $minuteExtra.val(ev.minute_extra);
+                              $teamSide.val(ev.team_side || 'unknown');
+                              $periodId.val(ev.period_id);
+                              $eventTypeId.val(ev.event_type_id);
+                              $matchPlayerId.val(ev.match_player_id);
+                              $importance.val(ev.importance || 3);
+                              $phase.val(ev.phase || '');
+                              $outcome.val(ev.outcome || '');
+                              $zone.val(ev.zone || '');
+                              $notes.val(ev.notes || '');
+                              $tagIds.val(ev.tags ? ev.tags.map((t) => t.id) : []);
+                              if (ev.clip_id) {
+                                        clipState = { id: ev.clip_id, start: ev.clip_start_second, end: ev.clip_end_second };
+                              } else {
+                                        clipState = { id: null, start: null, end: null };
+                              }
+                              updateClipUi();
+                              refreshOutcomeFieldForEvent(ev);
+                    });
+                    editorDirty = false;
                     const labelText = displayEventLabel(ev, ev.event_type_label || 'Event');
                     setEditorCollapsed(false, `${h(labelText)} - ${fmtTime(ev.match_second)}`, false);
           }
@@ -1345,6 +1508,7 @@ function applyLockResponse(res) {
                               clipState.end = current;
                     }
                     updateClipUi();
+                    markEditorDirty();
           }
 
           function createClip() {
@@ -1432,6 +1596,39 @@ function applyLockResponse(res) {
                               fillForm(null);
                     });
                     $(document).on('click', '#eventDeleteBtn', deleteEvent);
+                    $editorPanel.on('click', '.editor-tab', function () {
+                              const $tab = $(this);
+                              if ($tab.hasClass('is-hidden')) return;
+                              const panel = $tab.data('panel');
+                              if (!panel) return;
+                              setActiveEditorTab(panel);
+                    });
+                    $editorPanel.on('keydown', '.editor-tab', function (e) {
+                              const key = e.key;
+                              if (!key) return;
+                              const visibleTabs = $editorTabs.filter(':not(.is-hidden)');
+                              const idx = visibleTabs.index(this);
+                              if (key === 'ArrowRight' || key === 'ArrowLeft') {
+                                        if (visibleTabs.length <= 1) return;
+                                        e.preventDefault();
+                                        const step = key === 'ArrowRight' ? 1 : -1;
+                                        const nextIdx = (idx + step + visibleTabs.length) % visibleTabs.length;
+                                        const $next = $(visibleTabs[nextIdx]);
+                                        $next.focus();
+                                        setActiveEditorTab($next.data('panel'));
+                                        return;
+                              }
+                              if (key === 'Enter' || key === ' ') {
+                                        e.preventDefault();
+                                        const panel = $(this).data('panel');
+                                        if (panel) setActiveEditorTab(panel);
+                              }
+                    });
+                    $editorPanel.on('click', '[data-editor-close]', function (e) {
+                              e.preventDefault();
+                              attemptCloseEditor();
+                    });
+                    $editorPanel.on('input change', '.desk-editable', () => markEditorDirty());
                     $undoBtn.on('click', () => performActionStackRequest('undoEvent', 'Undo'));
                     $redoBtn.on('click', () => performActionStackRequest('redoEvent', 'Redo'));
                     $eventTypeId.on('change', () => refreshOutcomeField($eventTypeId.val(), $outcome.val()));
@@ -1491,9 +1688,20 @@ function applyLockResponse(res) {
                     });
                     $(window).on('resize', handleMatrixResize);
                     $timelineMatrix.on('click', '.matrix-dot', function () {
-                              const sec = $(this).data('second');
+                              const $dot = $(this);
+                              const sec = $dot.data('second');
+                              const eventId = $dot.data('event-id');
                               if ($video.length && sec !== undefined) {
                                         $video[0].currentTime = sec;
+                              }
+                              if (eventId) {
+                                        selectEvent(eventId);
+                              }
+                    });
+
+                    $(document).on('keydown', (e) => {
+                              if (e.key === 'Escape' && editorOpen) {
+                                        attemptCloseEditor();
                               }
                     });
 

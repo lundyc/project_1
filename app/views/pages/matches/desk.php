@@ -308,151 +308,164 @@ ob_start();
                               </div>
                     </div>
 
-                    <div id="editorPanel" class="panel-dark editor-panel is-collapsed">
-                              <div class="panel-row">
-                                        <div>
-                                                  <div class="text-sm text-subtle">Event editor</div>
-                                                  <div id="editorHint" class="text-xs text-muted-alt">Click a timeline item to edit details</div>
-                                        </div>
-                                        <div class="editor-actions">
-                                                  <button class="ghost-btn ghost-btn-sm desk-editable" id="eventUseTimeBtn" type="button">Use current time</button>
-                                                  <button class="ghost-btn ghost-btn-sm desk-editable" id="eventNewBtn" type="button">Clear</button>
-                                        </div>
-                              </div>
-                              <div class="btn-row mb-2">
-                                        <button class="ghost-btn ghost-btn-sm desk-editable" id="btnPeriodStart" type="button">Period start</button>
-                                        <button class="ghost-btn ghost-btn-sm desk-editable" id="btnPeriodEnd" type="button">Period end</button>
-                              </div>
-                              <input type="hidden" id="eventId">
-                              <div class="grid-2 gap-sm">
-                                        <div>
-                                                  <label class="field-label">Match second</label>
-                                                  <input type="number" min="0" class="input-dark desk-editable" id="match_second">
-                                        </div>
-                                        <div>
-                                                  <label class="field-label">Minute / +Extra</label>
-                                                  <div class="grid-2 gap-xs">
-                                                            <input type="number" min="0" class="input-dark desk-editable" id="minute">
-                                                            <input type="number" min="0" class="input-dark desk-editable" id="minute_extra" placeholder="+">
-                                                  </div>
-                                        </div>
-                              </div>
-
-                              <div class="grid-2 gap-sm">
-                                        <div>
-                                                  <label class="field-label">Team</label>
-                                                  <select class="input-dark desk-editable" id="team_side">
-                                                            <option value="home">Home</option>
-                                                            <option value="away">Away</option>
-                                                            <option value="unknown">Unknown</option>
-                                                  </select>
-                                        </div>
-                                        <div>
-                                                  <label class="field-label">Period</label>
-                                                  <select class="input-dark desk-editable" id="period_id">
-                                                            <option value="">None</option>
-                                                  </select>
-                                        </div>
-                              </div>
-
-                              <label class="field-label">Event type</label>
-                              <select class="input-dark desk-editable" id="event_type_id">
-                                        <?php foreach ($eventTypes as $type): ?>
-                                                  <option value="<?= (int)$type['id'] ?>"><?= htmlspecialchars($type['label']) ?></option>
-                                        <?php endforeach; ?>
-                              </select>
-
-                              <div class="grid-2 gap-sm">
-                                        <div>
-                                                  <label class="field-label">Player</label>
-                                                  <select class="input-dark desk-editable" id="match_player_id">
-                                                            <option value="">None</option>
-                                                            <?php if (!empty($homePlayers)): ?>
-                                                                      <optgroup label="Home - <?= htmlspecialchars($match['home_team']) ?>">
-                                                                                <?php foreach ($homePlayers as $p): ?>
-                                                                                          <option value="<?= (int)$p['id'] ?>"><?= htmlspecialchars($p['display_name']) ?></option>
-                                                                                <?php endforeach; ?>
-                                                                      </optgroup>
-                                                            <?php endif; ?>
-                                                            <?php if (!empty($awayPlayers)): ?>
-                                                                      <optgroup label="Away - <?= htmlspecialchars($match['away_team']) ?>">
-                                                                                <?php foreach ($awayPlayers as $p): ?>
-                                                                                          <option value="<?= (int)$p['id'] ?>"><?= htmlspecialchars($p['display_name']) ?></option>
-                                                                                <?php endforeach; ?>
-                                                                      </optgroup>
-                                                            <?php endif; ?>
-                                                  </select>
-                                        </div>
-                                        <div>
-                                                  <label class="field-label">Importance</label>
-                                                  <select class="input-dark desk-editable" id="importance">
-                                                            <?php for ($i = 1; $i <= 5; $i++): ?>
-                                                                      <option value="<?= $i ?>"><?= $i ?></option>
-                                                            <?php endfor; ?>
-                                                  </select>
-                                        </div>
-                              </div>
-
-                              <div class="grid-2 gap-sm">
-                                        <div>
-                                                  <label class="field-label">Phase</label>
-                                                  <input type="text" class="input-dark desk-editable" id="phase" placeholder="unknown">
-                                        </div>
-                                        <div class="grid-2 gap-xs">
-                                                  <div id="outcomeField" style="display:none;">
-                                                            <label class="field-label">Outcome</label>
-                                                            <select class="input-dark desk-editable" id="outcome"></select>
-                                                  </div>
+                    <div id="editorPanel" class="editor-modal is-hidden" role="dialog" aria-modal="true" aria-labelledby="editorTitle">
+                              <div class="editor-modal-backdrop" data-editor-close></div>
+                              <div class="panel-dark editor-modal-card">
+                                        <div class="editor-modal-header">
                                                   <div>
-                                                            <label class="field-label">Zone</label>
-                                                            <input type="text" class="input-dark desk-editable" id="zone">
+                                                            <div id="editorTitle" class="text-sm text-subtle">Event editor</div>
+                                                            <div id="editorHint" class="text-xs text-muted-alt">Click a timeline item to edit details</div>
+                                                  </div>
+                                                  <div class="editor-modal-header-actions">
+                                                            <div class="editor-actions">
+                                                                      <button class="ghost-btn ghost-btn-sm desk-editable" id="eventUseTimeBtn" type="button">Use current time</button>
+                                                                      <button class="ghost-btn ghost-btn-sm desk-editable" id="eventNewBtn" type="button">Clear</button>
+                                                            </div>
+                                                            <button type="button" class="editor-modal-close" data-editor-close aria-label="Close event editor">✕</button>
                                                   </div>
                                         </div>
-                              </div>
-
-                              <label class="field-label">Notes</label>
-                              <textarea class="input-dark desk-editable" rows="2" id="notes"></textarea>
-
-                              <label class="field-label">Tags</label>
-                              <select multiple class="input-dark desk-editable" id="tag_ids">
-                                        <?php foreach ($tags as $tag): ?>
-                                                  <option value="<?= (int)$tag['id'] ?>"><?= htmlspecialchars($tag['label']) ?></option>
-                                        <?php endforeach; ?>
-                              </select>
-
-                              <div class="panel-row">
-                                        <div class="text-sm text-subtle">Clip</div>
-                                        <div class="text-xs text-muted-alt">Set IN / OUT from video</div>
-                              </div>
-                              <div class="grid-3 gap-sm">
-                                        <div>
-                                                  <label class="field-label">IN (s)</label>
-                                                  <input type="number" id="clipInText" class="input-dark desk-editable clip-field" readonly>
-                                                  <div class="text-xs text-muted-alt" id="clip_in_fmt"></div>
+                                        <div class="btn-row mb-2 period-controls">
+                                                  <button class="ghost-btn ghost-btn-sm desk-editable" id="btnPeriodStart" type="button">Period start</button>
+                                                  <button class="ghost-btn ghost-btn-sm desk-editable" id="btnPeriodEnd" type="button">Period end</button>
                                         </div>
-                                        <div>
-                                                  <label class="field-label">OUT (s)</label>
-                                                  <input type="number" id="clipOutText" class="input-dark desk-editable clip-field" readonly>
-                                                  <div class="text-xs text-muted-alt" id="clip_out_fmt"></div>
+                                        <input type="hidden" id="eventId">
+                                        <div class="editor-tabs-row">
+                                                  <div class="editor-tabs" role="tablist">
+                                                            <button id="editorTabDetails" class="editor-tab is-active" data-panel="details" role="tab" aria-controls="editorTabpanelDetails" aria-selected="true">Details</button>
+                                                            <button id="editorTabOutcome" class="editor-tab" data-panel="outcome" role="tab" aria-controls="editorTabpanelOutcome" aria-selected="false">Outcome</button>
+                                                            <button id="editorTabNotes" class="editor-tab" data-panel="notes" role="tab" aria-controls="editorTabpanelNotes" aria-selected="false">Notes</button>
+                                                            <button id="editorTabClip" class="editor-tab" data-panel="clip" role="tab" aria-controls="editorTabpanelClip" aria-selected="false">Clip</button>
+                                                  </div>
                                         </div>
-                                        <div>
-                                                  <label class="field-label">Duration</label>
-                                                  <input type="text" id="clipDurationText" class="input-dark" readonly>
+                                        <div class="editor-tab-panels">
+                                                  <div id="editorTabpanelDetails" class="editor-tab-panel is-active" data-panel="details" role="tabpanel" aria-labelledby="editorTabDetails">
+                                                            <label class="field-label">Event type</label>
+                                                            <select class="input-dark desk-editable" id="event_type_id">
+                                                                      <?php foreach ($eventTypes as $type): ?>
+                                                                                <option value="<?= (int)$type['id'] ?>"><?= htmlspecialchars($type['label']) ?></option>
+                                                                      <?php endforeach; ?>
+                                                            </select>
+                                                            <div class="grid-2 gap-sm">
+                                                                      <div>
+                                                                                <label class="field-label">Match second</label>
+                                                                                <input type="number" min="0" class="input-dark desk-editable" id="match_second">
+                                                                      </div>
+                                                                      <div>
+                                                                                <label class="field-label">Minute / +Extra</label>
+                                                                                <div class="grid-2 gap-xs">
+                                                                                          <input type="number" min="0" class="input-dark desk-editable" id="minute">
+                                                                                          <input type="number" min="0" class="input-dark desk-editable" id="minute_extra" placeholder="+">
+                                                                                </div>
+                                                                      </div>
+                                                            </div>
+                                                            <div class="grid-2 gap-sm">
+                                                                      <div>
+                                                                                <label class="field-label">Team</label>
+                                                                                <select class="input-dark desk-editable" id="team_side">
+                                                                                          <option value="home">Home</option>
+                                                                                          <option value="away">Away</option>
+                                                                                          <option value="unknown">Unknown</option>
+                                                                                </select>
+                                                                      </div>
+                                                                      <div>
+                                                                                <label class="field-label">Period</label>
+                                                                                <select class="input-dark desk-editable" id="period_id">
+                                                                                          <option value="">None</option>
+                                                                                </select>
+                                                                      </div>
+                                                            </div>
+                                                            <div class="grid-2 gap-sm">
+                                                                      <div>
+                                                                                <label class="field-label">Player</label>
+                                                                                <select class="input-dark desk-editable" id="match_player_id">
+                                                                                          <option value="">None</option>
+                                                                                          <?php if (!empty($homePlayers)): ?>
+                                                                                                    <optgroup label="Home - <?= htmlspecialchars($match['home_team']) ?>">
+                                                                                                              <?php foreach ($homePlayers as $p): ?>
+                                                                                                                        <option value="<?= (int)$p['id'] ?>"><?= htmlspecialchars($p['display_name']) ?></option>
+                                                                                                              <?php endforeach; ?>
+                                                                                                    </optgroup>
+                                                                                          <?php endif; ?>
+                                                                                          <?php if (!empty($awayPlayers)): ?>
+                                                                                                    <optgroup label="Away - <?= htmlspecialchars($match['away_team']) ?>">
+                                                                                                              <?php foreach ($awayPlayers as $p): ?>
+                                                                                                                        <option value="<?= (int)$p['id'] ?>"><?= htmlspecialchars($p['display_name']) ?></option>
+                                                                                                              <?php endforeach; ?>
+                                                                                                    </optgroup>
+                                                                                          <?php endif; ?>
+                                                                                </select>
+                                                                      </div>
+                                                                      <div>
+                                                                                <label class="field-label">Importance</label>
+                                                                                <select class="input-dark desk-editable" id="importance">
+                                                                                          <?php for ($i = 1; $i <= 5; $i++): ?>
+                                                                                                    <option value="<?= $i ?>"><?= $i ?></option>
+                                                                                          <?php endfor; ?>
+                                                                                </select>
+                                                                      </div>
+                                                            </div>
+                                                            <label class="field-label">Phase</label>
+                                                            <input type="text" class="input-dark desk-editable" id="phase" placeholder="unknown">
+                                                  </div>
+                                                  <div id="editorTabpanelOutcome" class="editor-tab-panel" data-panel="outcome" role="tabpanel" aria-labelledby="editorTabOutcome">
+                                                            <div id="outcomeField" style="display:none;">
+                                                                      <label class="field-label">Outcome</label>
+                                                                      <select class="input-dark desk-editable" id="outcome"></select>
+                                                            </div>
+                                                            <div>
+                                                                      <label class="field-label">Zone</label>
+                                                                      <input type="text" class="input-dark desk-editable" id="zone">
+                                                            </div>
+                                                            <label class="field-label">Tags</label>
+                                                            <select multiple class="input-dark desk-editable" id="tag_ids">
+                                                                      <?php foreach ($tags as $tag): ?>
+                                                                                <option value="<?= (int)$tag['id'] ?>"><?= htmlspecialchars($tag['label']) ?></option>
+                                                                      <?php endforeach; ?>
+                                                            </select>
+                                                  </div>
+                                                  <div id="editorTabpanelNotes" class="editor-tab-panel" data-panel="notes" role="tabpanel" aria-labelledby="editorTabNotes">
+                                                            <label class="field-label">Notes</label>
+                                                            <textarea class="input-dark desk-editable" rows="2" id="notes"></textarea>
+                                                  </div>
+                                                  <div id="editorTabpanelClip" class="editor-tab-panel" data-panel="clip" role="tabpanel" aria-labelledby="editorTabClip">
+                                                            <div class="panel-row">
+                                                                      <div class="text-sm text-subtle">Clip</div>
+                                                                      <div class="text-xs text-muted-alt">Set IN / OUT from video</div>
+                                                            </div>
+                                                            <div class="grid-3 gap-sm">
+                                                                      <div>
+                                                                                <label class="field-label">IN (s)</label>
+                                                                                <input type="number" id="clipInText" class="input-dark desk-editable clip-field" readonly>
+                                                                                <div class="text-xs text-muted-alt" id="clip_in_fmt"></div>
+                                                                      </div>
+                                                                      <div>
+                                                                                <label class="field-label">OUT (s)</label>
+                                                                                <input type="number" id="clipOutText" class="input-dark desk-editable clip-field" readonly>
+                                                                                <div class="text-xs text-muted-alt" id="clip_out_fmt"></div>
+                                                                      </div>
+                                                                      <div>
+                                                                                <label class="field-label">Duration</label>
+                                                                                <input type="text" id="clipDurationText" class="input-dark" readonly>
+                                                                      </div>
+                                                            </div>
+                                                            <div class="panel-row">
+                                                                      <div class="btn-row">
+                                                                                <button class="ghost-btn ghost-btn-sm desk-editable" id="clipInBtn" type="button">Set IN</button>
+                                                                                <button class="ghost-btn ghost-btn-sm desk-editable" id="clipOutBtn" type="button">Set OUT</button>
+                                                                                <button class="ghost-btn ghost-btn-sm desk-editable" id="clipCreateBtn" type="button">Create clip</button>
+                                                                                <button class="ghost-btn ghost-btn-sm desk-editable" id="clipDeleteBtn" type="button">Delete clip</button>
+                                                                      </div>
+                                                            </div>
+                                                  </div>
                                         </div>
-                              </div>
-                              <div class="panel-row">
-                                        <div class="btn-row">
-                                                  <button class="ghost-btn ghost-btn-sm desk-editable" id="clipInBtn" type="button">Set IN</button>
-                                                  <button class="ghost-btn ghost-btn-sm desk-editable" id="clipOutBtn" type="button">Set OUT</button>
-                                        </div>
-                                        <div class="btn-row">
-                                                  <button class="primary-btn desk-editable" id="eventSaveBtn" type="button">Save edits</button>
-                                                  <button class="ghost-btn desk-editable" id="eventDeleteBtn" type="button">Delete</button>
+                                        <div class="panel-row editor-modal-footer">
+                                                  <div class="btn-row">
+                                                            <button class="primary-btn desk-editable" id="eventSaveBtn" type="button">Save edits</button>
+                                                            <button class="ghost-btn desk-editable" id="eventDeleteBtn" type="button">Delete</button>
+                                                  </div>
                                         </div>
                               </div>
                     </div>
-          </div>
-</div>
 
 <div class="mt-3 text-muted-alt text-sm" id="deskStatus"></div>
 <?php
