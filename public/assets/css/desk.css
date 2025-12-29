@@ -609,6 +609,18 @@ body {
   justify-content: flex-end;
 }
 
+.video-actions-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.video-format-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .summary-btn {
   padding-inline: 14px;
   text-decoration: none;

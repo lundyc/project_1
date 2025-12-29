@@ -22,8 +22,125 @@
           const videoPlayer = document.getElementById('deskVideoPlayer');
           const videoPanel = document.getElementById('deskVideoProgressPanel');
           const placeholder = document.getElementById('deskVideoPlaceholder');
+          const videoFormats = Array.isArray(cfg.videoFormats) ? cfg.videoFormats : [];
+          const hasVideoFormats = videoFormats.length > 0;
+          const formatMap = videoFormats.reduce((acc, format) => {
+                    if (format && format.id) {
+                              acc[format.id] = format;
+                    }
+                    return acc;
+          }, {});
+          const firstFormatId = videoFormats.length ? videoFormats[0].id : null;
+          const configuredDefaultFormatId = cfg.defaultFormatId && formatMap[cfg.defaultFormatId] ? cfg.defaultFormatId : firstFormatId;
+          let currentFormatId = configuredDefaultFormatId;
+          if (!currentFormatId && firstFormatId) {
+                    currentFormatId = firstFormatId;
+          }
+          const formatButtons = Array.from(document.querySelectorAll('[data-video-format-id]'));
+          const fallbackPlaceholderText = placeholder ? placeholder.textContent.trim() : '';
           const pollInterval = 2000;
           let pollTimer = null;
+          const getFormat = (id) => (id && formatMap[id]) ? formatMap[id] : null;
+          const getActiveFormat = () => {
+                    if (!hasVideoFormats) {
+                              return null;
+                    }
+                    const active = getFormat(currentFormatId);
+                    if (active) {
+                              return active;
+                    }
+                    if (videoFormats.length) {
+                              currentFormatId = videoFormats[0].id;
+                              return videoFormats[0];
+                    }
+                    return null;
+          };
+          const updatePlaceholderText = () => {
+                    if (!placeholder) {
+                              return;
+                    }
+                    if (!hasVideoFormats) {
+                              placeholder.textContent = fallbackPlaceholderText;
+                              return;
+                    }
+                    const activeFormat = getActiveFormat();
+                    placeholder.textContent = activeFormat && activeFormat.placeholder
+                              ? activeFormat.placeholder
+                              : fallbackPlaceholderText;
+          };
+          const updateToggleButtons = () => {
+                    if (!formatButtons.length) {
+                              return;
+                    }
+                    formatButtons.forEach((btn) => {
+                              const isActive = hasVideoFormats && btn.dataset.videoFormatId === currentFormatId;
+                              btn.classList.toggle('is-active', isActive);
+                              btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+                    });
+          };
+          const showVideoForFormat = (format) => {
+                    if (!format || !videoPlayer) {
+                              return;
+                    }
+                    if (videoPanel) {
+                              videoPanel.classList.add('d-none');
+                    }
+                    if (placeholder) {
+                              placeholder.classList.add('d-none');
+                    }
+                    if (format.relative_path) {
+                              videoPlayer.src = format.relative_path;
+                    }
+                    videoPlayer.classList.remove('d-none');
+          };
+          const hideVideoForFormat = () => {
+                    if (videoPlayer) {
+                              videoPlayer.pause();
+                              videoPlayer.removeAttribute('src');
+                              if (typeof videoPlayer.load === 'function') {
+                                        videoPlayer.load();
+                              }
+                              videoPlayer.classList.add('d-none');
+                    }
+                    if (placeholder) {
+                              placeholder.classList.remove('d-none');
+                    }
+                    if (videoPanel) {
+                              videoPanel.classList.remove('d-none');
+                    }
+          };
+          const updateVideoVisibility = () => {
+                    if (!hasVideoFormats) {
+                              return;
+                    }
+                    const activeFormat = getActiveFormat();
+                    if (activeFormat && activeFormat.ready) {
+                              showVideoForFormat(activeFormat);
+                    } else {
+                              hideVideoForFormat();
+                    }
+          };
+          const handleFormatToggle = (formatId) => {
+                    if (!formatId || !formatMap[formatId]) {
+                              return;
+                    }
+                    if (formatId === currentFormatId) {
+                              return;
+                    }
+                    currentFormatId = formatId;
+                    updateToggleButtons();
+                    updatePlaceholderText();
+                    updateVideoVisibility();
+          };
+          const markFormatReady = (formatId) => {
+                    const format = getFormat(formatId);
+                    if (format) {
+                              format.ready = true;
+                    }
+          };
+          formatButtons.forEach((btn) => {
+                    btn.addEventListener('click', () => handleFormatToggle(btn.dataset.videoFormatId));
+          });
 
           const formatGB = (bytes) => {
                     if (!bytes) return '0 GB';
@@ -126,6 +243,10 @@
           };
 
           const showVideo = () => {
+                    if (hasVideoFormats) {
+                              updateVideoVisibility();
+                              return;
+                    }
                     if (videoPanel) {
                               videoPanel.classList.add('d-none');
                     }
@@ -200,6 +321,12 @@
                               const isComplete = ['complete', 'completed', 'ready'].includes(status);
 
                               if (isComplete) {
+                                        if (hasVideoFormats) {
+                                                  const readyFormatId = configuredDefaultFormatId || currentFormatId;
+                                                  if (readyFormatId) {
+                                                            markFormatReady(readyFormatId);
+                                                  }
+                                        }
                                         setStatusDisplay(
                                                   'completed',
                                                   100,
@@ -233,7 +360,15 @@
           };
 
           const init = () => {
-                    if (cfg.videoReady) {
+                    updateToggleButtons();
+                    updatePlaceholderText();
+                    if (hasVideoFormats) {
+                              updateVideoVisibility();
+                              const activeFormat = getActiveFormat();
+                              if (activeFormat && activeFormat.ready) {
+                                        return;
+                              }
+                    } else if (cfg.videoReady) {
                               showVideo();
                               return;
                     }

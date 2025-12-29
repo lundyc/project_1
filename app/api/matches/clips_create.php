@@ -61,7 +61,7 @@ $payload = [
 ];
 
 try {
-          $result = create_clip($matchId, (int)$match['club_id'], (int)$user['id'], $eventId, $payload);
+          $result = create_clip($matchId, (int)$match['club_id'], (int)$user['id'], $eventId, $payload, 'manual');
           echo json_encode([
                     'ok' => true,
                     'clip' => $result['clip'],

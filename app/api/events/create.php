@@ -16,6 +16,7 @@ require_once __DIR__ . '/../../lib/match_version_service.php';
 require_once __DIR__ . '/../../lib/audit_service.php';
 require_once __DIR__ . '/../../lib/event_action_stack.php';
 require_once __DIR__ . '/../../lib/match_period_repository.php';
+require_once __DIR__ . '/../../lib/clip_generation_service.php';
 
 auth_boot();
 require_auth();
@@ -76,6 +77,14 @@ try {
           }
           $version = bump_events_version($matchId);
           audit((int)$match['club_id'], (int)$user['id'], 'event', $eventId, 'create', null, json_encode($event));
+
+          if ($event) {
+                    try {
+                              clip_generation_service_handle_event_save($match, $event);
+                    } catch (\Throwable $e) {
+                              error_log(sprintf('[clip-generation] match=%d event=%d create-error=%s', $matchId, $eventId, $e->getMessage()));
+                    }
+          }
 
           api_success([
                     'event' => $event,

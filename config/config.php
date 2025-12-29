@@ -20,4 +20,9 @@ return [
                     'name' => 'analytics_session',
                     'lifetime' => 0,
           ],
+
+          'phase3' => [
+                    'video_lab_enabled' => true,
+                    // `PHASE_3_VIDEO_LAB_ENABLED` overrides this value when present.
+          ],
 ];

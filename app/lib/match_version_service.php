@@ -25,3 +25,12 @@ function bump_clips_version(int $matchId): int
 
           return (int)$stmt->fetchColumn();
 }
+
+function get_clips_version(int $matchId): int
+{
+          $stmt = db()->prepare('SELECT clips_version FROM matches WHERE id = :id');
+          $stmt->execute(['id' => $matchId]);
+          $version = $stmt->fetchColumn();
+
+          return $version !== false ? (int)$version : 0;
+}

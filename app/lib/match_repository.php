@@ -121,7 +121,8 @@ function get_matches_for_user(array $user): array
                          m.status,
                          ht.name AS home_team,
                          at.name AS away_team,
-                         c.name AS competition
+                         c.name AS competition,
+                         EXISTS(SELECT 1 FROM match_videos mv WHERE mv.match_id = m.id) AS has_video
                   FROM matches m
                   JOIN teams ht ON ht.id = m.home_team_id
                   JOIN teams at ON at.id = m.away_team_id

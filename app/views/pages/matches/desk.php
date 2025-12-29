@@ -69,16 +69,46 @@ $tags = $tagsStmt->fetchAll();
 
 $title = 'Analysis Desk';
 $headExtras = '<link href="' . htmlspecialchars($base) . '/assets/css/desk.css?v=' . time() . '" rel="stylesheet">';
-$projectRoot = realpath(__DIR__ . '/../../..');
+$projectRoot = realpath(__DIR__ . '/../../../../');
 $matchId = (int)$match['id'];
 $isVeo = (($match['video_source_type'] ?? '') === 'veo');
 $standardRelative = '/videos/matches/match_' . $matchId . '/source/veo/standard/match_' . $matchId . '_standard.mp4';
 $standardAbsolute = $projectRoot
           ? $projectRoot . DIRECTORY_SEPARATOR . 'videos' . DIRECTORY_SEPARATOR . 'matches' . DIRECTORY_SEPARATOR . 'match_' . $matchId . DIRECTORY_SEPARATOR . 'source' . DIRECTORY_SEPARATOR . 'veo' . DIRECTORY_SEPARATOR . 'standard' . DIRECTORY_SEPARATOR . 'match_' . $matchId . '_standard.mp4'
           : '';
-$videoReady = $standardAbsolute && is_file($standardAbsolute);
+$standardReady = $standardAbsolute && is_file($standardAbsolute);
+$panoramicRelative = '/videos/matches/match_' . $matchId . '/source/veo/panoramic/match_' . $matchId . '_panoramic.mp4';
+$panoramicAbsolute = $projectRoot
+          ? $projectRoot . DIRECTORY_SEPARATOR . 'videos' . DIRECTORY_SEPARATOR . 'matches' . DIRECTORY_SEPARATOR . 'match_' . $matchId . DIRECTORY_SEPARATOR . 'source' . DIRECTORY_SEPARATOR . 'veo' . DIRECTORY_SEPARATOR . 'panoramic' . DIRECTORY_SEPARATOR . 'match_' . $matchId . '_panoramic.mp4'
+          : '';
+$panoramicReady = $panoramicAbsolute && is_file($panoramicAbsolute);
+$videoReady = $isVeo ? (bool)$standardReady : $standardReady;
 $videoPath = $videoReady ? $standardRelative : ($match['video_source_path'] ?? '');
 $videoSrc = $isVeo ? $standardRelative : ($videoReady ? $standardRelative : '');
+
+$videoFormats = [];
+$defaultFormatId = null;
+$placeholderMessage = 'Video will appear once the download completes.';
+if ($isVeo) {
+          $defaultFormatId = 'standard';
+          $placeholderMessage = 'This VEO standard video is downloading; it will appear once ready.';
+          $videoFormats = [
+                    [
+                              'id' => 'standard',
+                              'label' => 'Standard',
+                              'relative_path' => $standardRelative,
+                              'ready' => (bool)$standardReady,
+                              'placeholder' => $placeholderMessage,
+                    ],
+                    [
+                              'id' => 'panoramic',
+                              'label' => 'Panoramic',
+                              'relative_path' => $panoramicRelative,
+                              'ready' => (bool)$panoramicReady,
+                              'placeholder' => 'This VEO panoramic video is downloading; it will appear once ready.',
+                    ],
+          ];
+}
 
 $csrfToken = get_csrf_token();
 
@@ -132,6 +162,8 @@ $videoProgressConfig = [
           'retryUrl' => $base . '/api/match-video/retry',
           'standardPath' => $standardRelative,
           'videoReady' => $videoReady,
+          'defaultFormatId' => $defaultFormatId,
+          'videoFormats' => $videoFormats,
           'csrfToken' => $csrfToken,
 ];
 $footerScripts .= '<script>window.MatchVideoDeskConfig = ' . json_encode($videoProgressConfig) . ';</script>';
@@ -157,9 +189,24 @@ ob_start();
                                                                       <div class="text-xl fw-semibold"><?= htmlspecialchars($match['home_team']) ?> vs <?= htmlspecialchars($match['away_team']) ?></div>
                                                             </div>
                                                             <div class="video-actions">
-                                                                      <a class="toggle-btn is-active summary-btn" href="<?= htmlspecialchars($base) ?>/matches/<?= $matchId ?>/summary">Summary</a>
+                                                                      <div class="video-actions-left">
+                                                                                <a class="toggle-btn is-active summary-btn" href="<?= htmlspecialchars($base) ?>/matches/<?= $matchId ?>/summary">Summary</a>
+                                                                                <?php if (!empty($videoFormats) && count($videoFormats) > 1): ?>
+                                                                                          <div class="video-format-toggle" data-video-format-toggle>
+                                                                                                    <?php foreach ($videoFormats as $format): ?>
+                                                                                                              <button
+                                                                                                                        type="button"
+                                                                                                                        class="toggle-btn video-format-btn<?= $format['id'] === $defaultFormatId ? ' is-active' : '' ?>"
+                                                                                                                        data-video-format-id="<?= htmlspecialchars($format['id']) ?>"
+                                                                                                                        aria-pressed="<?= $format['id'] === $defaultFormatId ? 'true' : 'false' ?>">
+                                                                                                                        <?= htmlspecialchars($format['label']) ?>
+                                                                                                              </button>
+                                                                                                    <?php endforeach; ?>
+                                                                                          </div>
+                                                                                <?php endif; ?>
+                                                                      </div>
                                                                       <div class="desk-lock lock-pill">
-                                                                                <div id="lockStatusText" class="text-sm"></div>
+                                                                                                                                               <div id="lockStatusText" class="text-sm"></div>
                                                                                 <?php if ($canManage): ?>
                                                                                           <button id="lockRetryBtn" class="ghost-btn ghost-btn-sm">Retry lock</button>
                                                                                 <?php else: ?>
@@ -177,7 +224,7 @@ ob_start();
                                                                       <?= $videoReady ? 'src="' . htmlspecialchars($videoSrc) . '"' : '' ?>>
                                                             </video>
                                                             <div id="deskVideoPlaceholder" class="text-center text-muted mb-3<?= $videoReady ? ' d-none' : '' ?>">
-                                                                      <?= $isVeo ? 'This VEO standard video is downloading; it will appear once ready.' : 'Video will appear once the download completes.' ?>
+                                                                      <?= htmlspecialchars($placeholderMessage) ?>
                                                             </div>
                                                             <div class="panel p-3 rounded-md panel-dark mt-3<?= $videoReady ? ' d-none' : '' ?>" id="deskVideoProgressPanel">
                                                                       <div class="d-flex justify-content-between align-items-center mb-2">

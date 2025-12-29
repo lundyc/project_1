@@ -8,6 +8,9 @@ $roles = $_SESSION['roles'] ?? [];
 $matches = get_matches_for_user($user);
 $canManage = can_manage_matches($user, $roles);
 $base = base_path();
+$canAccessVideoLab = in_array('platform_admin', $roles, true)
+          || in_array('club_admin', $roles, true)
+          || in_array('analyst', $roles, true);
 
 $success = $_SESSION['match_form_success'] ?? null;
 $error = $_SESSION['match_form_error'] ?? null;
@@ -82,6 +85,8 @@ ob_start();
                                                             $kickoffSort = $kickoffTs ?: 0;
                                                             $deskUrl = $base . '/matches/' . (int)$match['id'] . '/desk';
                                                             $summaryUrl = $base . '/matches/' . (int)$match['id'] . '/summary';
+                                                            $videoLabUrl = $base . '/video-lab/match/' . (int)$match['id'];
+                                                            $hasVideo = !empty($match['has_video']);
                                                             $canManageMatch = can_manage_match_for_club($user, $roles, (int)$match['club_id']);
                                                             $deskLabel = $canManageMatch ? 'Analyse match' : 'View desk';
                                                             $statusKey = strtolower($match['status'] ?? '');
@@ -114,6 +119,11 @@ ob_start();
                                                                                 <a href="<?= htmlspecialchars($deskUrl) ?>" class="btn-icon btn-icon-primary" aria-label="<?= htmlspecialchars($deskLabel) ?>" data-bs-toggle="tooltip" data-bs-title="<?= htmlspecialchars($deskLabel) ?>" data-bs-placement="top">
                                                                                           <i class="fa-solid <?= $canManageMatch ? 'fa-chart-line' : 'fa-eye' ?>"></i>
                                                                                 </a>
+                                                                                <?php if ($canAccessVideoLab && $hasVideo): ?>
+                                                                                          <a href="<?= htmlspecialchars($videoLabUrl) ?>" class="btn-icon btn-icon-secondary" aria-label="Open in Video Lab" data-bs-toggle="tooltip" data-bs-title="Open in Video Lab" data-bs-placement="top">
+                                                                                                    <i class="fa-solid fa-film"></i>
+                                                                                          </a>
+                                                                                <?php endif; ?>
                                                                                 <?php if ($canManageMatch): ?>
                                                                                           <a href="<?= htmlspecialchars($base) ?>/matches/<?= (int)$match['id'] ?>/edit" class="btn-icon btn-icon-secondary" aria-label="Edit match" data-bs-toggle="tooltip" data-bs-title="Edit match" data-bs-placement="top">
                                                                                                     <i class="fa-solid fa-pen"></i>

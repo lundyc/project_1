@@ -14,7 +14,7 @@ function get_clip_for_event(int $eventId): ?array
           return $clip ?: null;
 }
 
-function create_clip(int $matchId, int $clubId, int $userId, int $eventId, array $payload): array
+function create_clip(int $matchId, int $clubId, int $userId, int $eventId, array $payload, string $generationSource = 'manual'): array
 {
           $event = event_get_by_id($eventId);
 
@@ -31,13 +31,19 @@ function create_clip(int $matchId, int $clubId, int $userId, int $eventId, array
                     throw new InvalidArgumentException('Clip end must be greater than start');
           }
 
+          $generationVersion = isset($payload['generation_version']) ? (int)$payload['generation_version'] : 1;
+
+          $durationSeconds = $payload['end_second'] - $payload['start_second'];
           $pdo = db();
-          $pdo->beginTransaction();
+          $ownsTransaction = !$pdo->inTransaction();
+          if ($ownsTransaction) {
+                    $pdo->beginTransaction();
+          }
 
           try {
                     $stmt = $pdo->prepare(
-                              'INSERT INTO clips (match_id, event_id, clip_name, start_second, end_second, created_by)
-                     VALUES (:match_id, :event_id, :clip_name, :start_second, :end_second, :created_by)'
+                              'INSERT INTO clips (match_id, event_id, clip_name, start_second, end_second, duration_seconds, created_by, generation_source, generation_version)
+                     VALUES (:match_id, :event_id, :clip_name, :start_second, :end_second, :duration_seconds, :created_by, :generation_source, :generation_version)'
                     );
 
                     $stmt->execute([
@@ -46,7 +52,10 @@ function create_clip(int $matchId, int $clubId, int $userId, int $eventId, array
                               'clip_name' => $payload['clip_name'],
                               'start_second' => $payload['start_second'],
                               'end_second' => $payload['end_second'],
+                              'duration_seconds' => $durationSeconds,
                               'created_by' => $userId,
+                              'generation_source' => $generationSource,
+                              'generation_version' => $generationVersion,
                     ]);
 
                     $clipId = (int)$pdo->lastInsertId();
@@ -55,11 +64,15 @@ function create_clip(int $matchId, int $clubId, int $userId, int $eventId, array
                     $clip = get_clip_for_event($eventId);
                     audit($clubId, $userId, 'clip', $clipId, 'create', null, json_encode($clip));
 
-                    $pdo->commit();
+                    if ($ownsTransaction) {
+                              $pdo->commit();
+                    }
 
                     return ['clip' => $clip, 'version' => $version];
           } catch (\Throwable $e) {
-                    $pdo->rollBack();
+                    if ($ownsTransaction) {
+                              $pdo->rollBack();
+                    }
                     throw $e;
           }
 }

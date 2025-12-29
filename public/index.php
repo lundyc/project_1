@@ -511,6 +511,111 @@ function handle_dynamic_match_routes(string $path): bool
           return false;
 }
 
+function handle_video_lab_api_routes(string $path): bool
+{
+          if (preg_match('#^/api/video-lab/match/(\d+)/clip/(\d+)/review$#', $path, $m)) {
+                    $matchId = (int)$m[1];
+                    $clipId = (int)$m[2];
+                    require __DIR__ . '/../app/api/video_lab/clip_review.php';
+                    return true;
+          }
+
+          if (preg_match('#^/api/video-lab/match/(\d+)/clip/(\d+)$#', $path, $m)) {
+                    $matchId = (int)$m[1];
+                    $clipId = (int)$m[2];
+                    require __DIR__ . '/../app/api/video_lab/clip_details.php';
+                    return true;
+          }
+
+          if (preg_match('#^/api/video-lab/match/(\d+)/event/(\d+)/regenerate$#', $path, $m)) {
+                    $matchId = (int)$m[1];
+                    $eventId = (int)$m[2];
+                    require __DIR__ . '/../app/api/video_lab/regenerate_event.php';
+                    return true;
+          }
+
+          if (preg_match('#^/api/video-lab/match/(\d+)/regenerate$#', $path, $m)) {
+                    $matchId = (int)$m[1];
+                    require __DIR__ . '/../app/api/video_lab/regenerate_match.php';
+                    return true;
+          }
+
+          return false;
+}
+
+function handle_video_lab_routes(string $path): bool
+{
+          if ($path === '/video-lab') {
+                    require_auth();
+                    $roles = $_SESSION['roles'] ?? [];
+                    $canAccessVideoLab = in_array('analyst', $roles, true)
+                              || in_array('club_admin', $roles, true)
+                              || in_array('platform_admin', $roles, true);
+                    if (!$canAccessVideoLab) {
+                              http_response_code(403);
+                              echo '403 Forbidden';
+                              return true;
+                    }
+
+                    require_once __DIR__ . '/../app/lib/video_lab_repository.php';
+
+                    $user = current_user();
+                    $isPlatformAdmin = in_array('platform_admin', $roles, true);
+                    $clubId = $isPlatformAdmin ? null : (int)($user['club_id'] ?? 0);
+                    if (!$isPlatformAdmin && $clubId <= 0) {
+                              $matches = [];
+                    } else {
+                              $matches = video_lab_list_matches_with_videos($isPlatformAdmin ? null : $clubId);
+                    }
+
+                    require __DIR__ . '/../app/views/pages/video_lab/index.php';
+                    return true;
+          }
+
+          if (preg_match('#^/video-lab/match/(\d+)$#', $path, $m)) {
+                    require_auth();
+                    $roles = $_SESSION['roles'] ?? [];
+                    $canAccessVideoLab = in_array('analyst', $roles, true)
+                              || in_array('club_admin', $roles, true)
+                              || in_array('platform_admin', $roles, true);
+                    if (!$canAccessVideoLab) {
+                              http_response_code(403);
+                              echo '403 Forbidden';
+                              return true;
+                    }
+
+                    require_once __DIR__ . '/../app/lib/video_lab_repository.php';
+                    require_once __DIR__ . '/../app/lib/match_permissions.php';
+                    require_once __DIR__ . '/../app/lib/phase3.php';
+                    require_once __DIR__ . '/../app/lib/clip_review_service.php';
+
+                    $matchId = (int)$m[1];
+                    $match = video_lab_get_match_with_video($matchId);
+
+                    if (!$match) {
+                              http_response_code(404);
+                              echo '404 Not Found';
+                              return true;
+                    }
+
+                    $user = current_user();
+                    if (!can_view_match($user, $roles, (int)$match['club_id'])) {
+                              http_response_code(403);
+                              echo '403 Forbidden';
+                              return true;
+                    }
+
+                    $clipStatuses = clip_review_service_get_summary($matchId);
+                    $eventClips = clip_review_service_list_clips_for_match($matchId);
+                    $phase3Enabled = phase3_is_enabled();
+
+                    require __DIR__ . '/../app/views/pages/video_lab/match.php';
+                    return true;
+          }
+
+          return false;
+}
+
 $__uri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?? '/';
 $__basePath = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? ''));
 $__basePath = rtrim($__basePath, '/');
@@ -522,6 +627,8 @@ if ($__basePath && str_starts_with($__uri, $__basePath)) {
 }
 $__requestPath = normalize_path($__uri);
 
-if (!handle_dynamic_match_routes($__requestPath)) {
+if (!handle_video_lab_api_routes($__requestPath)
+          && !handle_video_lab_routes($__requestPath)
+          && !handle_dynamic_match_routes($__requestPath)) {
           dispatch();
 }
