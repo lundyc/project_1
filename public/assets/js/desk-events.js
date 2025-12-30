@@ -903,6 +903,7 @@ function applyLockResponse(res) {
                                                                       <div><span class="badge-pill ${badgeClass}">${h(ev.team_side || 'unk')}</span> <span class="event-label">${h(labelText)}</span></div>
                                                                       <div class="timeline-actions">
                                                                                 <span class="text-muted-alt text-xs">${minuteDisplay}' (${fmtTime(ev.match_second)})</span>
+                                                                                <button type="button" class="ghost-btn ghost-btn-sm desk-editable timeline-edit" data-id="${ev.id}">Edit</button>
                                                                                 <button type="button" class="ghost-btn ghost-btn-sm desk-editable timeline-delete" data-id="${ev.id}">Delete</button>
                                                                       </div>
                                                             </div>
@@ -1254,14 +1255,33 @@ function applyLockResponse(res) {
                     setEditorCollapsed(false, `${h(labelText)} - ${fmtTime(ev.match_second)}`, false);
           }
 
+          function findEventById(id) {
+                    if (!id) return null;
+                    return events.find((e) => String(e.id) === String(id));
+          }
+
+          function goToVideoTime(seconds) {
+                    if (!$video.length) {
+                              return;
+                    }
+                    if (seconds === null || seconds === undefined) {
+                              return;
+                    }
+                    const normalized = Number(seconds);
+                    if (Number.isNaN(normalized)) {
+                              return;
+                    }
+                    $video[0].currentTime = Math.max(0, normalized);
+          }
+
           function selectEvent(id) {
-                    const ev = events.find((e) => String(e.id) === String(id));
+                    const ev = findEventById(id);
                     if (!ev) return;
                     selectedId = ev.id;
                     $timeline.find('.timeline-item').removeClass('active');
                     $timeline.find(`.timeline-item[data-id="${id}"]`).addClass('active');
                     fillForm(ev);
-                    if ($video.length) $video[0].currentTime = ev.match_second;
+                    goToVideoTime(ev.match_second);
           }
 
           function collectData() {
@@ -1652,14 +1672,21 @@ function applyLockResponse(res) {
                     $filterType.on('change', renderTimeline);
                     $filterPlayer.on('change', renderTimeline);
                     $timelineList.on('click', '.timeline-item', function () {
+                              const seconds = $(this).data('second');
+                              goToVideoTime(seconds);
+                    });
+                    $timelineList.on('click', '.timeline-edit', function (e) {
+                              e.stopPropagation();
                               const id = $(this).data('id');
-                              selectEvent(id);
+                              if (id) {
+                                        selectEvent(id);
+                              }
                     });
                     $timelineList.on('click', '.timeline-delete', function (e) {
                               e.stopPropagation();
                               const id = $(this).data('id');
                               deleteEventById(id, false);
-                    });
+                        });
                     $(document).on('click', '#timelineDeleteAll', deleteAllVisible);
                     $timelineModeBtns.on('click', function () {
                               const mode = $(this).data('mode');
@@ -1690,13 +1717,15 @@ function applyLockResponse(res) {
                     $timelineMatrix.on('click', '.matrix-dot', function () {
                               const $dot = $(this);
                               const sec = $dot.data('second');
-                              const eventId = $dot.data('event-id');
-                              if ($video.length && sec !== undefined) {
-                                        $video[0].currentTime = sec;
+                              goToVideoTime(sec);
+                    });
+                    $timelineMatrix.on('contextmenu', '.matrix-dot', function (e) {
+                              e.preventDefault();
+                              const id = $(this).data('event-id');
+                              if (id) {
+                                        selectEvent(id);
                               }
-                              if (eventId) {
-                                        selectEvent(eventId);
-                              }
+                              return false;
                     });
 
                     $(document).on('keydown', (e) => {

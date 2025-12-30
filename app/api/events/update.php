@@ -17,6 +17,7 @@ require_once __DIR__ . '/../../lib/audit_service.php';
 require_once __DIR__ . '/../../lib/event_action_stack.php';
 require_once __DIR__ . '/../../lib/match_period_repository.php';
 require_once __DIR__ . '/../../lib/clip_generation_service.php';
+require_once __DIR__ . '/../../lib/clip_job_service.php';
 
 auth_boot();
 require_auth();
@@ -90,6 +91,12 @@ try {
                               clip_generation_service_handle_event_save($match, $after);
                     } catch (\Throwable $e) {
                               error_log(sprintf('[clip-generation] match=%d event=%d update-error=%s', $matchId, $eventId, $e->getMessage()));
+                    }
+
+                    try {
+                              ClipJobService::createFromEvent($after);
+                    } catch (\Throwable $e) {
+                              error_log(sprintf('[clip-job] match=%d event=%d update-error=%s', $matchId, $eventId, $e->getMessage()));
                     }
           }
 

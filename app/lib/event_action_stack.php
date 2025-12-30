@@ -5,6 +5,7 @@
  */
 
 require_once __DIR__ . '/event_repository.php';
+require_once __DIR__ . '/clip_job_service.php';
 
 /**
  * @return array{past: array, future: array}
@@ -184,6 +185,7 @@ function undo_last_action(int $matchId, int $userId): ?array
                               $auditType = 'create';
                               $auditEventId = $newEventId;
                               $resultEvent = $restoredEvent;
+                              trigger_clip_job_for_event($restoredEvent, 'undo-restore');
                               break;
 
                     case 'update':
@@ -199,6 +201,9 @@ function undo_last_action(int $matchId, int $userId): ?array
                               $auditEventId = $eventId;
                               event_update($eventId, $payload, $tagIds, $userId);
                               $resultEvent = event_get_by_id($eventId);
+                              if ($resultEvent) {
+                                        trigger_clip_job_for_event($resultEvent, 'undo-update');
+                              }
                               break;
 
                     default:
@@ -244,6 +249,7 @@ function redo_last_action(int $matchId, int $userId): ?array
                               $auditType = 'create';
                               $auditEventId = $newEventId;
                               $resultEvent = $restoredEvent;
+                              trigger_clip_job_for_event($restoredEvent, 'redo-create');
                               break;
 
                     case 'delete':
@@ -282,6 +288,7 @@ function redo_last_action(int $matchId, int $userId): ?array
                               $action['after'] = $updatedEvent;
                               $auditAfter = $updatedEvent;
                               $resultEvent = $updatedEvent;
+                              trigger_clip_job_for_event($updatedEvent, 'redo-update');
                               break;
 
                     default:
@@ -298,4 +305,30 @@ function redo_last_action(int $matchId, int $userId): ?array
                     'audit_after' => $auditAfter,
                     'audit_event_id' => $auditEventId,
           ];
+}
+
+/**
+ * Attempt to seed a clip job for the given event and log failures without interrupting the caller.
+ */
+function trigger_clip_job_for_event(array $event, string $context): void
+{
+          $eventId = isset($event['id']) ? (int)$event['id'] : 0;
+          if ($eventId <= 0) {
+                    return;
+          }
+
+          $matchId = isset($event['match_id']) ? (int)$event['match_id'] : 0;
+          try {
+                    ClipJobService::createFromEvent($event);
+          } catch (\Throwable $e) {
+                    error_log(
+                              sprintf(
+                                        '[clip-job] match=%d event=%d context=%s error=%s',
+                                        $matchId,
+                                        $eventId,
+                                        $context,
+                                        $e->getMessage()
+                              )
+                    );
+          }
 }
