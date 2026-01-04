@@ -1,3 +1,7 @@
+<?php
+require_once __DIR__ . '/../lib/auth.php';
+auth_boot();
+?>
 <!doctype html>
 <html lang="en">
 
@@ -16,7 +20,9 @@
 <body class="bg-dark text-light">
 
           <div class="d-flex w-100">
-                    <?php require __DIR__ . '/partials/nav.php'; ?>
+                    <?php if (is_logged_in()): ?>
+                              <?php require __DIR__ . '/partials/nav.php'; ?>
+                    <?php endif; ?>
 
                     <main class="flex-fill p-4 main-area bg-surface">
                               <?= $content ?>

@@ -7,6 +7,7 @@ require_once __DIR__ . '/../../../lib/event_repository.php';
 require_once __DIR__ . '/../../../lib/match_lock_service.php';
 require_once __DIR__ . '/../../../lib/event_outcome_rules.php';
 require_once __DIR__ . '/../../../lib/event_action_stack.php';
+require_once __DIR__ . '/../../../lib/match_period_repository.php';
 require_once __DIR__ . '/../../../lib/csrf.php';
 
 $user = current_user();
@@ -30,6 +31,8 @@ if (!$canView && !$canManage) {
 }
 
 $currentLock = findLock((int)$match['id']);
+
+$periods = get_match_periods((int)$match['id']);
 
 $matchPlayers = get_match_players((int)$match['id']);
 $players = array_map(fn($p) => [
@@ -365,17 +368,16 @@ ob_start();
                                                   </div>
                                                   <div class="editor-modal-header-actions">
                                                             <div class="editor-actions">
-                                                                      <button class="ghost-btn ghost-btn-sm desk-editable" id="eventUseTimeBtn" type="button">Use current time</button>
                                                                       <button class="ghost-btn ghost-btn-sm desk-editable" id="eventNewBtn" type="button">Clear</button>
                                                             </div>
                                                             <button type="button" class="editor-modal-close" data-editor-close aria-label="Close event editor">✕</button>
                                                   </div>
                                         </div>
-                                        <div class="btn-row mb-2 period-controls">
-                                                  <button class="ghost-btn ghost-btn-sm desk-editable" id="btnPeriodStart" type="button">Period start</button>
-                                                  <button class="ghost-btn ghost-btn-sm desk-editable" id="btnPeriodEnd" type="button">Period end</button>
-                                        </div>
                                         <input type="hidden" id="eventId">
+                                        <!-- match_second is the canonical source; minute is derived from it, minute_extra stores stoppage metadata -->
+                                        <input type="hidden" id="match_second" value="0">
+                                        <input type="hidden" id="minute" value="0">
+                                        <input type="hidden" id="minute_extra" value="0">
                                         <div class="editor-tabs-row">
                                                   <div class="editor-tabs" role="tablist">
                                                             <button id="editorTabDetails" class="editor-tab is-active" data-panel="details" role="tab" aria-controls="editorTabpanelDetails" aria-selected="true">Details</button>
@@ -394,15 +396,18 @@ ob_start();
                                                             </select>
                                                             <div class="grid-2 gap-sm">
                                                                       <div>
-                                                                                <label class="field-label">Match second</label>
-                                                                                <input type="number" min="0" class="input-dark desk-editable" id="match_second">
+                                                                                <label class="field-label">Match time (MM:SS)</label>
+                                                                                <div class="d-flex gap-sm align-items-center">
+                                                                                          <button class="ghost-btn ghost-btn-sm desk-editable time-stepper" id="eventTimeStepDown" type="button" aria-label="Decrease time">−</button>
+                                                                                          <input type="text" class="input-dark desk-editable text-center" id="event_time_display" value="00:00" aria-label="Match time" placeholder="MM:SS">
+                                                                                          <button class="ghost-btn ghost-btn-sm desk-editable time-stepper" id="eventTimeStepUp" type="button" aria-label="Increase time">+</button>
+                                                                                </div>
+                                                                                <div class="text-xs text-muted-alt">Seconds must be 0–59; match_second stays canonical.</div>
                                                                       </div>
                                                                       <div>
-                                                                                <label class="field-label">Minute / +Extra</label>
-                                                                                <div class="grid-2 gap-xs">
-                                                                                          <input type="number" min="0" class="input-dark desk-editable" id="minute">
-                                                                                          <input type="number" min="0" class="input-dark desk-editable" id="minute_extra" placeholder="+">
-                                                                                </div>
+                                                                                <label class="field-label">+Extra minutes</label>
+                                                                                <input type="number" min="0" class="input-dark desk-editable" id="minute_extra_display" value="0" placeholder="0">
+                                                                                <div class="text-xs text-muted-alt">Additional stoppage minutes metadata.</div>
                                                                       </div>
                                                             </div>
                                                             <div class="grid-2 gap-sm">
@@ -418,7 +423,16 @@ ob_start();
                                                                                 <label class="field-label">Period</label>
                                                                                 <select class="input-dark desk-editable" id="period_id">
                                                                                           <option value="">None</option>
+                                                                                          <?php foreach ($periods ?? [] as $period): ?>
+                                                                                                    <option
+                                                                                                              value="<?= (int)$period['id'] ?>"
+                                                                                                              data-start-second="<?= isset($period['start_second']) ? (int)$period['start_second'] : '' ?>"
+                                                                                                              data-end-second="<?= isset($period['end_second']) ? (int)$period['end_second'] : '' ?>">
+                                                                                                              <?= htmlspecialchars($period['label'] ?: ucfirst(str_replace('_', ' ', $period['period_key'] ?? 'Period'))) ?>
+                                                                                                    </option>
+                                                                                          <?php endforeach; ?>
                                                                                 </select>
+                                                                                <div class="text-xs text-muted-alt" id="periodHelperText" aria-live="polite"></div>
                                                                       </div>
                                                             </div>
                                                             <div class="grid-2 gap-sm">

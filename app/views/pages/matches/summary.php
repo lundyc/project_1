@@ -1,5 +1,6 @@
 <?php
 require_auth();
+require_once __DIR__ . '/../../../lib/time_helper.php';
 
 $base = base_path();
 $title = 'Match Summary';
@@ -418,14 +419,6 @@ HTML;
 $setPieces = $totals['set_pieces'] ?? $defaultCounts;
 $cards = $totals['cards'] ?? $defaultCounts;
 $highlights = $totals['highlights']['total'] ?? 0;
-
-function format_mmss(int $seconds): string
-{
-          $seconds = max(0, $seconds);
-          $m = floor($seconds / 60);
-          $s = $seconds % 60;
-          return sprintf('%02d:%02d', $m, $s);
-}
 
 function display_event_label(array $ev): string
 {
@@ -1075,15 +1068,19 @@ $awayHalfShift = (int)$secondHalfCounts['away'] - (int)$firstHalfCounts['away'];
                                                   $duration = max(0, $end - $start);
                                                   $jumpUrl = $deskUrlBase . '?t=' . $start;
                                                   $clipLabel = display_event_label($clipEv);
+                                                  $clipTimeLabel = formatMatchSecondText((int)$clipEv['match_second']);
+                                                  if (!empty($clipEv['minute_extra'])) {
+                                                            $clipTimeLabel .= '+' . (int)$clipEv['minute_extra'];
+                                                  }
                                                   ?>
                                                   <tr>
                                                             <td>
                                                                       <div class="fw-semibold"><?= htmlspecialchars($clipLabel) ?></div>
-                                                                      <div class="text-muted-alt text-xs"><?= (int)$clipEv['minute'] ?>' - <?= htmlspecialchars(format_mmss((int)$clipEv['match_second'])) ?></div>
+                                                                      <div class="text-muted-alt text-xs"><?= (int)$clipEv['minute'] ?>' - <?= htmlspecialchars($clipTimeLabel) ?></div>
                                                             </td>
                                                             <td><span class="team-badge <?= $clipEv['team_side'] === 'home' ? 'badge-home' : ($clipEv['team_side'] === 'away' ? 'badge-away' : 'badge-unknown') ?>"><?= htmlspecialchars(ucfirst($clipEv['team_side'] ?? 'unknown')) ?></span></td>
-                                                            <td><?= htmlspecialchars(format_mmss((int)$clipEv['match_second'])) ?></td>
-                                                            <td><?= htmlspecialchars(format_mmss($start)) ?> - <?= htmlspecialchars(format_mmss($end)) ?> (<?= (int)$duration ?>s)</td>
+                                                            <td><?= htmlspecialchars($clipTimeLabel) ?></td>
+                                                            <td><?= htmlspecialchars(formatMatchSecondText($start)) ?> - <?= htmlspecialchars(formatMatchSecondText($end)) ?> (<?= (int)$duration ?>s)</td>
                                                             <td class="text-end">
                                                                       <a href="<?= htmlspecialchars($jumpUrl) ?>" class="btn-icon btn-icon-primary" data-bs-toggle="tooltip" data-bs-title="Open in desk">
                                                                                 <i class="fa-solid fa-play"></i>

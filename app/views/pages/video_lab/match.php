@@ -2,6 +2,7 @@
 $base = base_path();
 $matchLabel = trim(($match['home_team'] ?? '') . ' vs ' . ($match['away_team'] ?? ''));
 $title = 'Video Lab · ' . ($matchLabel ?: 'Match');
+require_once __DIR__ . '/../../../lib/time_helper.php';
 
 function video_lab_format_duration(?int $seconds): string
 {
@@ -26,10 +27,7 @@ function video_lab_format_match_second(?int $seconds): string
                     return '—';
           }
 
-          $minutes = intdiv($seconds, 60);
-          $remain = $seconds % 60;
-
-          return sprintf('%d:%02d', $minutes, $remain);
+          return formatMatchSecondText($seconds);
 }
 
 function video_lab_format_event_minute(?int $minute, ?int $minuteExtra): string

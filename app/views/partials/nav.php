@@ -53,5 +53,15 @@ $videoLabActive = str_starts_with($current, $base . '/video-lab');
                               </a>
                     <?php endif; ?>
           </div>
+
+          <div class="nav-footer mt-auto mb-3">
+                    <a href="<?= htmlspecialchars($base) ?>/logout" class="nav-icon">
+                              <span class="icon-box">
+                                        <i class="fa-solid fa-right-from-bracket"></i>
+                              </span>
+                              <span class="icon-label">Logout</span>
+                    </a>
+          </div>
+
           <?php /* Video Lab moved into main nav items above; experimental block removed */ ?>
 </nav>

@@ -39,8 +39,13 @@
           const $matchSecond = $('#match_second');
           const $minute = $('#minute');
           const $minuteExtra = $('#minute_extra');
+          const $timeDisplay = $('#event_time_display');
+          const $timeStepDown = $('#eventTimeStepDown');
+          const $timeStepUp = $('#eventTimeStepUp');
+          const $minuteExtraDisplay = $('#minute_extra_display');
           const $teamSide = $('#team_side');
           const $periodId = $('#period_id');
+          const $periodHelperText = $('#periodHelperText');
           const $eventTypeId = $('#event_type_id');
           const $matchPlayerId = $('#match_player_id');
           const $importance = $('#importance');
@@ -155,6 +160,8 @@
           let suppressDirtyTracking = false;
           let activeEditorTab = 'details';
           let editorOpen = false;
+          let lastKnownMatchSecond = 0;
+          const modifierState = { shift: false, ctrl: false, meta: false };
 
           function hexToRgb(hex) {
                     const value = (hex || '').replace('#', '').trim();
@@ -388,12 +395,162 @@
                     return typeId;
           }
 
+          function formatMatchSecond(totalSeconds) {
+                    const normalized = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+                    const minutes = Math.floor(normalized / 60);
+                    const seconds = normalized % 60;
+                    const text = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                    return { total: normalized, minutes, seconds, text };
+          }
+
           function fmtTime(sec) {
-                    const s = Math.max(0, Math.floor(sec));
-                    const m = Math.floor(s / 60);
-                    const mm = m.toString().padStart(2, '0');
-                    const ss = (s % 60).toString().padStart(2, '0');
-                    return `${mm}:${ss}`;
+                    return formatMatchSecond(sec).text;
+          }
+
+          function parseMatchTimeInput(value) {
+                    if (typeof value !== 'string') return null;
+                    const trimmed = value.trim();
+                    if (trimmed === '') return null;
+                    const match = trimmed.match(/^(\d+):(\d{1,2})$/);
+                    if (!match) return null;
+                    const minutes = parseInt(match[1], 10);
+                    const seconds = parseInt(match[2], 10);
+                    if (Number.isNaN(minutes) || Number.isNaN(seconds)) return null;
+                    if (minutes < 0 || seconds < 0 || seconds > 59) return null;
+                    return minutes * 60 + seconds;
+          }
+
+          function updateTimeFromSeconds(value) {
+                    // match_second is the canonical timestamp; minute follows from it and minute_extra holds stoppage metadata.
+                    const normalized = Math.max(0, Math.floor(Number(value) || 0));
+                    lastKnownMatchSecond = normalized;
+                    const derivedMinute = Math.floor(normalized / 60);
+                    $matchSecond.val(normalized);
+                    $minute.val(derivedMinute);
+                    if ($timeDisplay.length) {
+                              $timeDisplay.val(formatMatchSecond(normalized).text);
+                    }
+          }
+
+          function updateMinuteExtraFields(value) {
+                    const parsed = Math.max(0, parseInt(value, 10) || 0);
+                    $minuteExtra.val(parsed);
+                    if ($minuteExtraDisplay.length) {
+                              $minuteExtraDisplay.val(parsed);
+                    }
+          }
+
+          function handleTimeDisplayInput() {
+                    const parsed = parseMatchTimeInput($timeDisplay.val());
+                    if (parsed === null) return;
+                    updateTimeFromSeconds(parsed);
+          }
+
+          function handleTimeDisplayBlur() {
+                    const parsed = parseMatchTimeInput($timeDisplay.val());
+                    if (parsed === null) {
+                              updateTimeFromSeconds(lastKnownMatchSecond);
+                              return;
+                    }
+                    updateTimeFromSeconds(parsed);
+          }
+
+          function refreshPeriodHelperText() {
+                    if (!$periodHelperText.length) return;
+                    const selectedValue = $periodId.val();
+                    if (!selectedValue) {
+                              $periodHelperText.text('');
+                              return;
+                    }
+                    const $option = $periodId.find('option:selected');
+                    const startAttr = $option.attr('data-start-second');
+                    const endAttr = $option.attr('data-end-second');
+                    const startValue = startAttr !== undefined && startAttr !== '' ? parseInt(startAttr, 10) : null;
+                    const endValue = endAttr !== undefined && endAttr !== '' ? parseInt(endAttr, 10) : null;
+                    const startLabel = startValue !== null && !Number.isNaN(startValue) ? `${startValue}s` : 'start not set';
+                    const endLabel = endValue !== null && !Number.isNaN(endValue) ? `${endValue}s` : 'end not set';
+                    $periodHelperText.text(`Period runs from ${startLabel} to ${endLabel}`);
+          }
+
+          function applyTimeStep(delta) {
+                    const current = Math.max(0, parseInt($matchSecond.val(), 10) || 0);
+                    updateTimeFromSeconds(current + delta);
+          }
+
+          function getStepperStep(event) {
+                    if (event && (event.ctrlKey || event.metaKey)) return 10;
+                    if (event && event.shiftKey) return 5;
+                    if (modifierState.ctrl || modifierState.meta) return 10;
+                    if (modifierState.shift) return 5;
+                    return 1;
+          }
+
+          function setupTimeStepper($button, direction) {
+                    let holdTimer = null;
+                    let repeatTimer = null;
+                    const stopRepeat = () => {
+                              if (holdTimer) {
+                                        clearTimeout(holdTimer);
+                                        holdTimer = null;
+                              }
+                              if (repeatTimer) {
+                                        clearInterval(repeatTimer);
+                                        repeatTimer = null;
+                              }
+                    };
+
+                    const stepOnce = (event) => {
+                              const step = getStepperStep(event);
+                              applyTimeStep(step * direction);
+                    };
+
+                    const startRepeat = () => {
+                              stopRepeat();
+                              holdTimer = setTimeout(() => {
+                                        repeatTimer = setInterval(() => {
+                                                  stepOnce();
+                                        }, 120);
+                              }, 400);
+                    };
+
+                    const handlePointerDown = (event) => {
+                              event.preventDefault();
+                              stepOnce(event);
+                              startRepeat();
+                    };
+
+                    const handlePointerUp = () => stopRepeat();
+
+                    $button.on('mousedown touchstart', handlePointerDown);
+                    $button.on('mouseup mouseleave touchend touchcancel', handlePointerUp);
+                    $button.on('keydown', (event) => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                        event.preventDefault();
+                                        stepOnce(event);
+                              }
+                    });
+          }
+
+          function updateModifierState(key, isActive) {
+                    if (key === 'Shift') {
+                              modifierState.shift = isActive;
+                              return;
+                    }
+                    if (key === 'Control') {
+                              modifierState.ctrl = isActive;
+                              return;
+                    }
+                    if (key === 'Meta') {
+                              modifierState.meta = isActive;
+                              return;
+                    }
+          }
+
+          function formatMatchSecondWithExtra(seconds, extraValue) {
+                    const base = formatMatchSecond(seconds);
+                    const parsedExtra = parseInt(extraValue, 10);
+                    const extra = Number.isNaN(parsedExtra) ? 0 : Math.max(0, parsedExtra);
+                    return extra > 0 ? `${base.text}+${extra}` : base.text;
           }
 
           function getCurrentVideoSecond() {
@@ -654,7 +811,7 @@
                                         hideError();
                                         selectedId = null;
                                         setEditorCollapsed(true, 'Click a timeline item to edit details', true);
-                                        showToast(`${labelOverride || type.label} tagged at ${fmtTime(normalizedSecond)}`);
+                                        showToast(`${labelOverride || type.label} tagged at ${formatMatchSecondWithExtra(normalizedSecond, 0)}`);
                                         setStatus('Tagged');
                                         syncUndoRedoFromMeta(res.meta);
                                         loadEvents();
@@ -898,13 +1055,14 @@ function applyLockResponse(res) {
                                                   const badgeClass = ev.team_side === 'home' ? 'badge-home' : ev.team_side === 'away' ? 'badge-away' : 'badge-unknown';
                                                   const player = ev.match_player_name ? `<span>${h(ev.match_player_name)}</span>` : '<span class="text-muted-alt">No player</span>';
                                                   const minuteDisplay = h(formatEventMinuteText(ev));
+                                                  const matchTimeLabel = h(formatMatchSecondWithExtra(ev.match_second, ev.minute_extra));
                                                   html += `<div class="timeline-item${importanceClass}" data-id="${ev.id}" data-second="${ev.match_second}" style="${colorStyle}">
                                                             <div class="timeline-top">
                                                                       <div><span class="badge-pill ${badgeClass}">${h(ev.team_side || 'unk')}</span> <span class="event-label">${h(labelText)}</span></div>
                                                                       <div class="timeline-actions">
-                                                                                <span class="text-muted-alt text-xs">${minuteDisplay}' (${fmtTime(ev.match_second)})</span>
-                                                                                <button type="button" class="ghost-btn ghost-btn-sm desk-editable timeline-edit" data-id="${ev.id}">Edit</button>
-                                                                                <button type="button" class="ghost-btn ghost-btn-sm desk-editable timeline-delete" data-id="${ev.id}">Delete</button>
+                                                                                <span class="text-muted-alt text-xs">${minuteDisplay}' (${matchTimeLabel})</span>
+                                                                               <button type="button" class="ghost-btn ghost-btn-sm desk-editable timeline-edit" data-id="${ev.id}">Edit</button>
+                                                                               <button type="button" class="ghost-btn ghost-btn-sm desk-editable timeline-delete" data-id="${ev.id}">Delete</button>
                                                                       </div>
                                                             </div>
                                                             <div class="timeline-meta">
@@ -1035,7 +1193,8 @@ function applyLockResponse(res) {
                                         const emphasisShadow = importance >= 4 ? 'box-shadow: 0 0 0 2px var(--event-color-strong, rgba(148, 163, 184, 0.55));' : '';
                                         const dotStyle = `${buildColorStyle(teamColor)}left:${posX}px; height:${dotHeight}px; width:${dotWidth}px; opacity:${opacity}; ${emphasisShadow}`;
                                         const labelText = displayEventLabel(ev, row.label);
-                                        html += `<span class="matrix-dot" data-second="${ev.match_second}" data-event-id="${ev.id}" title="${fmtTime(ev.match_second)} - ${h(labelText)} (${h(ev.team_side || 'team')})" style="${dotStyle}"></span>`;
+                                        const matrixTimeLabel = h(formatMatchSecondWithExtra(ev.match_second, ev.minute_extra));
+                                        html += `<span class="matrix-dot" data-second="${ev.match_second}" data-event-id="${ev.id}" title="${matrixTimeLabel} - ${h(labelText)} (${h(ev.team_side || 'team')})" style="${dotStyle}"></span>`;
                               });
                               html += '</div></div></div>';
                     });
@@ -1204,9 +1363,8 @@ function applyLockResponse(res) {
                               withEditorPopulation(() => {
                                         selectedId = null;
                                         $eventId.val('');
-                                        $matchSecond.val('');
-                                        $minute.val('');
-                                        $minuteExtra.val('');
+                                        updateTimeFromSeconds(0);
+                                        updateMinuteExtraFields(0);
                                         $teamSide.val('home');
                                         $periodId.val('');
                                         $eventTypeId.val('');
@@ -1220,6 +1378,7 @@ function applyLockResponse(res) {
                                         clipState = { id: null, start: null, end: null };
                                         updateClipUi();
                                         refreshOutcomeFieldForEvent(null);
+                                        refreshPeriodHelperText();
                               });
                               editorDirty = false;
                               setEditorCollapsed(true, 'Click a timeline item to edit details', true);
@@ -1229,11 +1388,11 @@ function applyLockResponse(res) {
                     withEditorPopulation(() => {
                               selectedId = ev.id;
                               $eventId.val(ev.id);
-                              $matchSecond.val(ev.match_second);
-                              $minute.val(ev.minute);
-                              $minuteExtra.val(ev.minute_extra);
+                              const seconds = Number.isFinite(Number(ev.match_second)) ? Number(ev.match_second) : 0;
+                              updateTimeFromSeconds(seconds);
+                              updateMinuteExtraFields(ev.minute_extra);
                               $teamSide.val(ev.team_side || 'unknown');
-                              $periodId.val(ev.period_id);
+                              $periodId.val(ev.period_id || '');
                               $eventTypeId.val(ev.event_type_id);
                               $matchPlayerId.val(ev.match_player_id);
                               $importance.val(ev.importance || 3);
@@ -1249,10 +1408,12 @@ function applyLockResponse(res) {
                               }
                               updateClipUi();
                               refreshOutcomeFieldForEvent(ev);
+                              refreshPeriodHelperText();
                     });
                     editorDirty = false;
                     const labelText = displayEventLabel(ev, ev.event_type_label || 'Event');
-                    setEditorCollapsed(false, `${h(labelText)} - ${fmtTime(ev.match_second)}`, false);
+                    const editorTimeLabel = h(formatMatchSecondWithExtra(ev.match_second, ev.minute_extra));
+                    setEditorCollapsed(false, `${h(labelText)} - ${editorTimeLabel}`, false);
           }
 
           function findEventById(id) {
@@ -1286,21 +1447,24 @@ function applyLockResponse(res) {
 
           function collectData() {
                     let matchSecond = parseInt($matchSecond.val(), 10);
-                    if (Number.isNaN(matchSecond) && $video.length) {
-                              matchSecond = Math.floor($video[0].currentTime || 0);
-                              $matchSecond.val(matchSecond);
+                    if (Number.isNaN(matchSecond)) {
+                              matchSecond = 0;
+                              if ($video.length) {
+                                        matchSecond = Math.floor($video[0].currentTime || 0);
+                              }
+                              updateTimeFromSeconds(matchSecond);
                     }
-                    let minuteVal = $minute.val();
-                    if (!minuteVal && !Number.isNaN(matchSecond)) {
-                              minuteVal = Math.floor(matchSecond / 60);
-                              $minute.val(minuteVal);
-                    }
+                    matchSecond = Math.max(0, matchSecond);
+                    const minuteValue = Math.floor(matchSecond / 60);
+                    $minute.val(minuteValue);
+                    const minuteExtraValue = Math.max(0, parseInt($minuteExtra.val(), 10) || 0);
+                    $minuteExtra.val(minuteExtraValue);
                     return {
                               match_id: cfg.matchId,
                               event_id: $eventId.val(),
                               match_second: matchSecond,
-                              minute: $minute.val(),
-                              minute_extra: $minuteExtra.val(),
+                              minute: minuteValue,
+                              minute_extra: minuteExtraValue,
                               team_side: $teamSide.val(),
                               period_id: $periodId.val(),
                               event_type_id: $eventTypeId.val(),
@@ -1492,14 +1656,14 @@ function applyLockResponse(res) {
           function updateClipUi() {
                     if (clipState.start !== null) {
                               $clipIn.val(clipState.start);
-                              $clipInFmt.text(fmtTime(clipState.start));
+                              $clipInFmt.text(formatMatchSecondWithExtra(clipState.start, 0));
                     } else {
                               $clipIn.val('');
                               $clipInFmt.text('');
                     }
                     if (clipState.end !== null) {
                               $clipOut.val(clipState.end);
-                              $clipOutFmt.text(fmtTime(clipState.end));
+                              $clipOutFmt.text(formatMatchSecondWithExtra(clipState.end, 0));
                     } else {
                               $clipOut.val('');
                               $clipOutFmt.text('');
@@ -1605,16 +1769,21 @@ function applyLockResponse(res) {
                               quickTag(typeKey, typeId, $(this));
                     });
 
-                    $(document).on('click', '#eventUseTimeBtn', () => {
-                              const current = $video.length ? Math.floor($video[0].currentTime) : 0;
-                              $matchSecond.val(current);
-                              $minute.val(Math.floor(current / 60));
-                    });
                     $(document).on('click', '#eventSaveBtn', saveEvent);
                     $(document).on('click', '#eventNewBtn', () => {
                               selectedId = null;
                               fillForm(null);
                     });
+                    $timeDisplay.on('input', handleTimeDisplayInput);
+                    $timeDisplay.on('blur change', handleTimeDisplayBlur);
+                    $minuteExtraDisplay.on('input change', () => updateMinuteExtraFields($minuteExtraDisplay.val()));
+                    $periodId.on('change', refreshPeriodHelperText);
+                    $(document).on('keydown', (event) => updateModifierState(event.key, true));
+                    $(document).on('keyup', (event) => updateModifierState(event.key, false));
+                    $(window).on('blur', () => {
+                              modifierState.shift = modifierState.ctrl = modifierState.meta = false;
+                    });
+                    refreshPeriodHelperText();
                     $(document).on('click', '#eventDeleteBtn', deleteEvent);
                     $editorPanel.on('click', '.editor-tab', function () {
                               const $tab = $(this);
@@ -1761,6 +1930,8 @@ function applyLockResponse(res) {
                     fillForm(null);
                     setTimelineMode(timelineMode);
                     applyMode(false, {});
+                    setupTimeStepper($timeStepDown, -1);
+                    setupTimeStepper($timeStepUp, 1);
                     bindHandlers();
                     acquireLock();
                     updateClipUi();
