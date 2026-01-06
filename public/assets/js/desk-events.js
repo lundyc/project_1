@@ -12,6 +12,28 @@
           }
 
           const endpoints = cfg.endpoints || {};
+          const playlistConfig = {
+                    list: endpoints.playlistsList,
+                    create: endpoints.playlistCreate,
+                    addClip: endpoints.playlistClipsAdd,
+                    removeClip: endpoints.playlistClipsRemove,
+                    reorder: endpoints.playlistClipsReorder,
+                    show: (id) => (endpoints.playlistsList ? `${endpoints.playlistsList}/${id}` : null),
+          };
+          const playlistState = {
+                    playlists: [],
+                    activePlaylistId: null,
+                    clips: [],
+                    activeIndex: -1,
+          };
+          const clipPlaybackState = {
+                    mode: 'match',
+                    clipId: null,
+                    startSecond: null,
+                    endSecond: null,
+          };
+          window.DeskClipPlaybackState = clipPlaybackState;
+          let playlistDraggedClipId = null;
 
           const $video = $('#deskVideoPlayer');
           const $timelineList = $('#timelineList');
@@ -29,6 +51,16 @@
           const $teamToggle = $('#teamToggle');
           const $tagBoard = $('#quickTagBoard');
           const $tagToast = $('#tagToast');
+          const $playlistPanel = $('#playlistsPanel');
+          const $playlistList = $('#playlistList');
+          const $playlistCreateForm = $('#playlistCreateForm');
+          const $playlistTitleInput = $('#playlistTitleInput');
+          const $playlistAddClipBtn = $('#playlistAddClipBtn');
+          const $playlistClips = $('#playlistClips');
+          const $playlistActiveTitle = $('#playlistActiveTitle');
+          const $playlistPrevBtn = $('#playlistPrevBtn');
+          const $playlistNextBtn = $('#playlistNextBtn');
+          const $playlistRefreshBtn = $('#playlistRefreshBtn');
           const $editorPanel = $('#editorPanel');
           const $editorHint = $('#editorHint');
           const $editorTabs = $editorPanel.find('.editor-tab');
@@ -153,6 +185,18 @@
                     pixelsPerSecond: 3,
           };
           const timelineMetrics = { duration: 0, totalWidth: 0, viewportWidth: 0 };
+          const annotationTargetId = (() => {
+                    const raw =
+                              cfg.annotations && cfg.annotations.matchVideoId
+                                        ? cfg.annotations.matchVideoId
+                                        : cfg.video && cfg.video.match_video_id
+                                                  ? cfg.video.match_video_id
+                                                  : null;
+                    const parsed = Number(raw);
+                    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+          })();
+          let annotationBridge = null;
+          let timelineAnnotations = [];
           let matrixInitialized = false;
           let matrixPan = { active: false, startX: 0, scrollLeft: 0 };
           let resizeTimer = null;
@@ -1086,7 +1130,38 @@ function applyLockResponse(res) {
                     }
           }
 
-                                                  function clampZoom(scale) {
+          function buildClipRanges(events) {
+                    const clipMap = new Map();
+                    (events || []).forEach((ev) => {
+                              const clipId = Number(ev.clip_id);
+                              if (!Number.isFinite(clipId) || clipId <= 0) {
+                                        return;
+                              }
+                              const start = Number(ev.clip_start_second);
+                              const end = Number(ev.clip_end_second);
+                              if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+                                        return;
+                              }
+                              const key = String(clipId);
+                              if (!clipMap.has(key)) {
+                                        clipMap.set(key, {
+                                                  clipId,
+                                                  start,
+                                                  end,
+                                                  label: displayEventLabel(ev, 'Clip'),
+                                        });
+                                        return;
+                              }
+                              const existing = clipMap.get(key);
+                              if (existing) {
+                                        existing.start = Math.min(existing.start, start);
+                                        existing.end = Math.max(existing.end, end);
+                              }
+                    });
+                    return Array.from(clipMap.values());
+          }
+
+          function clampZoom(scale) {
                     return Math.min(timelineZoom.max, Math.max(timelineZoom.min, scale));
           }
 
@@ -1135,9 +1210,15 @@ function applyLockResponse(res) {
                               rowMap.get(key).events.push(ev);
                     });
                     const typeRows = Array.from(rowMap.values());
-
+                    const clipRanges = buildClipRanges(filtered);
+                    const maxClipSecond = clipRanges.reduce((max, clip) => Math.max(max, clip.end || 0), 0);
+                    const maxAnnotationSecond = timelineAnnotations.reduce((max, annotation) => {
+                              const seconds = Number(annotation.timestamp_second);
+                              return Number.isFinite(seconds) ? Math.max(max, seconds) : max;
+                    }, 0);
                     const maxEventSecond = filtered.reduce((max, ev) => Math.max(max, ev.match_second || 0), 0);
-                    timelineMetrics.duration = Math.max(baseDuration, maxEventSecond);
+                    const maxMarkerSecond = Math.max(maxEventSecond, maxClipSecond, maxAnnotationSecond);
+                    timelineMetrics.duration = Math.max(baseDuration, maxMarkerSecond);
                     const containerWidth = $timelineMatrix.closest('.timeline-scroll').width() || $timelineMatrix.width() || 0;
                     const availableWidth = Math.max(0, containerWidth - axisPad);
                     const baseWidth = timelineMetrics.duration * timelineZoom.pixelsPerSecond;
@@ -1199,6 +1280,61 @@ function applyLockResponse(res) {
                               html += '</div></div></div>';
                     });
 
+                    if (clipRanges.length) {
+                              html += `<div class="matrix-grid" style="${gridColumnsStyle}">`;
+                              html += `<div class="matrix-type matrix-type--clip">Clips</div>`;
+                              html += `<div class="matrix-track" style="width:${timelineWidth}px">`;
+                              html += `<div class="matrix-row-buckets" style="grid-template-columns:${bucketColumns}; width:${timelineWidth}px">`;
+                              buckets.forEach((bucket, idx) => {
+                                        html += `<div class="matrix-cell" data-bucket="${idx}" style="width:${bucketWidths[idx]}px"></div>`;
+                              });
+                              html += '</div>';
+                              html += `<div class="matrix-row-events matrix-row-events--clip" style="width:${timelineWidth}px">`;
+                              clipRanges.forEach((clip) => {
+                                        const start = Math.max(0, Number.isFinite(clip.start) ? clip.start : 0);
+                                        const end = Math.max(0, Number.isFinite(clip.end) ? clip.end : 0);
+                                        if (end <= start) {
+                                                  return;
+                                        }
+                                        const left = Math.min(Math.max(0, start * timelineZoom.pixelsPerSecond * timelineZoom.scale), timelineWidth);
+                                        const rawWidth = Math.max(0, (end - start) * timelineZoom.pixelsPerSecond * timelineZoom.scale);
+                                        let width = Math.max(6, rawWidth);
+                                        if (left + width > timelineWidth) {
+                                                  width = Math.max(4, timelineWidth - left);
+                                        }
+                                        if (width <= 0) {
+                                                  return;
+                                        }
+                                        const clipLabel = clip.label || `Clip #${clip.clipId}`;
+                                        const tooltip = `${h(clipLabel)} · ${h(formatMatchSecondWithExtra(start, 0))} – ${h(formatMatchSecondWithExtra(end, 0))}`;
+                                        html += `<span class="matrix-clip" data-clip-id="${clip.clipId}" data-start-second="${start}" title="${tooltip}" style="left:${left}px; width:${width}px"></span>`;
+                              });
+                              html += '</div></div></div>';
+                    }
+
+                    if (timelineAnnotations.length) {
+                              html += `<div class="matrix-grid" style="${gridColumnsStyle}">`;
+                              html += `<div class="matrix-type matrix-type--annotation">Annotations</div>`;
+                              html += `<div class="matrix-track" style="width:${timelineWidth}px">`;
+                              html += `<div class="matrix-row-buckets" style="grid-template-columns:${bucketColumns}; width:${timelineWidth}px">`;
+                              buckets.forEach((bucket, idx) => {
+                                        html += `<div class="matrix-cell" data-bucket="${idx}" style="width:${bucketWidths[idx]}px"></div>`;
+                              });
+                              html += '</div>';
+                              html += `<div class="matrix-row-events matrix-row-events--annotation" style="width:${timelineWidth}px">`;
+                              timelineAnnotations.forEach((annotation) => {
+                                        const seconds = Number(annotation.timestamp_second);
+                                        if (!Number.isFinite(seconds)) {
+                                                  return;
+                                        }
+                                        const left = Math.min(Math.max(0, seconds * timelineZoom.pixelsPerSecond * timelineZoom.scale), timelineWidth);
+                                        const note = annotation.notes ? String(annotation.notes).trim() : 'Annotation';
+                                        const tooltip = `${h(note || 'Annotation')} · ${h(formatMatchSecondWithExtra(seconds, 0))}`;
+                                        html += `<span class="matrix-annotation" data-annotation-id="${annotation.id}" data-second="${seconds}" title="${tooltip}" style="left:${left}px"></span>`;
+                              });
+                              html += '</div></div></div>';
+                    }
+
                     html += '</div>';
 
                     $timelineMatrix.html(html);
@@ -1208,6 +1344,45 @@ function applyLockResponse(res) {
                     const targetScroll = typeof options.scrollLeft === 'number' ? options.scrollLeft : options.previousScroll || 0;
                     if ($viewport.length) {
                               $viewport[0].scrollLeft = clampScrollValue(targetScroll, $viewport[0]);
+                    }
+          }
+
+          function handleAnnotationTimelinePayload(payload) {
+                    if (!payload || payload.type !== 'match_video' || !annotationTargetId) {
+                              return;
+                    }
+                    const targetId = Number(payload.id);
+                    if (!Number.isFinite(targetId) || targetId !== annotationTargetId) {
+                              return;
+                    }
+                    timelineAnnotations = Array.isArray(payload.annotations) ? payload.annotations.slice() : [];
+                    renderTimeline();
+          }
+
+          function ensureAnnotationBridge() {
+                    if (!annotationTargetId) {
+                              return;
+                    }
+                    const attachBridge = () => {
+                              if (annotationBridge) {
+                                        return;
+                              }
+                              const bridge = window.DeskAnnotationTimelineBridge;
+                              if (!bridge || typeof bridge.subscribe !== 'function') {
+                                        return;
+                              }
+                              annotationBridge = bridge;
+                              bridge.subscribe(handleAnnotationTimelinePayload);
+                    };
+                    attachBridge();
+                    if (!annotationBridge) {
+                              window.addEventListener(
+                                        'DeskAnnotationTimelineReady',
+                                        () => {
+                                                  attachBridge();
+                                        },
+                                        { once: true }
+                              );
                     }
           }
 
@@ -1674,13 +1849,481 @@ function applyLockResponse(res) {
                     } else {
                               $clipDuration.val('');
                     }
-                    if (!clipState.id) {
-                              $btnClipCreate.prop('disabled', !lockOwned || !cfg.canEditRole || !selectedId);
-                              $btnClipDelete.prop('disabled', true);
-                    } else {
-                              $btnClipCreate.prop('disabled', true);
-                              $btnClipDelete.prop('disabled', !lockOwned || !cfg.canEditRole);
+                  if (!clipState.id) {
+                            $btnClipCreate.prop('disabled', !lockOwned || !cfg.canEditRole || !selectedId);
+                            $btnClipDelete.prop('disabled', true);
+                  } else {
+                            $btnClipCreate.prop('disabled', true);
+                            $btnClipDelete.prop('disabled', !lockOwned || !cfg.canEditRole);
+                  }
+                  refreshPlaylistAddButton();
+          }
+
+          function postJson(url, payload) {
+                    if (!url) {
+                              return $.Deferred().reject('missing_url').promise();
                     }
+                    return $.ajax({
+                              url,
+                              method: 'POST',
+                              contentType: 'application/json',
+                              data: JSON.stringify(payload),
+                    });
+          }
+
+          function playlistEnabled() {
+                    return !!playlistConfig.list && $playlistPanel.length;
+          }
+
+          function initPlaylists() {
+                    if (!playlistEnabled()) {
+                              return;
+                    }
+                    fetchPlaylists();
+          }
+
+          function refreshPlaylistAddButton() {
+                    if (!playlistEnabled()) {
+                              return;
+                    }
+                    const hasClip = !!clipState.id;
+                    const hasPlaylist = !!playlistState.activePlaylistId;
+                    const alreadyAdded = hasClip && playlistState.clips.some((clip) => clip.clip_id === clipState.id);
+                    $playlistAddClipBtn.prop('disabled', !hasPlaylist || !hasClip || alreadyAdded);
+          }
+
+          function renderPlaylistList() {
+                    if (!playlistEnabled()) {
+                              return;
+                    }
+                    if (!playlistState.playlists.length) {
+                              $playlistList.text('No playlists yet.');
+                              return;
+                    }
+                    const html = playlistState.playlists
+                              .map((pl) => {
+                                        const activeClass = pl.id === playlistState.activePlaylistId ? ' is-active' : '';
+                                        const clipCount = Number.isFinite(Number(pl.clip_count)) ? Number(pl.clip_count) : 0;
+                                        const notesHtml = pl.notes ? `<span>${h(pl.notes)}</span>` : '';
+                                        return `<div class="playlist-item${activeClass}" data-playlist-id="${pl.id}">
+                                                  <div class="playlist-item-title">${h(pl.title)}</div>
+                                                  <div class="playlist-item-meta">
+                                                            <span>${clipCount} clip${clipCount === 1 ? '' : 's'}</span>
+                                                            ${notesHtml}
+                                                  </div>
+                                            </div>`;
+                              })
+                              .join('');
+                    $playlistList.html(html);
+          }
+
+          function updatePlaylistHeader() {
+                    if (!playlistEnabled()) {
+                              return;
+                    }
+                    const active = playlistState.playlists.find((pl) => pl.id === playlistState.activePlaylistId);
+                    if (active) {
+                              const clipCount = playlistState.clips.length;
+                              $playlistActiveTitle.text(`${h(active.title)} (${clipCount} clip${clipCount === 1 ? '' : 's'})`);
+                    } else {
+                              $playlistActiveTitle.text('Select a playlist to begin');
+                    }
+          }
+
+          function fetchPlaylists() {
+                    if (!playlistEnabled()) {
+                              return;
+                    }
+                    $playlistList.text('Loading playlists…');
+                    $.get(playlistConfig.list)
+                              .done((res) => {
+                                        if (!res || res.ok === false) {
+                                                  showError('Unable to load playlists', res ? res.error : 'Unknown');
+                                                  $playlistList.text('Unable to load playlists');
+                                                  return;
+                                        }
+                                        playlistState.playlists = Array.isArray(res.playlists) ? res.playlists : [];
+                                        renderPlaylistList();
+                                        if (playlistState.activePlaylistId) {
+                                                  const stillExists = playlistState.playlists.some((pl) => pl.id === playlistState.activePlaylistId);
+                                                  if (stillExists) {
+                                                            loadPlaylist(playlistState.activePlaylistId);
+                                                  } else {
+                                                            playlistState.activePlaylistId = null;
+                                                            playlistState.clips = [];
+                                                            playlistState.activeIndex = -1;
+                                                            renderPlaylistClips();
+                                                            updatePlaylistHeader();
+                                                            refreshPlaylistAddButton();
+                                                  }
+                                        }
+                              })
+                              .fail((xhr, status, error) => {
+                                        showError('Unable to load playlists', xhr.responseText || error || status);
+                                        $playlistList.text('Unable to load playlists');
+                              });
+          }
+
+          function loadPlaylist(playlistId) {
+                    if (!playlistEnabled() || !playlistId) {
+                              return;
+                    }
+                    const url = playlistConfig.show(playlistId);
+                    if (!url) {
+                              return;
+                    }
+                    $playlistClips.text('Loading clips…');
+                    $.get(url)
+                              .done((res) => {
+                                        if (!res || res.ok === false) {
+                                                  showError('Unable to load playlist', res ? res.error : 'Unknown');
+                                                  return;
+                                        }
+                                        const clips = Array.isArray(res.clips) ? res.clips.slice() : [];
+                                        clips.sort((a, b) => {
+                                                  const aOrder = Number.isFinite(Number(a && a.sort_order)) ? Number(a.sort_order) : 0;
+                                                  const bOrder = Number.isFinite(Number(b && b.sort_order)) ? Number(b.sort_order) : 0;
+                                                  if (aOrder !== bOrder) {
+                                                            return aOrder - bOrder;
+                                                  }
+                                                  const aId = Number.isFinite(Number(a && a.clip_id)) ? Number(a.clip_id) : 0;
+                                                  const bId = Number.isFinite(Number(b && b.clip_id)) ? Number(b.clip_id) : 0;
+                                                  return aId - bId;
+                                        });
+                                        playlistState.activePlaylistId = res.playlist ? res.playlist.id : playlistId;
+                                        playlistState.clips = clips;
+                                        playlistState.activeIndex = playlistState.clips.length ? 0 : -1;
+                                        renderPlaylistList();
+                                        renderPlaylistClips();
+                                        if (playlistState.activeIndex >= 0) {
+                                                  const clip = playlistState.clips[playlistState.activeIndex];
+                                                  if (clip) {
+                                                            goToVideoTime(clip.start_second);
+                                                  }
+                              }
+                             })
+                             .fail((xhr, status, error) => {
+                                       showError('Unable to load playlist', xhr.responseText || error || status);
+                             });
+          }
+
+          function getClipAtIndex(index) {
+                    if (!playlistState.clips.length) {
+                              return null;
+                    }
+                    const safeIndex = typeof index === 'number' ? index : playlistState.activeIndex;
+                    if (safeIndex < 0 || safeIndex >= playlistState.clips.length) {
+                              return null;
+                    }
+                    return playlistState.clips[safeIndex];
+          }
+
+          function normalizeClipSecond(value) {
+                    const normalized = Number(value);
+                    return Number.isFinite(normalized) ? normalized : null;
+          }
+
+          function emitClipPlaybackState() {
+                    const clip = getClipAtIndex(playlistState.activeIndex);
+                    if (clip) {
+                              clipPlaybackState.mode = 'clip';
+                              clipPlaybackState.clipId = Number.isFinite(Number(clip.clip_id)) ? Number(clip.clip_id) : null;
+                              clipPlaybackState.startSecond = normalizeClipSecond(clip.start_second);
+                              clipPlaybackState.endSecond = normalizeClipSecond(clip.end_second);
+                    } else {
+                              clipPlaybackState.mode = 'match';
+                              clipPlaybackState.clipId = null;
+                              clipPlaybackState.startSecond = null;
+                              clipPlaybackState.endSecond = null;
+                    }
+                    window.dispatchEvent(
+                              new CustomEvent('DeskClipPlaybackChanged', {
+                                        detail: {
+                                                  mode: clipPlaybackState.mode,
+                                                  clipId: clipPlaybackState.clipId,
+                                                  startSecond: clipPlaybackState.startSecond,
+                                                  endSecond: clipPlaybackState.endSecond,
+                                        },
+                              })
+                    );
+          }
+
+          function renderPlaylistClips() {
+                    if (!playlistEnabled()) {
+                              return;
+                    }
+                    updatePlaylistHeader();
+                    if (!playlistState.clips.length) {
+                              $playlistClips.html('<div class="text-muted-alt text-sm">No clips in this playlist yet.</div>');
+                              refreshPlaylistAddButton();
+                              updatePlaylistControls();
+                              emitClipPlaybackState();
+                              return;
+                    }
+                    const html = playlistState.clips
+                              .map((clip, idx) => {
+                                        const activeClass = idx === playlistState.activeIndex ? ' playlist-clip-active' : '';
+                                        const startLabel = formatMatchSecondWithExtra(clip.start_second, 0);
+                                        const durationText = clip.duration_seconds ? `${clip.duration_seconds}s` : '—';
+                                        return `<div class="playlist-clip${activeClass}" draggable="true" data-clip-id="${clip.clip_id}">
+                                                  <div class="playlist-clip-header">
+                                                            <div class="playlist-clip-title">${h(clip.clip_name || 'Clip')}</div>
+                                                            <div class="playlist-clip-actions">
+                                                                      <button type="button" class="ghost-btn ghost-btn-sm playlist-clip-remove" data-clip-id="${clip.clip_id}">Remove</button>
+                                                            </div>
+                                                  </div>
+                                                  <div class="playlist-clip-meta">
+                                                            <span>${h(startLabel)} · ${h(durationText)}</span>
+                                                            <span>Clip #${clip.clip_id}</span>
+                                                  </div>
+                                            </div>`;
+                              })
+                              .join('');
+                    $playlistClips.html(html);
+                    refreshPlaylistAddButton();
+                    updatePlaylistControls();
+                    emitClipPlaybackState();
+          }
+
+          function updatePlaylistControls() {
+                    if (!playlistEnabled()) {
+                              return;
+                    }
+                    const hasClips = playlistState.clips.length > 0;
+                    $playlistPrevBtn.prop('disabled', !hasClips || playlistState.activeIndex <= 0);
+                    $playlistNextBtn.prop('disabled', !hasClips || playlistState.activeIndex >= playlistState.clips.length - 1);
+          }
+
+          function setActiveClip(index) {
+                    if (!playlistEnabled()) {
+                              return;
+                    }
+                    if (typeof index !== 'number' || !playlistState.clips.length) {
+                              return;
+                    }
+                    const clamped = Math.max(0, Math.min(playlistState.clips.length - 1, index));
+                    playlistState.activeIndex = clamped;
+                    renderPlaylistClips();
+                    const clip = playlistState.clips[playlistState.activeIndex];
+                    if (clip) {
+                              goToVideoTime(clip.start_second);
+                    }
+          }
+
+          function navigatePlaylist(step) {
+                    if (!playlistEnabled() || !playlistState.clips.length) {
+                              return;
+                    }
+                    const nextIndex = playlistState.activeIndex + step;
+                    if (nextIndex < 0 || nextIndex >= playlistState.clips.length) {
+                              return;
+                    }
+                    setActiveClip(nextIndex);
+          }
+
+          function handlePlaylistCreate(event) {
+                    if (!playlistEnabled()) {
+                              return false;
+                    }
+                    event.preventDefault();
+                    const title = ($playlistTitleInput.val() || '').trim();
+                    if (!title) {
+                              return false;
+                    }
+                    const url = playlistConfig.create;
+                    if (!url) {
+                              return false;
+                    }
+                    $playlistTitleInput.prop('disabled', true);
+                    $.post(url, { title })
+                              .done((res) => {
+                                        if (!res || res.ok === false) {
+                                                  showError('Unable to create playlist', res ? res.error : 'Unknown');
+                                                  return;
+                                        }
+                                        $playlistTitleInput.val('');
+                                        fetchPlaylists();
+                                        if (res.playlist && res.playlist.id) {
+                                                  loadPlaylist(res.playlist.id);
+                                        }
+                              })
+                              .fail((xhr, status, error) => {
+                                        showError('Unable to create playlist', xhr.responseText || error || status);
+                              })
+                              .always(() => $playlistTitleInput.prop('disabled', false));
+                    return false;
+          }
+
+          function handlePlaylistSelection() {
+                    const id = $(this).data('playlistId');
+                    if (id) {
+                              loadPlaylist(id);
+                    }
+          }
+
+          function handlePlaylistRefresh() {
+                    fetchPlaylists();
+          }
+
+          function handleAddClipToPlaylist() {
+                    if (!playlistEnabled() || !playlistState.activePlaylistId || !clipState.id) {
+                              return;
+                    }
+                    postJson(playlistConfig.addClip, {
+                              playlist_id: playlistState.activePlaylistId,
+                              clip_id: clipState.id,
+                    })
+                              .done((res) => {
+                                        if (!res || res.ok === false) {
+                                                  showError('Unable to add clip', res ? res.error : 'Unknown');
+                                                  return;
+                                        }
+                                        showToast('Clip added to playlist');
+                                        loadPlaylist(playlistState.activePlaylistId);
+                              })
+                              .fail((xhr) => {
+                                        if (xhr && xhr.status === 409) {
+                                                  showToast('Clip already in playlist', true);
+                                                  return;
+                                        }
+                                        showError('Unable to add clip', xhr.responseText || 'Unknown');
+                              });
+          }
+
+          function handleRemoveClip(event) {
+                    event.stopPropagation();
+                    if (!playlistEnabled() || !playlistState.activePlaylistId) {
+                              return;
+                    }
+                    const clipId = $(this).data('clipId');
+                    if (!clipId) {
+                              return;
+                    }
+                    postJson(playlistConfig.removeClip, {
+                              playlist_id: playlistState.activePlaylistId,
+                              clip_id: clipId,
+                    })
+                              .done((res) => {
+                                        if (!res || res.ok === false) {
+                                                  showError('Unable to remove clip', res ? res.error : 'Unknown');
+                                                  return;
+                                        }
+                                        showToast('Clip removed from playlist');
+                                        loadPlaylist(playlistState.activePlaylistId);
+                              })
+                              .fail((xhr, status, error) => showError('Unable to remove clip', xhr.responseText || error || status));
+          }
+
+          function handleClipClick() {
+                    if (!playlistEnabled()) {
+                              return;
+                    }
+                    const clipId = $(this).data('clipId');
+                    const idx = playlistState.clips.findIndex((clip) => clip.clip_id === clipId);
+                    if (idx >= 0) {
+                              setActiveClip(idx);
+                    }
+          }
+
+          function handleClipDragStart(event) {
+                    playlistDraggedClipId = $(this).data('clipId');
+                    const original = event.originalEvent;
+                    if (original && original.dataTransfer) {
+                              original.dataTransfer.effectAllowed = 'move';
+                              original.dataTransfer.setData('text/plain', String(playlistDraggedClipId || ''));
+                    }
+          }
+
+          function handleClipDragOver(event) {
+                    if (!playlistEnabled()) {
+                              return;
+                    }
+                    event.preventDefault();
+                    const original = event.originalEvent;
+                    if (original && original.dataTransfer) {
+                              original.dataTransfer.dropEffect = 'move';
+                    }
+          }
+
+          function handleClipDrop(event) {
+                    if (!playlistEnabled() || !playlistDraggedClipId) {
+                              return;
+                    }
+                    event.preventDefault();
+                    const $target = $(this);
+                    const targetId = $target.data('clipId');
+                    if (!targetId) {
+                              return;
+                    }
+                    const $dragged = $playlistClips.find(`.playlist-clip[data-clip-id="${playlistDraggedClipId}"]`);
+                    if (!$dragged.length) {
+                              playlistDraggedClipId = null;
+                              return;
+                    }
+                    const targetRect = $target[0].getBoundingClientRect();
+                    const dropAfter = (event.originalEvent && event.originalEvent.clientY) > targetRect.top + targetRect.height / 2;
+                    if (dropAfter) {
+                              $target.after($dragged);
+                    } else {
+                              $target.before($dragged);
+                    }
+                    playlistDraggedClipId = null;
+                    reorderPlaylistFromDom();
+          }
+
+          function reorderPlaylistFromDom() {
+                    if (!playlistEnabled() || !playlistState.activePlaylistId) {
+                              return;
+                    }
+                    const order = [];
+                    $playlistClips.find('.playlist-clip').each((idx, el) => {
+                              const clipId = $(el).data('clipId');
+                              if (!clipId) {
+                                        return;
+                              }
+                              order.push({
+                                        clip_id: clipId,
+                                        sort_order: idx,
+                              });
+                    });
+                    persistPlaylistOrder(order);
+          }
+
+          function persistPlaylistOrder(ordering) {
+                    if (!playlistEnabled() || !playlistState.activePlaylistId) {
+                              return;
+                    }
+                    postJson(playlistConfig.reorder, {
+                              playlist_id: playlistState.activePlaylistId,
+                              order: ordering,
+                    })
+                              .done((res) => {
+                                        if (!res || res.ok === false) {
+                                                  showError('Unable to reorder playlist', res ? res.error : 'Unknown');
+                                                  return;
+                                        }
+                                        applyPlaylistOrdering(ordering);
+                                        showToast('Playlist order updated');
+                              })
+                              .fail((xhr, status, error) => showError('Unable to reorder playlist', xhr.responseText || error || status));
+          }
+
+          function applyPlaylistOrdering(ordering) {
+                    const clipMap = new Map();
+                    playlistState.clips.forEach((clip) => clipMap.set(clip.clip_id, clip));
+                    const currentClipId = playlistState.clips[playlistState.activeIndex] ? playlistState.clips[playlistState.activeIndex].clip_id : null;
+                    const updated = [];
+                    ordering.forEach((entry) => {
+                              const clip = clipMap.get(entry.clip_id);
+                              if (clip) {
+                                        clip.sort_order = entry.sort_order;
+                                        updated.push(clip);
+                              }
+                    });
+                    playlistState.clips = updated;
+                    const newIndex = playlistState.clips.findIndex((clip) => clip.clip_id === currentClipId);
+                    playlistState.activeIndex = newIndex >= 0 ? newIndex : (playlistState.clips.length ? 0 : -1);
+                    renderPlaylistClips();
           }
 
           function setClipPoint(type) {
@@ -1836,6 +2479,24 @@ function applyLockResponse(res) {
                     $(document).on('click', '#clipOutBtn', () => setClipPoint('out'));
                     $(document).on('click', '#clipCreateBtn', createClip);
                     $(document).on('click', '#clipDeleteBtn', deleteClip);
+                    if (playlistEnabled()) {
+                              $playlistCreateForm.on('submit', handlePlaylistCreate);
+                              $playlistList.on('click', '.playlist-item', handlePlaylistSelection);
+                              if ($playlistRefreshBtn.length) {
+                                        $playlistRefreshBtn.on('click', handlePlaylistRefresh);
+                              }
+                              $playlistAddClipBtn.on('click', handleAddClipToPlaylist);
+                              $playlistClips.on('click', '.playlist-clip', handleClipClick);
+                              $playlistClips.on('click', '.playlist-clip-remove', handleRemoveClip);
+                              $playlistClips.on('dragstart', '.playlist-clip', handleClipDragStart);
+                              $playlistClips.on('dragover', '.playlist-clip', handleClipDragOver);
+                              $playlistClips.on('drop', '.playlist-clip', handleClipDrop);
+                              $playlistPrevBtn.on('click', () => navigatePlaylist(-1));
+                              $playlistNextBtn.on('click', () => navigatePlaylist(1));
+                              $(document).on('dragend', '.playlist-clip', () => {
+                                        playlistDraggedClipId = null;
+                              });
+                    }
 
                     $filterTeam.on('change', renderTimeline);
                     $filterType.on('change', renderTimeline);
@@ -1888,6 +2549,22 @@ function applyLockResponse(res) {
                               const sec = $dot.data('second');
                               goToVideoTime(sec);
                     });
+                    $timelineMatrix.on('click', '.matrix-clip', function () {
+                              const start = Number($(this).data('startSecond'));
+                              if (Number.isFinite(start)) {
+                                        goToVideoTime(start);
+                              }
+                    });
+                    $timelineMatrix.on('click', '.matrix-annotation', function () {
+                              const annotationId = $(this).data('annotationId');
+                              const sec = Number($(this).data('second'));
+                              if (Number.isFinite(sec)) {
+                                        goToVideoTime(sec);
+                              }
+                              if (annotationBridge && typeof annotationBridge.highlightAnnotation === 'function') {
+                                        annotationBridge.highlightAnnotation(annotationId);
+                              }
+                    });
                     $timelineMatrix.on('contextmenu', '.matrix-dot', function (e) {
                               e.preventDefault();
                               const id = $(this).data('event-id');
@@ -1933,9 +2610,12 @@ function applyLockResponse(res) {
                     setupTimeStepper($timeStepDown, -1);
                     setupTimeStepper($timeStepUp, 1);
                     bindHandlers();
+                    ensureAnnotationBridge();
                     acquireLock();
                     updateClipUi();
                     loadEvents();
+                    initPlaylists();
+                    emitClipPlaybackState();
           }
 
           $(init);

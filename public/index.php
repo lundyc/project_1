@@ -7,6 +7,7 @@ require_once __DIR__ . '/../app/lib/router.php';
 
 auth_boot();
 require_once __DIR__ . '/../app/routes/admin_players.php';
+require_once __DIR__ . '/../app/routes/admin_playlists.php';
 
 route('/login', function () {
           require __DIR__ . '/../app/views/pages/login.php';
@@ -419,6 +420,30 @@ function handle_dynamic_match_routes(string $path): bool
                     return true;
           }
 
+          if (preg_match('#^/api/matches/(\d+)/annotations/create$#', $path, $m)) {
+                    $matchId = (int)$m[1];
+                    require __DIR__ . '/../app/api/matches/annotations/create.php';
+                    return true;
+          }
+
+          if (preg_match('#^/api/matches/(\d+)/annotations/update$#', $path, $m)) {
+                    $matchId = (int)$m[1];
+                    require __DIR__ . '/../app/api/matches/annotations/update.php';
+                    return true;
+          }
+
+          if (preg_match('#^/api/matches/(\d+)/annotations/delete$#', $path, $m)) {
+                    $matchId = (int)$m[1];
+                    require __DIR__ . '/../app/api/matches/annotations/delete.php';
+                    return true;
+          }
+
+          if (preg_match('#^/api/matches/(\d+)/annotations$#', $path, $m)) {
+                    $matchId = (int)$m[1];
+                    require __DIR__ . '/../app/api/matches/annotations/list.php';
+                    return true;
+          }
+
           if (preg_match('#^/api/matches/(\d+)/periods/start$#', $path, $m)) {
                     $matchId = (int)$m[1];
                     require __DIR__ . '/../app/api/matches/periods_start.php';
@@ -493,6 +518,61 @@ function handle_dynamic_match_routes(string $path): bool
           if (preg_match('#^/api/matches/(\d+)/clips/delete$#', $path, $m)) {
                     $matchId = (int)$m[1];
                     require __DIR__ . '/../app/api/matches/clips_delete.php';
+                    return true;
+          }
+
+          if (preg_match('#^/api/matches/(\d+)/playlists/(\d+)$#', $path, $m)) {
+                    $matchId = (int)$m[1];
+                    $playlistId = (int)$m[2];
+                    require __DIR__ . '/../app/api/matches/playlists/show.php';
+                    return true;
+          }
+
+          if (preg_match('#^/api/matches/(\d+)/playlists$#', $path, $m)) {
+                    $matchId = (int)$m[1];
+                    require __DIR__ . '/../app/api/matches/playlists/list.php';
+                    return true;
+          }
+
+          if (preg_match('#^/api/matches/(\d+)/playlists/create$#', $path, $m)) {
+                    $matchId = (int)$m[1];
+                    require __DIR__ . '/../app/api/matches/playlists/create.php';
+                    return true;
+          }
+
+          if (preg_match('#^/api/matches/(\d+)/playlists/rename$#', $path, $m)) {
+                    $matchId = (int)$m[1];
+                    require __DIR__ . '/../app/api/matches/playlists/rename.php';
+                    return true;
+          }
+
+          if (preg_match('#^/api/matches/(\d+)/playlists/notes$#', $path, $m)) {
+                    $matchId = (int)$m[1];
+                    require __DIR__ . '/../app/api/matches/playlists/notes.php';
+                    return true;
+          }
+
+          if (preg_match('#^/api/matches/(\d+)/playlists/delete$#', $path, $m)) {
+                    $matchId = (int)$m[1];
+                    require __DIR__ . '/../app/api/matches/playlists/delete.php';
+                    return true;
+          }
+
+          if (preg_match('#^/api/matches/(\d+)/playlists/clips/add$#', $path, $m)) {
+                    $matchId = (int)$m[1];
+                    require __DIR__ . '/../app/api/matches/playlists/clips_add.php';
+                    return true;
+          }
+
+          if (preg_match('#^/api/matches/(\d+)/playlists/clips/remove$#', $path, $m)) {
+                    $matchId = (int)$m[1];
+                    require __DIR__ . '/../app/api/matches/playlists/clips_remove.php';
+                    return true;
+          }
+
+          if (preg_match('#^/api/matches/(\d+)/playlists/clips/reorder$#', $path, $m)) {
+                    $matchId = (int)$m[1];
+                    require __DIR__ . '/../app/api/matches/playlists/clips_reorder.php';
                     return true;
           }
 

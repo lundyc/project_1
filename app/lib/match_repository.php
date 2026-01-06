@@ -167,6 +167,9 @@ function get_match(int $id): ?array
           if (in_array('error_message', $availableCols, true)) {
                     $videoColumns[] = 'mv.error_message AS video_error_message';
           }
+          if (in_array('duration_seconds', $availableCols, true)) {
+                    $videoColumns[] = 'mv.duration_seconds AS video_duration_seconds';
+          }
 
           $videoSelect = implode(",\n                            ", $videoColumns);
 

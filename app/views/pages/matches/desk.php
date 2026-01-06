@@ -137,6 +137,11 @@ $deskConfig = [
                     'source_path' => $videoPath,
                     'full_path' => $videoSrc,
                     'source_type' => $match['video_source_type'] ?? 'file',
+                    'duration_seconds' => isset($match['video_duration_seconds']) ? (int)$match['video_duration_seconds'] : null,
+                    'match_video_id' => isset($match['video_id']) ? (int)$match['video_id'] : null,
+          ],
+          'annotations' => [
+                    'matchVideoId' => isset($match['video_id']) ? (int)$match['video_id'] : null,
           ],
           'endpoints' => [
                   'lockAcquire' => $base . '/api/matches/' . (int)$match['id'] . '/lock/acquire',
@@ -153,12 +158,23 @@ $deskConfig = [
                   'periodsSet' => $base . '/api/match-periods/set',
                   'clipCreate' => $base . '/api/matches/' . (int)$match['id'] . '/clips/create',
                   'clipDelete' => $base . '/api/matches/' . (int)$match['id'] . '/clips/delete',
+                  'playlistsList' => $base . '/api/matches/' . (int)$match['id'] . '/playlists',
+                  'playlistCreate' => $base . '/api/matches/' . (int)$match['id'] . '/playlists/create',
+                  'playlistClipsAdd' => $base . '/api/matches/' . (int)$match['id'] . '/playlists/clips/add',
+                  'playlistClipsRemove' => $base . '/api/matches/' . (int)$match['id'] . '/playlists/clips/remove',
+                  'playlistClipsReorder' => $base . '/api/matches/' . (int)$match['id'] . '/playlists/clips/reorder',
+                  'annotationsList' => $base . '/api/matches/' . (int)$match['id'] . '/annotations',
+                  'annotationsCreate' => $base . '/api/matches/' . (int)$match['id'] . '/annotations/create',
+                  'annotationsUpdate' => $base . '/api/matches/' . (int)$match['id'] . '/annotations/update',
+                  'annotationsDelete' => $base . '/api/matches/' . (int)$match['id'] . '/annotations/delete',
           ],
 ];
 
 $footerScripts = '<script>window.DeskConfig = ' . json_encode($deskConfig) . ';</script>';
 $footerScripts .= '<script>console.log(\'DeskConfig.outcomeOptionsByTypeId\', DeskConfig.outcomeOptionsByTypeId);</script>';
 $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-events.js?v=' . time() . '"></script>';
+$footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-annotations.js?v=' . time() . '"></script>';
+$footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/timeline-markers.js?v=' . time() . '"></script>';
 $videoProgressConfig = [
           'matchId' => $matchId,
           'progressUrl' => $base . '/api/match-video/progress?match_id=' . $matchId,
@@ -219,13 +235,64 @@ ob_start();
                                                             </div>
                                                   </div>
                                                   <div class="video-content">
-                                                            <video
-                                                                      id="deskVideoPlayer"
-                                                                      class="video-player<?= $videoReady ? '' : ' d-none' ?>"
-                                                                      preload="metadata"
-                                                                      controls
-                                                                      <?= $videoReady ? 'src="' . htmlspecialchars($videoSrc) . '"' : '' ?>>
-                                                            </video>
+                                                            <div class="annotation-block">
+                                                                      <div class="video-frame">
+                                                                                <video
+                                                                                          id="deskVideoPlayer"
+                                                                                          class="video-player<?= $videoReady ? '' : ' d-none' ?>"
+                                                                                          preload="metadata"
+                                                                                          controls
+                                                                                          <?= $videoReady ? 'src="' . htmlspecialchars($videoSrc) . '"' : '' ?>>
+                                                                                </video>
+                                                                                <div class="annotation-overlay" data-annotation-overlay>
+                                                                                          <canvas id="deskAnnotationCanvas" data-annotation-canvas></canvas>
+                                                                                          <div class="annotation-text-input" data-annotation-text-input>
+                                                                                                    <input type="text" maxlength="120" placeholder="Annotation text" data-annotation-text-field>
+                                                                                                    <div class="annotation-text-actions">
+                                                                                                              <button type="button" class="ghost-btn ghost-btn-sm" data-annotation-text-save>Save</button>
+                                                                                                              <button type="button" class="ghost-btn ghost-btn-sm" data-annotation-text-cancel>Cancel</button>
+                                                                                                    </div>
+                                                                                          </div>
+                                                                                </div>
+                                                                                <div class="video-timeline" data-video-timeline>
+                                                                                          <div class="video-timeline-track" data-video-timeline-track aria-hidden="true">
+                                                                                                    <div class="video-timeline-markers" data-video-timeline-markers></div>
+                                                                                                    <div class="video-timeline-playhead" data-video-timeline-playhead></div>
+                                                                                          </div>
+                                                                                </div>
+                                                                      </div>
+                                                                      <div class="annotation-toolbar" data-annotation-toolbar>
+                                                                                <div class="annotation-toolbar-row">
+                                                                                          <button type="button" class="toggle-btn annotation-visibility-btn is-active" data-annotation-visibility-toggle>Hide annotations</button>
+                                                                                          <button type="button" class="toggle-btn annotation-mode-btn" data-annotation-mode-toggle>Enable editing</button>
+                                                                                          <span class="annotation-status" data-annotation-status>Idle</span>
+                                                                                          <select class="input-pill input-pill-sm" data-annotation-target>
+                                                                                                    <option value="match_video:<?= (int)($match['video_id'] ?? 0) ?>">Match video</option>
+                                                                                                    <optgroup label="Clips" data-annotation-clip-group></optgroup>
+                                                                                          </select>
+                                                                                </div>
+                                                                                <div class="annotation-tool-row">
+                                                                                          <button type="button" class="toggle-btn annotation-tool-btn is-active" data-annotation-tool="pen">Pen</button>
+                                                                                          <button type="button" class="toggle-btn annotation-tool-btn" data-annotation-tool="arrow">Arrow</button>
+                                                                                          <button type="button" class="toggle-btn annotation-tool-btn" data-annotation-tool="line">Line</button>
+                                                                                          <button type="button" class="toggle-btn annotation-tool-btn" data-annotation-tool="rectangle">Rect</button>
+                                                                                          <button type="button" class="toggle-btn annotation-tool-btn" data-annotation-tool="circle">Circle</button>
+                                                                                          <button type="button" class="toggle-btn annotation-tool-btn" data-annotation-tool="text">Text</button>
+                                                                                          <button type="button" class="toggle-btn annotation-tool-btn" data-annotation-tool="select">Select</button>
+                                                                                </div>
+                                                                                <div class="annotation-style-row">
+                                                                                          <label class="annotation-style-item">
+                                                                                                    Colour
+                                                                                                    <input type="color" value="#facc15" data-annotation-color>
+                                                                                          </label>
+                                                                                          <label class="annotation-style-item">
+                                                                                                    Stroke width
+                                                                                                    <input type="range" min="1" max="16" value="4" data-annotation-stroke>
+                                                                                          </label>
+                                                                                          <button type="button" class="ghost-btn ghost-btn-sm annotation-delete-btn" data-annotation-delete disabled>Delete</button>
+                                                                                </div>
+                                                                      </div>
+                                                            </div>
                                                             <div id="deskVideoPlaceholder" class="text-center text-muted mb-3<?= $videoReady ? ' d-none' : '' ?>">
                                                                       <?= htmlspecialchars($placeholderMessage) ?>
                                                             </div>
@@ -292,6 +359,34 @@ ob_start();
 
                                                   <div id="quickTagBoard" class="qt-board"></div>
                                                   <div id="tagToast" class="desk-toast" style="display:none;"></div>
+                                                  <div id="playlistsPanel" class="panel-dark playlists-panel">
+                                                            <div class="panel-row">
+                                                                      <div>
+                                                                                <div class="text-sm text-subtle">Playlists</div>
+                                                                                <div class="text-xs text-muted-alt">Curate clips for replay</div>
+                                                                      </div>
+                                                                      <button id="playlistRefreshBtn" type="button" class="ghost-btn ghost-btn-sm">Refresh</button>
+                                                            </div>
+                                                            <form id="playlistCreateForm" class="playlist-create-form">
+                                                                      <input id="playlistTitleInput" class="input-dark" type="text" name="title" placeholder="New playlist title" autocomplete="off">
+                                                                      <button type="submit" class="ghost-btn ghost-btn-sm">Create</button>
+                                                            </form>
+                                                            <div id="playlistList" class="playlist-list text-sm text-muted-alt">Loading playlists…</div>
+                                                            <div class="playlist-mode">
+                                                                      <div class="playlist-mode-header">
+                                                                                <div>
+                                                                                          <div class="text-xs text-muted-alt">Active playlist</div>
+                                                                                          <div id="playlistActiveTitle" class="text-sm text-subtle">Select a playlist to begin</div>
+                                                                                </div>
+                                                                                <button id="playlistAddClipBtn" type="button" class="ghost-btn ghost-btn-sm" disabled>Add clip</button>
+                                                                      </div>
+                                                                      <div class="playlist-controls">
+                                                                                <button id="playlistPrevBtn" type="button" class="ghost-btn ghost-btn-sm" disabled>Previous clip</button>
+                                                                                <button id="playlistNextBtn" type="button" class="ghost-btn ghost-btn-sm" disabled>Next clip</button>
+                                                                      </div>
+                                                                      <div id="playlistClips" class="playlist-clips text-sm text-muted-alt">No playlist selected.</div>
+                                                            </div>
+                                                  </div>
                                         </div>
 
                               </div>
