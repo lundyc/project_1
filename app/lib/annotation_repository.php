@@ -3,6 +3,11 @@
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/error_logger.php';
 
+function annotations_enabled(): bool
+{
+          return false;
+}
+
 /**
  * Decode the stored drawing data JSON and normalize the annotation record.
  *
@@ -11,6 +16,9 @@ require_once __DIR__ . '/error_logger.php';
  */
 function annotation_normalize_row(array $row): array
 {
+          if (!annotations_enabled()) {
+                    throw new \RuntimeException('Annotations disabled');
+          }
           $drawing = null;
           if (isset($row['drawing_data']) && $row['drawing_data'] !== null) {
                     $decoded = json_decode((string)$row['drawing_data'], true);
@@ -25,16 +33,23 @@ function annotation_normalize_row(array $row): array
                     'target_type' => $row['target_type'] ?? '',
                     'target_id' => isset($row['target_id']) ? (int)$row['target_id'] : 0,
                     'timestamp_second' => isset($row['timestamp_second']) ? (int)$row['timestamp_second'] : 0,
+                    'show_from_second' => isset($row['show_from_second']) ? (int)$row['show_from_second'] : 0,
+                    'show_to_second' => isset($row['show_to_second']) ? (int)$row['show_to_second'] : 0,
+                    'show_before_seconds' => isset($row['show_before_seconds']) ? (int)$row['show_before_seconds'] : 5,
+                    'show_after_seconds' => isset($row['show_after_seconds']) ? (int)$row['show_after_seconds'] : 5,
                    'notes' => $row['notes'] ?? null,
                    'tool_type' => $row['tool_type'] ?? null,
                    'drawing_data' => $drawing,
                    'created_at' => $row['created_at'] ?? null,
                    'updated_at' => $row['updated_at'] ?? null,
           ];
-}
+          }
 
 function annotation_match_video_belongs_to_match(int $matchId, int $videoId): bool
 {
+          if (!annotations_enabled()) {
+                    throw new \RuntimeException('Annotations disabled');
+          }
           if ($matchId <= 0 || $videoId <= 0) {
                     return false;
           }
@@ -45,6 +60,9 @@ function annotation_match_video_belongs_to_match(int $matchId, int $videoId): bo
 
 function annotation_clip_belongs_to_match(int $matchId, int $clipId): bool
 {
+          if (!annotations_enabled()) {
+                    throw new \RuntimeException('Annotations disabled');
+          }
           if ($matchId <= 0 || $clipId <= 0) {
                     return false;
           }
@@ -55,6 +73,9 @@ function annotation_clip_belongs_to_match(int $matchId, int $clipId): bool
 
 function annotation_target_exists(int $matchId, string $targetType, int $targetId): bool
 {
+          if (!annotations_enabled()) {
+                    throw new \RuntimeException('Annotations disabled');
+          }
           if ($targetType === 'match_video') {
                     return annotation_match_video_belongs_to_match($matchId, $targetId);
           }
@@ -66,6 +87,9 @@ function annotation_target_exists(int $matchId, string $targetType, int $targetI
 
 function annotation_extract_tool_type(array $drawingData): string
 {
+          if (!annotations_enabled()) {
+                    throw new \RuntimeException('Annotations disabled');
+          }
           if (!empty($drawingData['tool']) && is_string($drawingData['tool'])) {
                     return $drawingData['tool'];
           }
@@ -83,6 +107,9 @@ function annotation_extract_tool_type(array $drawingData): string
  */
 function annotation_list_for_target(int $matchId, string $targetType, int $targetId): array
 {
+          if (!annotations_enabled()) {
+                    throw new \RuntimeException('Annotations disabled');
+          }
           if ($matchId <= 0 || $targetId <= 0 || !$targetType) {
                     return [];
           }
@@ -104,6 +131,9 @@ function annotation_list_for_target(int $matchId, string $targetType, int $targe
 
 function annotation_find(int $annotationId): ?array
 {
+          if (!annotations_enabled()) {
+                    throw new \RuntimeException('Annotations disabled');
+          }
           if ($annotationId <= 0) {
                     return null;
           }
@@ -116,19 +146,26 @@ function annotation_find(int $annotationId): ?array
           return annotation_normalize_row($row);
 }
 
-function annotation_create(int $matchId, string $targetType, int $targetId, int $timestampSecond, array $drawingData, ?string $notes = null): array
+function annotation_create(int $matchId, string $targetType, int $targetId, int $timestampSecond, int $showFromSecond, int $showToSecond, array $drawingData, ?string $notes = null, int $showBeforeSeconds = 5, int $showAfterSeconds = 5): array
 {
+          if (!annotations_enabled()) {
+                    throw new \RuntimeException('Annotations disabled');
+          }
           $now = date('Y-m-d H:i:s');
           $toolType = annotation_extract_tool_type($drawingData);
           $pdo = db();
           $sql = 'INSERT INTO annotations
-          (match_id, target_type, target_id, timestamp_second, tool_type, drawing_data, notes, created_at, updated_at)
-          VALUES (:match_id, :target_type, :target_id, :timestamp_second, :tool_type, :drawing_data, :notes, :created_at, :updated_at)';
+          (match_id, target_type, target_id, timestamp_second, show_from_second, show_to_second, show_before_seconds, show_after_seconds, tool_type, drawing_data, notes, created_at, updated_at)
+          VALUES (:match_id, :target_type, :target_id, :timestamp_second, :show_from_second, :show_to_second, :show_before_seconds, :show_after_seconds, :tool_type, :drawing_data, :notes, :created_at, :updated_at)';
           $params = [
                     'match_id' => $matchId,
                     'target_type' => $targetType,
                     'target_id' => $targetId,
                     'timestamp_second' => $timestampSecond,
+                    'show_from_second' => $showFromSecond,
+                    'show_to_second' => $showToSecond,
+                    'show_before_seconds' => $showBeforeSeconds,
+                    'show_after_seconds' => $showAfterSeconds,
                     'tool_type' => $toolType,
                     'drawing_data' => json_encode($drawingData, JSON_UNESCAPED_UNICODE),
                     'notes' => $notes,
@@ -193,17 +230,26 @@ function annotation_create(int $matchId, string $targetType, int $targetId, int 
           return annotation_find((int)$pdo->lastInsertId()) ?: [];
 }
 
-function annotation_update(int $annotationId, int $matchId, int $timestampSecond, array $drawingData, ?string $notes = null): array
+function annotation_update(int $annotationId, int $matchId, int $timestampSecond, int $showFromSecond, int $showToSecond, array $drawingData, ?string $notes = null, ?int $showBeforeSeconds = null, ?int $showAfterSeconds = null): array
 {
+          if (!annotations_enabled()) {
+                    throw new \RuntimeException('Annotations disabled');
+          }
           if ($annotationId <= 0 || $matchId <= 0) {
                     return [];
           }
           $now = date('Y-m-d H:i:s');
           $toolType = annotation_extract_tool_type($drawingData);
+          $beforeSeconds = $showBeforeSeconds ?? max(0, $timestampSecond - $showFromSecond);
+          $afterSeconds = $showAfterSeconds ?? max(0, $showToSecond - $timestampSecond);
 
           $stmt = db()->prepare(
                     'UPDATE annotations
            SET timestamp_second = :timestamp_second,
+              show_from_second = :show_from_second,
+              show_to_second = :show_to_second,
+              show_before_seconds = :show_before_seconds,
+              show_after_seconds = :show_after_seconds,
                drawing_data = :drawing_data,
                tool_type = :tool_type,
                notes = :notes,
@@ -212,6 +258,10 @@ function annotation_update(int $annotationId, int $matchId, int $timestampSecond
           );
           $stmt->execute([
                     'timestamp_second' => $timestampSecond,
+                    'show_from_second' => $showFromSecond,
+                    'show_to_second' => $showToSecond,
+                    'show_before_seconds' => $beforeSeconds,
+                    'show_after_seconds' => $afterSeconds,
                     'drawing_data' => json_encode($drawingData, JSON_UNESCAPED_UNICODE),
                     'tool_type' => $toolType,
                     'notes' => $notes,
@@ -225,6 +275,9 @@ function annotation_update(int $annotationId, int $matchId, int $timestampSecond
 
 function annotation_delete(int $annotationId): void
 {
+          if (!annotations_enabled()) {
+                    throw new \RuntimeException('Annotations disabled');
+          }
           if ($annotationId <= 0) {
                     return;
           }

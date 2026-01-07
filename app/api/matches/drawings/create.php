@@ -22,7 +22,7 @@ if (!annotations_enabled()) {
 
 header('Content-Type: application/json');
 
-$routePath = '/api/matches/annotations/create';
+$routePath = '/api/matches/drawings/create';
 $requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'POST';
 $clientIp = $_SERVER['REMOTE_ADDR'] ?? null;
 $clientUserAgent = $_SERVER['HTTP_USER_AGENT'] ?? null;
@@ -36,8 +36,8 @@ try {
                     'ip' => $clientIp,
                     'user_agent' => $clientUserAgent,
                     'layer' => 'api',
-                    'fn' => 'matches.annotations.create',
-                    'message' => 'CSRF validation failed during annotation creation',
+                    'fn' => 'matches.drawings.create',
+                    'message' => 'CSRF validation failed during drawing creation',
                     'level' => 'warning',
                     'exception' => $e,
           ]);
@@ -45,7 +45,7 @@ try {
 }
 
 $input = api_read_request_body();
-$sanitizedPayload = sanitizeAnnotationPayload($input);
+$sanitizedPayload = sanitizeDrawingPayload($input);
 $matchId = isset($matchId) ? (int)$matchId : (int)($input['match_id'] ?? 0);
 $targetType = strtolower(trim((string)($input['target_type'] ?? '')));
 $targetId = isset($input['target_id']) ? (int)$input['target_id'] : 0;
@@ -58,9 +58,8 @@ $sanitizedPayload['match_id'] = $matchId;
 $sanitizedPayload['target_type'] = $targetType;
 $sanitizedPayload['target_id'] = $targetId;
 $sanitizedPayload['timestamp_second'] = $timestamp;
-if (isset($input['before_seconds']) || isset($input['after_seconds'])) {
-          $sanitizedPayload['before_seconds'] = isset($input['before_seconds']) ? (int)$input['before_seconds'] : null;
-          $sanitizedPayload['after_seconds'] = isset($input['after_seconds']) ? (int)$input['after_seconds'] : null;
+if (isset($input['drawing_data'])) {
+          $sanitizedPayload['drawing_data'] = $input['drawing_data'];
 }
 
 $user = null;
@@ -82,7 +81,7 @@ $buildLogContext = static function (array $extra = []) use (
                     'ip' => $clientIp,
                     'user_agent' => $clientUserAgent,
                     'layer' => 'api',
-                    'fn' => 'matches.annotations.create',
+                    'fn' => 'matches.drawings.create',
                     'payload' => $sanitizedPayload,
                     'match_id' => $matchId,
                     'target_type' => $targetType,
@@ -121,7 +120,7 @@ $roles = $_SESSION['roles'] ?? [];
 $canView = can_view_match($user, $roles, (int)$match['club_id']);
 if (!$canView) {
           log_api_error($buildLogContext([
-                    'message' => 'Permission denied while creating annotation',
+                    'message' => 'Permission denied while creating drawing',
                     'level' => 'warning',
                     'reason' => 'permission_denied',
           ]));
@@ -210,7 +209,7 @@ if ($drawingJsonCheck === false) {
 
 if (!annotation_target_exists($matchId, $targetType, $targetId)) {
           log_api_error($buildLogContext([
-                    'message' => 'Validation failed: annotation target not part of match',
+                    'message' => 'Validation failed: drawing target not part of match',
                     'reason' => 'target_mismatch',
                     'level' => 'warning',
           ]));
@@ -239,7 +238,7 @@ try {
           api_success(['annotation' => $annotation]);
 } catch (\Throwable $e) {
           log_api_error($buildLogContext([
-                    'message' => 'Annotation persistence failed',
+                    'message' => 'Drawing persistence failed',
                     'level' => 'error',
                     'exception' => $e,
           ]));
@@ -258,7 +257,7 @@ try {
           api_error('server_error', 500, [], $e, $debugPayload);
 }
 
-function sanitizeAnnotationPayload(array $payload): array
+function sanitizeDrawingPayload(array $payload): array
 {
           $sanitized = [
                     'match_id' => isset($payload['match_id']) ? (int)$payload['match_id'] : null,

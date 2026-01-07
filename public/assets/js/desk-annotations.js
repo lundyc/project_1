@@ -1,4 +1,10 @@
 (function () {
+
+          if (window.ANNOTATIONS_ENABLED === false) {
+                    console.info('[annotations] disabled');
+                    return;
+          }
+
           const cfg = window.DeskConfig;
           if (!cfg || !cfg.matchId) {
                     return;
@@ -6,11 +12,11 @@
 
           const endpoints = cfg.endpoints || {};
           const annotationsListUrl = endpoints.annotationsList;
-          const annotationsCreateUrl = endpoints.annotationsCreate;
-          const annotationsUpdateUrl = endpoints.annotationsUpdate;
-          const annotationsDeleteUrl = endpoints.annotationsDelete;
+          const drawingsCreateUrl = endpoints.drawingsCreate || endpoints.annotationsCreate;
+          const drawingsUpdateUrl = endpoints.drawingsUpdate || endpoints.annotationsUpdate;
+          const drawingsDeleteUrl = endpoints.drawingsDelete || endpoints.annotationsDelete;
 
-          if (!annotationsListUrl || !annotationsCreateUrl || !annotationsUpdateUrl || !annotationsDeleteUrl) {
+          if (!annotationsListUrl || !drawingsCreateUrl || !drawingsUpdateUrl || !drawingsDeleteUrl) {
                     return;
           }
 
@@ -31,11 +37,26 @@
           const colorInput = toolbarEl.querySelector('[data-annotation-color]');
           const strokeInput = toolbarEl.querySelector('[data-annotation-stroke]');
           const deleteButton = toolbarEl.querySelector('[data-annotation-delete]');
+          const editButton = toolbarEl.querySelector('[data-annotation-edit]');
           const visibilityToggle = toolbarEl.querySelector('[data-annotation-visibility-toggle]');
           const textInputWrapper = overlayEl.querySelector('[data-annotation-text-input]');
           const textInputField = overlayEl.querySelector('[data-annotation-text-field]');
           const textSaveBtn = overlayEl.querySelector('[data-annotation-text-save]');
           const textCancelBtn = overlayEl.querySelector('[data-annotation-text-cancel]');
+
+          const drawingEditModal = document.querySelector('[data-drawing-edit-modal]');
+          const drawingEditBeforeValue = drawingEditModal?.querySelector('[data-drawing-edit-before-value]');
+          const drawingEditAfterValue = drawingEditModal?.querySelector('[data-drawing-edit-after-value]');
+          const drawingEditToolLabel = drawingEditModal?.querySelector('[data-drawing-edit-tool]');
+          const drawingEditTimestampLabel = drawingEditModal?.querySelector('[data-drawing-edit-timestamp]');
+          const drawingEditNotes = drawingEditModal?.querySelector('[data-drawing-edit-notes]');
+          const drawingEditSaveBtn = drawingEditModal?.querySelector('[data-drawing-edit-save]');
+          const drawingEditDeleteBtn = drawingEditModal?.querySelector('[data-drawing-edit-delete]');
+          const drawingEditCancelBtn = drawingEditModal?.querySelector('[data-drawing-edit-cancel]');
+          const drawingEditCloseBtn = drawingEditModal?.querySelector('[data-drawing-edit-close]');
+          const drawingEditDurationButtons = drawingEditModal
+                    ? Array.from(drawingEditModal.querySelectorAll('[data-drawing-edit-duration]'))
+                    : [];
 
           if (!modeToggle || !visibilityToggle || !targetSelect || !colorInput || !strokeInput || !deleteButton) {
                     return;
@@ -44,29 +65,37 @@
           const matchId = cfg.matchId;
           const matchVideoId = cfg.annotations && cfg.annotations.matchVideoId ? cfg.annotations.matchVideoId : (cfg.video && cfg.video.match_video_id ? cfg.video.match_video_id : null);
 
-         const state = {
-                   editing: false,
-                   targetType: matchVideoId ? 'match_video' : null,
-                   targetId: matchVideoId || null,
-                   tool: 'pen',
-                   annotationsVisible: true,
-                   color: colorInput.value || '#facc15',
-                   strokeWidth: Number(strokeInput.value) || 4,
-                   annotations: new Map(),
-                   pendingFetches: new Map(),
-                   visibleAnnotations: [],
-                   selectedId: null,
-                   isDrawing: false,
-                   draft: null,
-                   pointerId: null,
-                   dragging: null,
-                   textAnchor: null,
-                   isDeleting: false,
-         };
+          const state = {
+                    editing: false,
+                    targetType: matchVideoId ? 'match_video' : null,
+                    targetId: matchVideoId || null,
+                    tool: 'pen',
+                    annotationsVisible: true,
+                    color: colorInput.value || '#facc15',
+                    strokeWidth: Number(strokeInput.value) || 4,
+                    annotations: new Map(),
+                    pendingFetches: new Map(),
+                    visibleAnnotations: [],
+                    selectedId: null,
+                    isDrawing: false,
+                    draft: null,
+                    pointerId: null,
+                    dragging: null,
+                    textAnchor: null,
+                    isDeleting: false,
+          };
+          const drawingEditState = {
+                    annotationId: null,
+                    beforeSeconds: DEFAULT_VISIBILITY_WINDOW_SECONDS,
+                    afterSeconds: DEFAULT_VISIBILITY_WINDOW_SECONDS,
+                    toolLabel: null,
+                    timestamp: null,
+          };
           const annotationVisibilityState = { visible: state.annotationsVisible };
           window.DeskAnnotationVisibilityState = annotationVisibilityState;
 
-          const annotationWindowSeconds = 3;
+          const DEFAULT_VISIBILITY_WINDOW_SECONDS = 5;
+          const RESIZE_HANDLE_THRESHOLD = 0.04;
 
           function parseTargetKey(key) {
                     if (!key || typeof key !== 'string') {
@@ -101,7 +130,7 @@
           }
 
           const timelineBridge = (() => {
-                    const subscribers = new Set();
+                   const subscribers = new Set();
 
                     function cloneAnnotations(annotations) {
                               return Array.isArray(annotations) ? annotations.slice() : [];
@@ -143,16 +172,21 @@
                               notify(type, id, annotations) {
                                         emit(type, id, annotations);
                               },
-                              highlightAnnotation(annotationId) {
-                                        const annotation = findAnnotationById(annotationId);
-                                        if (!annotation) {
+                             highlightAnnotation(annotationId) {
+                                        const normalizedId = Number(annotationId);
+                                        if (!Number.isFinite(normalizedId) || normalizedId <= 0) {
                                                   return false;
                                         }
-                                        handleSelection(annotation);
+                                        const annotation = findAnnotationById(normalizedId);
+                                        if (annotation) {
+                                                  handleSelection(annotation);
+                                        } else {
+                                                  handleSelection({ id: normalizedId });
+                                        }
                                         return true;
                               },
-                    };
-          })();
+                   };
+         })();
 
           function updateCanvasSize() {
                     const rect = videoEl.getBoundingClientRect();
@@ -188,6 +222,38 @@
                               x: clamp(typeof point.x === 'number' ? point.x : 0, 0, 1),
                               y: clamp(typeof point.y === 'number' ? point.y : 0, 0, 1),
                     };
+          }
+
+          function resolveAnnotationWindow(annotation) {
+                    const timestamp = Number(annotation?.timestamp_second) || 0;
+                    let beforeSeconds = Number(annotation?.show_before_seconds);
+                    let afterSeconds = Number(annotation?.show_after_seconds);
+                    if (!Number.isFinite(beforeSeconds) || beforeSeconds < 0) {
+                              const derivedShowFrom = Number(annotation?.show_from_second);
+                              if (Number.isFinite(derivedShowFrom)) {
+                                        beforeSeconds = Math.max(0, timestamp - derivedShowFrom);
+                              } else {
+                                        beforeSeconds = null;
+                              }
+                    }
+                    if (!Number.isFinite(afterSeconds) || afterSeconds < 0) {
+                              const derivedShowTo = Number(annotation?.show_to_second);
+                              if (Number.isFinite(derivedShowTo)) {
+                                        afterSeconds = Math.max(0, derivedShowTo - timestamp);
+                              } else {
+                                        afterSeconds = null;
+                              }
+                    }
+                    const safeBefore = Number.isFinite(beforeSeconds) ? Math.max(0, beforeSeconds) : DEFAULT_VISIBILITY_WINDOW_SECONDS;
+                    const safeAfter = Number.isFinite(afterSeconds) ? Math.max(0, afterSeconds) : DEFAULT_VISIBILITY_WINDOW_SECONDS;
+                    return { start: Math.max(0, timestamp - safeBefore), end: timestamp + safeAfter };
+          }
+
+          function formatTimestampLabel(seconds) {
+                    const safeSeconds = Math.max(0, Math.round(seconds || 0));
+                    const minutes = Math.floor(safeSeconds / 60);
+                    const remainder = safeSeconds % 60;
+                    return `${minutes}:${String(remainder).padStart(2, '0')}`;
           }
 
           function buildTargetKey(type, id) {
@@ -262,6 +328,43 @@
           function updateDeleteState() {
                     const canDelete = state.editing && state.selectedId && !state.isDeleting;
                     deleteButton.disabled = !canDelete;
+                    updateEditButtonState();
+          }
+
+          function updateEditButtonState() {
+                    if (!editButton) {
+                              return;
+                    }
+                    const canEdit = Boolean(state.editing && state.selectedId);
+                    editButton.disabled = !canEdit;
+          }
+
+          function removeAnnotationFromUnsaved(annotationId) {
+                    if (!annotationId) {
+                              return;
+                    }
+                    const normalizedId = Number(annotationId);
+                    if (!Number.isFinite(normalizedId) || normalizedId <= 0) {
+                              return;
+                    }
+                    const unsaved = state.unsaved;
+                    if (!unsaved) {
+                              return;
+                    }
+                    if (typeof unsaved.delete === 'function') {
+                              unsaved.delete(normalizedId);
+                              return;
+                    }
+                    if (Array.isArray(unsaved)) {
+                              state.unsaved = unsaved.filter((entry) => Number(entry?.id) !== normalizedId);
+                              return;
+                    }
+                    if (Object.prototype.hasOwnProperty.call(unsaved, normalizedId)) {
+                              delete unsaved[normalizedId];
+                    }
+                    if (Object.prototype.hasOwnProperty.call(unsaved, String(normalizedId))) {
+                              delete unsaved[String(normalizedId)];
+                    }
           }
 
           function registerTargetSelection() {
@@ -419,13 +522,28 @@
                               }
                     };
 
-                    const drawCircle = () => {
+                    const drawEllipse = () => {
                               if (start && end) {
                                         const centerX = (start.x + end.x) / 2;
                                         const centerY = (start.y + end.y) / 2;
-                                        const radius = Math.sqrt(Math.pow(start.x - end.x, 2) + Math.pow(start.y - end.y, 2)) / 2;
+                                        const radiusX = Math.abs(start.x - end.x) / 2;
+                                        const radiusY = Math.abs(start.y - end.y) / 2;
+                                        if (!radiusX && !radiusY) {
+                                                  return;
+                                        }
                                         ctx.beginPath();
-                                        ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+                                        if (typeof ctx.ellipse === 'function') {
+                                                  ctx.ellipse(centerX, centerY, Math.max(radiusX, 0.5), Math.max(radiusY, 0.5), 0, 0, Math.PI * 2);
+                                                  ctx.stroke();
+                                                  return;
+                                        }
+                                        ctx.save();
+                                        ctx.translate(centerX, centerY);
+                                        const scaledRadiusY = Math.max(radiusY, 0.5);
+                                        const scaleX = radiusX === 0 ? 1 : radiusX / scaledRadiusY;
+                                        ctx.scale(scaleX, 1);
+                                        ctx.arc(0, 0, scaledRadiusY, 0, Math.PI * 2);
+                                        ctx.restore();
                                         ctx.stroke();
                               }
                     };
@@ -453,12 +571,13 @@
 
                     const drawTool = (useHighlight = false) => {
                               switch (tool) {
-                                        case 'rectangle':
-                                                  drawRectangle();
-                                                  break;
-                                        case 'circle':
-                                                  drawCircle();
-                                                  break;
+                              case 'rectangle':
+                                        drawRectangle();
+                                        break;
+                              case 'ellipse':
+                              case 'circle':
+                                        drawEllipse();
+                                        break;
                                         case 'arrow':
                                                   drawArrow();
                                                   break;
@@ -509,11 +628,11 @@
                               if (!annotation) {
                                         return false;
                               }
-                              const timestamp = Number(annotation.timestamp_second);
-                              if (!Number.isFinite(timestamp)) {
+                              if (!Number.isFinite(Number(annotation.timestamp_second))) {
                                         return false;
                               }
-                              return Math.abs(timestamp - current) <= annotationWindowSeconds;
+                              const window = resolveAnnotationWindow(annotation);
+                              return current >= window.start && current <= window.end;
                     });
                     state.visibleAnnotations.forEach((annotation) => {
                               renderAnnotation(ctx, annotation, { highlight: annotation.id === state.selectedId });
@@ -533,6 +652,66 @@
                               console.error('Unable to clone annotation drawing data', error);
                               return null;
                     }
+          }
+
+          function prepareDrawingForServer(drawingData) {
+                    if (!drawingData || typeof drawingData !== 'object') {
+                              return drawingData;
+                    }
+                    const normalized = cloneDrawingData(drawingData);
+                    if (!normalized) {
+                              return drawingData;
+                    }
+                    const toolName = (normalized.tool || normalized.tool_type || '').toLowerCase();
+                    if (toolName === 'ellipse' || toolName === 'circle') {
+                              const points = Array.isArray(normalized.points) ? normalized.points : [];
+                              const start = points[0];
+                              const end = points[1];
+                              const width = start && end ? Math.abs(end.x - start.x) : normalized.width ?? 0;
+                              const height = start && end ? Math.abs(end.y - start.y) : normalized.height ?? 0;
+                              normalized.width = width;
+                              normalized.height = height;
+                    }
+                    return normalized;
+          }
+
+          function updateDrawingHandle(baseDrawing, handleIndex, normalizedPoint) {
+                    if (!baseDrawing || typeof handleIndex !== 'number') {
+                              return null;
+                    }
+                    const updated = cloneDrawingData(baseDrawing);
+                    if (!updated || !Array.isArray(updated.points)) {
+                              return updated;
+                    }
+                    const points = updated.points.slice();
+                    points[handleIndex] = clampNormalizedPoint(normalizedPoint);
+                    updated.points = points;
+                    return updated;
+          }
+
+          function detectResizeHandle(annotation, normalizedPoint) {
+                    if (!annotation || !annotation.drawing_data) {
+                              return null;
+                    }
+                    const data = annotation.drawing_data;
+                    const tool = ((data.tool || annotation.tool_type) || '').toLowerCase();
+                    const resizableTools = ['rectangle', 'line', 'ellipse', 'circle', 'arrow'];
+                    if (!resizableTools.includes(tool)) {
+                              return null;
+                    }
+                    const points = Array.isArray(data.points) ? data.points : [];
+                    for (let index = 0; index < 2; index += 1) {
+                              const point = points[index];
+                              if (!point || typeof point.x !== 'number' || typeof point.y !== 'number') {
+                                        continue;
+                              }
+                              const dx = normalizedPoint.x - point.x;
+                              const dy = normalizedPoint.y - point.y;
+                              if (Math.hypot(dx, dy) <= RESIZE_HANDLE_THRESHOLD) {
+                                        return index;
+                              }
+                    }
+                    return null;
           }
 
           function translateDrawingData(drawingData, delta) {
@@ -599,13 +778,20 @@
                                                   return px >= minX - tolerance && px <= maxX + tolerance && py >= minY - tolerance && py <= maxY + tolerance;
                                         }
                                         break;
+                              case 'ellipse':
                               case 'circle':
                                         if (absStart && absEnd) {
                                                   const centerX = (absStart.x + absEnd.x) / 2;
                                                   const centerY = (absStart.y + absEnd.y) / 2;
-                                                  const radius = Math.sqrt(Math.pow(absStart.x - absEnd.x, 2) + Math.pow(absStart.y - absEnd.y, 2)) / 2;
-                                                  const dist = Math.hypot(px - centerX, py - centerY);
-                                                  return Math.abs(dist - radius) <= tolerance;
+                                                  const radiusX = Math.abs(absStart.x - absEnd.x) / 2;
+                                                  const radiusY = Math.abs(absStart.y - absEnd.y) / 2;
+                                                  const safeRadiusX = Math.max(radiusX, 0.0001);
+                                                  const safeRadiusY = Math.max(radiusY, 0.0001);
+                                                  const normalizedX = (px - centerX) / safeRadiusX;
+                                                  const normalizedY = (py - centerY) / safeRadiusY;
+                                                  const distance = Math.sqrt(normalizedX * normalizedX + normalizedY * normalizedY);
+                                                  const toleranceScale = Math.max(0.08, tolerance / Math.max(safeRadiusX, safeRadiusY));
+                                                  return Math.abs(distance - 1) <= toleranceScale;
                                         }
                                         break;
                               case 'text':
@@ -655,6 +841,13 @@
                     render();
           }
 
+          function handleEditButtonClick() {
+                    if (!state.selectedId) {
+                              return;
+                    }
+                    openDrawingEditModal(state.selectedId);
+          }
+
           function createDraftDrawing(normalized) {
                     // drawing_data stores normalized points and styling so annotations stay resolution-agnostic.
                     const normalizedStroke = state.strokeWidth / Math.max(canvasEl.width, canvasEl.height, 1);
@@ -679,26 +872,36 @@
                     };
           }
 
-          function startDrag(annotation, normalized, pointerId) {
-                    if (!annotation || !annotation.drawing_data) {
-                              return;
-                    }
-                    const baseDrawing = cloneDrawingData(annotation.drawing_data);
-                    if (!baseDrawing) {
-                              return;
-                    }
-                    state.dragging = {
-                              pointerId,
-                              annotation,
-                              start: normalized,
-                              delta: { x: 0, y: 0 },
-                              baseDrawing,
-                    };
-                    canvasEl.setPointerCapture(pointerId);
+function startDrag(annotation, normalized, pointerId, options = {}) {
+          if (!annotation || !annotation.drawing_data) {
+                    return;
           }
+          const baseDrawing = cloneDrawingData(annotation.drawing_data);
+          if (!baseDrawing) {
+                    return;
+          }
+          state.dragging = {
+                    pointerId,
+                    annotation,
+                    start: normalized,
+                    delta: { x: 0, y: 0 },
+                    baseDrawing,
+                    mode: options.mode === 'resize' ? 'resize' : 'move',
+                    handleIndex: typeof options.handleIndex === 'number' ? options.handleIndex : null,
+                    lastNormalized: normalized,
+          };
+          canvasEl.setPointerCapture(pointerId);
+}
 
           function updateDragPoint(normalized) {
                     if (!state.dragging) {
+                              return;
+                    }
+                    state.dragging.lastNormalized = normalized;
+                    if (state.dragging.mode === 'resize' && typeof state.dragging.handleIndex === 'number') {
+                              const updated = updateDrawingHandle(state.dragging.baseDrawing, state.dragging.handleIndex, normalized);
+                              state.draft = updated ? { drawing_data: updated } : null;
+                              render();
                               return;
                     }
                     const deltaX = normalized.x - state.dragging.start.x;
@@ -720,7 +923,14 @@
                     if (!drag) {
                               return;
                     }
-                    const updatedData = translateDrawingData(drag.baseDrawing, drag.delta);
+                    let updatedData = null;
+                    if (drag.mode === 'resize' && typeof drag.handleIndex === 'number' && drag.lastNormalized) {
+                              updatedData =
+                                        updateDrawingHandle(drag.baseDrawing, drag.handleIndex, drag.lastNormalized) ||
+                                        drag.baseDrawing;
+                    } else {
+                              updatedData = translateDrawingData(drag.baseDrawing, drag.delta);
+                    }
                     const timestamp = Math.max(0, Number(drag.annotation.timestamp_second || 0));
                     submitAnnotationUpdate(Number(drag.annotation.id), updatedData, timestamp);
           }
@@ -747,11 +957,28 @@
                     const absX = x * canvasEl.width;
                     const absY = y * canvasEl.height;
 
-                    if (state.tool === 'select') {
+          if (state.tool === 'select') {
+                    const hit = findAnnotationAt(absX, absY);
+                    handleSelection(hit);
+                    if (state.editing && hit) {
+                              const handleIndex = detectResizeHandle(hit, { x, y });
+                              if (typeof handleIndex === 'number') {
+                                        startDrag(hit, { x, y }, event.pointerId, { mode: 'resize', handleIndex });
+                              } else {
+                                        startDrag(hit, { x, y }, event.pointerId);
+                              }
+                    }
+                    event.preventDefault();
+                    return;
+          }
+
+                    if (state.tool === 'eraser') {
                               const hit = findAnnotationAt(absX, absY);
                               handleSelection(hit);
-                              if (state.editing && hit) {
-                                        startDrag(hit, { x, y }, event.pointerId);
+                              if (hit && state.editing) {
+                                        handleDelete();
+                              } else if (hit) {
+                                        updateStatus('Enable editing to remove drawings');
                               }
                               event.preventDefault();
                               return;
@@ -767,7 +994,7 @@
                               return;
                     }
 
-                    if (!['pen', 'arrow', 'line', 'rectangle', 'circle'].includes(state.tool)) {
+                    if (!['pen', 'arrow', 'line', 'rectangle', 'circle', 'ellipse'].includes(state.tool)) {
                               return;
                     }
 
@@ -871,16 +1098,21 @@
                     if (!targetHasId()) {
                               return;
                     }
+                    const preparedDrawing = prepareDrawingForServer(drawingData);
                     const payload = {
                               match_id: matchId,
                               target_type: state.targetType,
                               target_id: state.targetId,
                               timestamp_second: Math.max(0, Math.round(videoEl.currentTime || 0)),
-                              drawing_data: drawingData,
+                              drawing_data: preparedDrawing,
+                              before_seconds: DEFAULT_VISIBILITY_WINDOW_SECONDS,
+                              after_seconds: DEFAULT_VISIBILITY_WINDOW_SECONDS,
+                              show_before_seconds: DEFAULT_VISIBILITY_WINDOW_SECONDS,
+                              show_after_seconds: DEFAULT_VISIBILITY_WINDOW_SECONDS,
                     };
                     const csrfToken = cfg.csrfToken;
                     updateStatus('Saving annotation…');
-                    fetch(annotationsCreateUrl, {
+                    fetch(drawingsCreateUrl, {
                               method: 'POST',
                               credentials: 'same-origin',
                               headers: {
@@ -917,22 +1149,37 @@
                               });
           }
 
-          function submitAnnotationUpdate(annotationId, drawingData, timestamp) {
-                    if (!targetHasId() || !annotationsUpdateUrl) {
+          function submitAnnotationUpdate(annotationId, drawingData, timestamp, options = {}) {
+                    if (!targetHasId() || !drawingsUpdateUrl) {
                               updateStatus('Unable to update annotation');
                               return;
+                   }
+                   const payload = {
+                             match_id: matchId,
+                             target_type: state.targetType,
+                             target_id: state.targetId,
+                             annotation_id: annotationId,
+                             timestamp_second: Math.max(0, Math.round(timestamp || 0)),
+                              drawing_data: prepareDrawingForServer(drawingData),
+                   };
+                    if (options && typeof options.notes === 'string') {
+                              payload.notes = options.notes.trim();
+                    } else if (options && options.notes === null) {
+                              payload.notes = null;
                     }
-                    const payload = {
-                              match_id: matchId,
-                              target_type: state.targetType,
-                              target_id: state.targetId,
-                              annotation_id: annotationId,
-                              timestamp_second: Math.max(0, Math.round(timestamp || 0)),
-                              drawing_data: drawingData,
-                    };
-                    const csrfToken = cfg.csrfToken;
-                    updateStatus('Saving annotation…');
-                    fetch(annotationsUpdateUrl, {
+                    if (options && typeof options.beforeSeconds === 'number') {
+                              const value = Math.max(0, Math.round(options.beforeSeconds));
+                              payload.before_seconds = value;
+                              payload.show_before_seconds = value;
+                    }
+                    if (options && typeof options.afterSeconds === 'number') {
+                              const value = Math.max(0, Math.round(options.afterSeconds));
+                              payload.after_seconds = value;
+                              payload.show_after_seconds = value;
+                    }
+                   const csrfToken = cfg.csrfToken;
+                   updateStatus('Saving annotation…');
+                    fetch(drawingsUpdateUrl, {
                               method: 'POST',
                               credentials: 'same-origin',
                               headers: {
@@ -996,6 +1243,141 @@
                     hideTextInput();
           }
 
+          function updateDrawingModalValues() {
+                    if (!drawingEditModal) {
+                              return;
+                    }
+                    drawingEditBeforeValue && (drawingEditBeforeValue.textContent = String(drawingEditState.beforeSeconds));
+                    drawingEditAfterValue && (drawingEditAfterValue.textContent = String(drawingEditState.afterSeconds));
+                    if (drawingEditToolLabel) {
+                              const toolText = drawingEditState.toolLabel ? `Tool: ${drawingEditState.toolLabel}` : 'Tool: Drawing';
+                              drawingEditToolLabel.textContent = toolText;
+                    }
+                    if (drawingEditTimestampLabel) {
+                              const timeText =
+                                        drawingEditState.timestamp !== null
+                                                  ? `Time: ${formatTimestampLabel(drawingEditState.timestamp)}`
+                                                  : 'Time: 0:00';
+                              drawingEditTimestampLabel.textContent = timeText;
+                    }
+          }
+
+          function closeDrawingEditModal() {
+                    if (!drawingEditModal) {
+                              return;
+                    }
+                    drawingEditModal.classList.remove('is-active');
+                    drawingEditModal.setAttribute('aria-hidden', 'true');
+                    drawingEditState.annotationId = null;
+                    drawingEditState.beforeSeconds = DEFAULT_VISIBILITY_WINDOW_SECONDS;
+                    drawingEditState.afterSeconds = DEFAULT_VISIBILITY_WINDOW_SECONDS;
+                    drawingEditState.toolLabel = null;
+                    drawingEditState.timestamp = null;
+                    updateDrawingModalValues();
+          }
+
+          function openDrawingEditModal(annotationId) {
+                    if (!drawingEditModal) {
+                              return;
+                    }
+                    const annotation = findAnnotationById(annotationId);
+                    if (!annotation) {
+                              return;
+                    }
+                    const windowRange = resolveAnnotationWindow(annotation);
+                    const timestamp = Number(annotation.timestamp_second) || 0;
+                    drawingEditState.annotationId = Number(annotation.id) || null;
+                    drawingEditState.beforeSeconds = Math.max(0, timestamp - windowRange.start);
+                    drawingEditState.afterSeconds = Math.max(0, windowRange.end - timestamp);
+                    const rawTool = annotation.tool_type || annotation.drawing_data?.tool || 'drawing';
+                    const normalizedTool = String(rawTool || 'drawing').replace(/_/g, ' ').trim();
+                    const labelText = normalizedTool || 'drawing';
+                    drawingEditState.toolLabel = labelText.charAt(0).toUpperCase() + labelText.slice(1);
+                    drawingEditState.timestamp = timestamp;
+                    drawingEditModal.classList.add('is-active');
+                    drawingEditModal.setAttribute('aria-hidden', 'false');
+                    updateDrawingModalValues();
+                    if (drawingEditNotes) {
+                              drawingEditNotes.value = annotation.notes || '';
+                    }
+                    if (!state.editing) {
+                              updateModeState(true);
+                    }
+                    handleSelection(annotation);
+          }
+
+          function handleDrawingEditDurationClick(event) {
+                    const button = event.currentTarget;
+                    const mode = button?.dataset?.mode;
+                    const step = Number(button?.dataset?.step) || 0;
+                    if (!mode || !Number.isFinite(step)) {
+                              return;
+                    }
+                    const key = mode === 'before' ? 'beforeSeconds' : mode === 'after' ? 'afterSeconds' : null;
+                    if (!key) {
+                              return;
+                    }
+                    drawingEditState[key] = Math.max(0, drawingEditState[key] + step);
+                    updateDrawingModalValues();
+          }
+
+          function handleDrawingEditSave() {
+                    const annotationId = drawingEditState.annotationId;
+                    if (!annotationId) {
+                              return;
+                    }
+                    const annotation = findAnnotationById(annotationId);
+                    if (!annotation) {
+                              return;
+                    }
+                    const timestamp = Number(annotation.timestamp_second) || 0;
+                    const drawingData = annotation.drawing_data || null;
+                    const notesValue = drawingEditNotes ? (drawingEditNotes.value || '').trim() : null;
+                    closeDrawingEditModal();
+                    submitAnnotationUpdate(annotationId, drawingData, timestamp, {
+                              notes: notesValue,
+                              beforeSeconds: drawingEditState.beforeSeconds,
+                              afterSeconds: drawingEditState.afterSeconds,
+                    });
+          }
+
+          function handleDrawingEditDelete() {
+                    const annotationId = drawingEditState.annotationId;
+                    if (!annotationId) {
+                              return;
+                    }
+                    const annotation = findAnnotationById(annotationId);
+                    if (annotation) {
+                              handleSelection(annotation);
+                    }
+                    closeDrawingEditModal();
+                    handleDelete();
+          }
+
+          function handleDrawingEditCancel() {
+                    closeDrawingEditModal();
+          }
+
+          if (drawingEditModal) {
+                    drawingEditDurationButtons.forEach((btn) => {
+                              btn.addEventListener('click', handleDrawingEditDurationClick);
+                    });
+                    drawingEditSaveBtn && drawingEditSaveBtn.addEventListener('click', handleDrawingEditSave);
+                    drawingEditDeleteBtn && drawingEditDeleteBtn.addEventListener('click', handleDrawingEditDelete);
+                    drawingEditCancelBtn && drawingEditCancelBtn.addEventListener('click', handleDrawingEditCancel);
+                    drawingEditCloseBtn && drawingEditCloseBtn.addEventListener('click', handleDrawingEditCancel);
+                    drawingEditModal.addEventListener('click', (event) => {
+                              if (event.target === drawingEditModal) {
+                                        closeDrawingEditModal();
+                              }
+                    });
+                    window.addEventListener('keydown', (event) => {
+                              if (event.key === 'Escape') {
+                                        closeDrawingEditModal();
+                              }
+                    });
+          }
+
           function handleDelete() {
                     if (!state.selectedId || !targetHasId() || state.isDeleting) {
                               return;
@@ -1006,10 +1388,10 @@
                               annotation_id: selectedId,
                     };
                     const csrfToken = cfg.csrfToken;
-                    updateStatus('Removing annotation…');
+                    updateStatus('Removing drawing…');
                     state.isDeleting = true;
                     updateDeleteState();
-                    fetch(annotationsDeleteUrl, {
+                    fetch(drawingsDeleteUrl, {
                               method: 'POST',
                               credentials: 'same-origin',
                               headers: {
@@ -1021,7 +1403,7 @@
                               .then((response) => response.json().then((payload) => ({ response, payload })))
                               .then(({ response, payload }) => {
                                         if (!payload || payload.ok !== true) {
-                                                  const failure = new Error(payload?.error || 'annotation_delete_failed');
+                                                  const failure = new Error(payload?.error || 'drawing_delete_failed');
                                                   failure.payload = payload;
                                                   failure.status = response?.status;
                                                   throw failure;
@@ -1033,14 +1415,20 @@
                                                   : [];
                                         setAnnotationCache(key, remaining);
                                         state.visibleAnnotations = remaining;
+                                        removeAnnotationFromUnsaved(selectedId);
+                                        const parsedTarget = parseTargetKey(key);
+                                        if (parsedTarget && typeof timelineBridge.notify === 'function') {
+                                                  timelineBridge.notify(parsedTarget.type, parsedTarget.id, remaining);
+                                        }
                                         state.isDeleting = false;
                                         handleSelection(null);
-                                        updateStatus('Annotation deleted');
+                                        hideTextInput();
+                                        updateStatus('Drawing deleted');
                               })
                               .catch((error) => {
                                         const errorPayload = error?.payload ?? null;
                                         const reasonLabel = errorPayload?.error ? ` (${errorPayload.error})` : '';
-                                        console.error('Annotation delete failed', {
+                                        console.error('Drawing delete failed', {
                                                   status: error?.status ?? null,
                                                   payload: errorPayload,
                                                   message: error?.message ?? 'annotation_delete_failed',
@@ -1133,6 +1521,7 @@
           });
 
           deleteButton.addEventListener('click', handleDelete);
+          editButton && editButton.addEventListener('click', handleEditButtonClick);
           targetSelect.addEventListener('change', handleTargetChange);
           canvasEl.addEventListener('pointerdown', handleCanvasPointerDown);
           canvasEl.addEventListener('pointermove', handleCanvasPointerMove);
@@ -1173,5 +1562,12 @@
           updateVisibilityState(true);
           updateModeState(false);
           window.DeskAnnotationTimelineBridge = timelineBridge;
+          window.addEventListener('DeskDrawingEditRequested', (event) => {
+                    const annotationId = Number(event?.detail?.annotationId);
+                    if (!Number.isFinite(annotationId) || annotationId <= 0) {
+                              return;
+                    }
+                    openDrawingEditModal(annotationId);
+          });
           window.dispatchEvent(new CustomEvent('DeskAnnotationTimelineReady'));
 })();

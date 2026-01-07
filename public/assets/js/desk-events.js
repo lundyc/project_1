@@ -2,6 +2,7 @@
 /* global jQuery */
 (function ($) {
           const cfg = window.DeskConfig;
+          const annotationsEnabled = window.ANNOTATIONS_ENABLED !== false;
           if (!cfg) return;
           console.log('Outcome options loaded', DeskConfig.outcomeOptionsByTypeId);
           const csrfToken = cfg.csrfToken || null;
@@ -134,6 +135,7 @@
           };
           const EVENT_NEUTRAL = '#94a3b8';
           const VIDEO_TIME_KEY = cfg && cfg.matchId ? `deskVideoTime_${cfg.matchId}` : 'deskVideoTime';
+          const DRAWING_WINDOW_FALLBACK_SECONDS = 5;
 
           let heartbeatTimer = null;
           let lockOwned = false;
@@ -186,6 +188,9 @@
           };
           const timelineMetrics = { duration: 0, totalWidth: 0, viewportWidth: 0 };
           const annotationTargetId = (() => {
+                    if (!annotationsEnabled) {
+                              return null;
+                    }
                     const raw =
                               cfg.annotations && cfg.annotations.matchVideoId
                                         ? cfg.annotations.matchVideoId
@@ -1312,25 +1317,48 @@ function applyLockResponse(res) {
                               html += '</div></div></div>';
                     }
 
-                    if (timelineAnnotations.length) {
+                    if (annotationsEnabled) {
+                              const drawingAnnotations = Array.isArray(timelineAnnotations) ? timelineAnnotations : [];
                               html += `<div class="matrix-grid" style="${gridColumnsStyle}">`;
-                              html += `<div class="matrix-type matrix-type--annotation">Annotations</div>`;
+                              html += `<div class="matrix-type matrix-type--drawing">DRAWINGS</div>`;
                               html += `<div class="matrix-track" style="width:${timelineWidth}px">`;
                               html += `<div class="matrix-row-buckets" style="grid-template-columns:${bucketColumns}; width:${timelineWidth}px">`;
                               buckets.forEach((bucket, idx) => {
                                         html += `<div class="matrix-cell" data-bucket="${idx}" style="width:${bucketWidths[idx]}px"></div>`;
                               });
                               html += '</div>';
-                              html += `<div class="matrix-row-events matrix-row-events--annotation" style="width:${timelineWidth}px">`;
-                              timelineAnnotations.forEach((annotation) => {
+                              html += `<div class="matrix-row-events matrix-row-events--drawing" style="width:${timelineWidth}px">`;
+                              if (!drawingAnnotations.length) {
+                                        html += '<div class="matrix-drawing-empty">No drawings yet.</div>';
+                              }
+                              drawingAnnotations.forEach((annotation) => {
                                         const seconds = Number(annotation.timestamp_second);
                                         if (!Number.isFinite(seconds)) {
                                                   return;
                                         }
                                         const left = Math.min(Math.max(0, seconds * timelineZoom.pixelsPerSecond * timelineZoom.scale), timelineWidth);
-                                        const note = annotation.notes ? String(annotation.notes).trim() : 'Annotation';
-                                        const tooltip = `${h(note || 'Annotation')} · ${h(formatMatchSecondWithExtra(seconds, 0))}`;
-                                        html += `<span class="matrix-annotation" data-annotation-id="${annotation.id}" data-second="${seconds}" title="${tooltip}" style="left:${left}px"></span>`;
+                                        const fallbackWindow = DRAWING_WINDOW_FALLBACK_SECONDS;
+                                        let beforeSeconds = Number(annotation.show_before_seconds);
+                                        if (!Number.isFinite(beforeSeconds) || beforeSeconds < 0) {
+                                                  const derivedFrom = Number(annotation.show_from_second);
+                                                  beforeSeconds = Number.isFinite(derivedFrom)
+                                                            ? Math.max(0, seconds - derivedFrom)
+                                                            : fallbackWindow;
+                                        } else {
+                                                  beforeSeconds = Math.max(0, beforeSeconds);
+                                        }
+                                        let afterSeconds = Number(annotation.show_after_seconds);
+                                        if (!Number.isFinite(afterSeconds) || afterSeconds < 0) {
+                                                  const derivedTo = Number(annotation.show_to_second);
+                                                  afterSeconds = Number.isFinite(derivedTo)
+                                                            ? Math.max(0, derivedTo - seconds)
+                                                            : fallbackWindow;
+                                        } else {
+                                                  afterSeconds = Math.max(0, afterSeconds);
+                                        }
+                                        const note = annotation.notes ? String(annotation.notes).trim() : 'Drawing';
+                                        const tooltip = `${h(note || 'Drawing')} · ${h(formatMatchSecondWithExtra(seconds, 0))} · before ${beforeSeconds}s / after ${afterSeconds}s`;
+                                        html += `<span class="matrix-drawing" data-annotation-id="${annotation.id}" data-drawing-id="${annotation.id}" data-second="${seconds}" data-before="${beforeSeconds}" data-after="${afterSeconds}" title="${tooltip}" style="left:${left}px"></span>`;
                               });
                               html += '</div></div></div>';
                     }
@@ -1348,9 +1376,12 @@ function applyLockResponse(res) {
           }
 
           function handleAnnotationTimelinePayload(payload) {
-                    if (!payload || payload.type !== 'match_video' || !annotationTargetId) {
+                    if (!annotationsEnabled) {
                               return;
                     }
+                   if (!payload || payload.type !== 'match_video' || !annotationTargetId) {
+                             return;
+                   }
                     const targetId = Number(payload.id);
                     if (!Number.isFinite(targetId) || targetId !== annotationTargetId) {
                               return;
@@ -1360,9 +1391,12 @@ function applyLockResponse(res) {
           }
 
           function ensureAnnotationBridge() {
-                    if (!annotationTargetId) {
+                    if (!annotationsEnabled) {
                               return;
                     }
+                   if (!annotationTargetId) {
+                             return;
+                   }
                     const attachBridge = () => {
                               if (annotationBridge) {
                                         return;
@@ -2555,16 +2589,30 @@ function applyLockResponse(res) {
                                         goToVideoTime(start);
                               }
                     });
-                    $timelineMatrix.on('click', '.matrix-annotation', function () {
-                              const annotationId = $(this).data('annotationId');
-                              const sec = Number($(this).data('second'));
-                              if (Number.isFinite(sec)) {
-                                        goToVideoTime(sec);
-                              }
-                              if (annotationBridge && typeof annotationBridge.highlightAnnotation === 'function') {
-                                        annotationBridge.highlightAnnotation(annotationId);
-                              }
-                    });
+                    if (annotationsEnabled) {
+                              $timelineMatrix.on('click', '.matrix-drawing', function () {
+                                        const annotationId = Number($(this).data('annotationId'));
+                                        const sec = Number($(this).data('second'));
+                                        if (Number.isFinite(sec)) {
+                                                  goToVideoTime(sec);
+                                        }
+                                        if (annotationBridge && typeof annotationBridge.highlightAnnotation === 'function') {
+                                                  annotationBridge.highlightAnnotation(annotationId);
+                                        }
+                              });
+                              $timelineMatrix.on('contextmenu', '.matrix-drawing', function (event) {
+                                        event.preventDefault();
+                                        const annotationId = Number($(this).data('annotationId'));
+                                        if (Number.isFinite(annotationId) && annotationId > 0) {
+                                                  window.dispatchEvent(
+                                                            new CustomEvent('DeskDrawingEditRequested', {
+                                                                      detail: { annotationId },
+                                                            })
+                                                  );
+                                        }
+                                        return false;
+                              });
+                    }
                     $timelineMatrix.on('contextmenu', '.matrix-dot', function (e) {
                               e.preventDefault();
                               const id = $(this).data('event-id');
@@ -2610,7 +2658,9 @@ function applyLockResponse(res) {
                     setupTimeStepper($timeStepDown, -1);
                     setupTimeStepper($timeStepUp, 1);
                     bindHandlers();
-                    ensureAnnotationBridge();
+                    if (annotationsEnabled) {
+                              ensureAnnotationBridge();
+                    }
                     acquireLock();
                     updateClipUi();
                     loadEvents();

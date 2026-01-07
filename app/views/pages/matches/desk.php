@@ -12,6 +12,7 @@ require_once __DIR__ . '/../../../lib/csrf.php';
 
 $user = current_user();
 $roles = $_SESSION['roles'] ?? [];
+$ANNOTATIONS_ENABLED = false;
 
 if (!isset($match)) {
           http_response_code(404);
@@ -170,7 +171,8 @@ $deskConfig = [
           ],
 ];
 
-$footerScripts = '<script>window.DeskConfig = ' . json_encode($deskConfig) . ';</script>';
+$footerScripts = '<script>window.ANNOTATIONS_ENABLED = false;</script>';
+$footerScripts .= '<script>window.DeskConfig = ' . json_encode($deskConfig) . ';</script>';
 $footerScripts .= '<script>console.log(\'DeskConfig.outcomeOptionsByTypeId\', DeskConfig.outcomeOptionsByTypeId);</script>';
 $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-events.js?v=' . time() . '"></script>';
 $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-annotations.js?v=' . time() . '"></script>';
@@ -244,15 +246,15 @@ ob_start();
                                                                                           controls
                                                                                           <?= $videoReady ? 'src="' . htmlspecialchars($videoSrc) . '"' : '' ?>>
                                                                                 </video>
+                                                                                <?php if ($ANNOTATIONS_ENABLED): ?>
                                                                                 <div class="annotation-overlay" data-annotation-overlay>
-                                                                                          <canvas id="deskAnnotationCanvas" data-annotation-canvas></canvas>
-                                                                                          <div class="annotation-text-input" data-annotation-text-input>
-                                                                                                    <input type="text" maxlength="120" placeholder="Annotation text" data-annotation-text-field>
-                                                                                                    <div class="annotation-text-actions">
-                                                                                                              <button type="button" class="ghost-btn ghost-btn-sm" data-annotation-text-save>Save</button>
-                                                                                                              <button type="button" class="ghost-btn ghost-btn-sm" data-annotation-text-cancel>Cancel</button>
-                                                                                                    </div>
-                                                                                          </div>
+                                                                                         <canvas id="deskAnnotationCanvas" data-annotation-canvas></canvas>
+                                                                                         <div class="annotation-text-input" data-annotation-text-input>
+                                                                                                   <input type="text" maxlength="120" placeholder="Annotation text" data-annotation-text-field>
+                                                                                                   <div class="annotation-text-actions">
+                                                                                                             <button type="button" class="ghost-btn ghost-btn-sm" data-annotation-text-save>Save</button>
+                                                                                                             <button type="button" class="ghost-btn ghost-btn-sm" data-annotation-text-cancel>Cancel</button>
+                                                                                                   </div>
                                                                                 </div>
                                                                                 <div class="video-timeline" data-video-timeline>
                                                                                           <div class="video-timeline-track" data-video-timeline-track aria-hidden="true">
@@ -260,7 +262,9 @@ ob_start();
                                                                                                     <div class="video-timeline-playhead" data-video-timeline-playhead></div>
                                                                                           </div>
                                                                                 </div>
+                                                                                <?php endif; ?>
                                                                       </div>
+                                                                      <?php if ($ANNOTATIONS_ENABLED): ?>
                                                                       <div class="annotation-toolbar" data-annotation-toolbar>
                                                                                 <div class="annotation-toolbar-row">
                                                                                           <button type="button" class="toggle-btn annotation-visibility-btn is-active" data-annotation-visibility-toggle>Hide annotations</button>
@@ -292,6 +296,7 @@ ob_start();
                                                                                           <button type="button" class="ghost-btn ghost-btn-sm annotation-delete-btn" data-annotation-delete disabled>Delete</button>
                                                                                 </div>
                                                                       </div>
+                                                                      <?php endif; ?>
                                                             </div>
                                                             <div id="deskVideoPlaceholder" class="text-center text-muted mb-3<?= $videoReady ? ' d-none' : '' ?>">
                                                                       <?= htmlspecialchars($placeholderMessage) ?>

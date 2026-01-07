@@ -154,6 +154,10 @@ $annotationChecks = [
     ['name' => 'target_id', 'notes' => ''],
     ['name' => 'match_id', 'notes' => ''],
     ['name' => 'timestamp_second', 'notes' => 'Timestamp numeric'],
+    ['name' => 'show_from_second', 'notes' => 'Visibility window start'],
+    ['name' => 'show_to_second', 'notes' => 'Visibility window end'],
+    ['name' => 'show_before_seconds', 'notes' => 'Visibility lead time'],
+    ['name' => 'show_after_seconds', 'notes' => 'Visibility trailing window'],
     ['name' => 'tool_type', 'notes' => ''],
     ['name' => 'drawing_data', 'notes' => 'JSON expected'],
     ['name' => 'created_at', 'notes' => 'Timestamp'],
@@ -176,7 +180,14 @@ foreach ($annotationChecks as $check) {
         'present' => $present,
         'notes' => $notes,
     ];
-    if (!$present && in_array($check['name'], ['target_type', 'target_id', 'match_id', 'timestamp_second', 'tool_type'], true)) {
+    if (
+        !$present &&
+        in_array(
+            $check['name'],
+            ['target_type', 'target_id', 'match_id', 'timestamp_second', 'show_from_second', 'show_to_second', 'show_before_seconds', 'show_after_seconds', 'tool_type'],
+            true
+        )
+    ) {
         $overallFail = true;
     }
 }

@@ -1,6 +1,10 @@
 (() => {
           'use strict';
 
+          if (window.ANNOTATIONS_ENABLED === false) {
+                    return;
+          }
+
           const cfg = window.DeskConfig || {};
           const videoEl = document.getElementById('deskVideoPlayer');
           const timelineEl = document.querySelector('[data-video-timeline]');

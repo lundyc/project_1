@@ -9,6 +9,12 @@ require_once __DIR__ . '/../../../lib/api_response.php';
 auth_boot();
 require_auth();
 
+if (!annotations_enabled()) {
+          error_log('[annotations] request blocked');
+          api_error('annotations_disabled', 403, ['message' => 'Annotations are temporarily disabled']);
+          exit;
+}
+
 header('Content-Type: application/json');
 
 $matchId = isset($matchId) ? (int)$matchId : (int)($_GET['match_id'] ?? 0);
