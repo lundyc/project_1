@@ -25,4 +25,8 @@ return [
                     'video_lab_enabled' => true,
                     // `PHASE_3_VIDEO_LAB_ENABLED` overrides this value when present.
           ],
+          'annotations' => [
+                    'enabled' => true,
+                    // `ANNOTATIONS_ENABLED` overrides this value when present.
+          ],
 ];

@@ -45,6 +45,19 @@
           const textSaveBtn = overlayEl.querySelector('[data-annotation-text-save]');
           const textCancelBtn = overlayEl.querySelector('[data-annotation-text-cancel]');
 
+          const zone14Toolbar = document.getElementById('zone14Toolbar');
+          const zone14ColourButton = document.getElementById('toolColour');
+          const zone14ColourPalette = document.getElementById('zone14ColourPalette');
+          const zone14ColourSwatch = zone14ColourButton?.querySelector('[data-zone14-colour-swatch]');
+          const zone14PaletteOptions = zone14ColourPalette
+                    ? Array.from(zone14ColourPalette.querySelectorAll('[data-zone14-colour]'))
+                    : [];
+          const zone14ToolElements = {
+                    move: zone14Toolbar?.querySelector('[data-zone14-tool="move"]'),
+                    arrow: zone14Toolbar?.querySelector('[data-zone14-tool="arrow"]'),
+                    text: zone14Toolbar?.querySelector('[data-zone14-tool="text"]'),
+          };
+
           const drawingEditModal = document.querySelector('[data-drawing-edit-modal]');
           const drawingEditBeforeValue = drawingEditModal?.querySelector('[data-drawing-edit-before-value]');
           const drawingEditAfterValue = drawingEditModal?.querySelector('[data-drawing-edit-after-value]');
@@ -67,11 +80,25 @@
           const matchId = cfg.matchId;
           const matchVideoId = cfg.annotations && cfg.annotations.matchVideoId ? cfg.annotations.matchVideoId : (cfg.video && cfg.video.match_video_id ? cfg.video.match_video_id : null);
 
+          const ZONE14_TO_ANNOTATION_TOOL = {
+                    move: 'select',
+                    arrow: 'arrow',
+                    text: 'text',
+          };
+          const ANNOTATION_TOOL_TO_ZONE14 = {
+                    select: 'move',
+                    arrow: 'arrow',
+                    text: 'text',
+          };
+          let zone14PaletteOpen = false;
+          const DEFAULT_VISIBILITY_WINDOW_SECONDS = 5;
+          const RESIZE_HANDLE_THRESHOLD = 0.04;
+
           const state = {
                     editing: false,
                     targetType: matchVideoId ? 'match_video' : null,
                     targetId: matchVideoId || null,
-                    tool: 'pen',
+                    tool: 'select',
                     annotationsVisible: true,
                     interactiveBlocked: false,
                     color: colorInput.value || '#facc15',
@@ -97,9 +124,6 @@
           };
           const annotationVisibilityState = { visible: state.annotationsVisible };
           window.DeskAnnotationVisibilityState = annotationVisibilityState;
-
-          const DEFAULT_VISIBILITY_WINDOW_SECONDS = 5;
-          const RESIZE_HANDLE_THRESHOLD = 0.04;
 
           function parseTargetKey(key) {
                     if (!key || typeof key !== 'string') {
@@ -280,6 +304,37 @@
                     }
           }
 
+          function refreshZone14ColourSwatch() {
+                    if (!zone14ColourSwatch) {
+                              return;
+                    }
+                    zone14ColourSwatch.style.backgroundColor = state.color;
+          }
+
+          function setZone14PaletteOpen(open) {
+                    zone14PaletteOpen = Boolean(open) && Boolean(zone14ColourPalette);
+                    if (zone14ColourPalette) {
+                              zone14ColourPalette.classList.toggle('is-open', zone14PaletteOpen);
+                              zone14ColourPalette.setAttribute('aria-hidden', zone14PaletteOpen ? 'false' : 'true');
+                    }
+                    if (zone14ColourButton) {
+                              zone14ColourButton.classList.toggle('is-open', zone14PaletteOpen);
+                    }
+          }
+
+          function applyZone14Colour(colour) {
+                    if (!colour) {
+                              return;
+                    }
+                    if (colorInput) {
+                              colorInput.value = colour;
+                              colorInput.dispatchEvent(new Event('change', { bubbles: true }));
+                              return;
+                    }
+                    state.color = colour;
+                    refreshZone14ColourSwatch();
+          }
+
           function updateVisibilityState(visible) {
                     state.annotationsVisible = Boolean(visible);
                     visibilityToggle.classList.toggle('is-active', state.annotationsVisible);
@@ -323,11 +378,22 @@
                     );
           }
 
+          function updateZone14Toolbar(toolName) {
+                    const zone14Key = ANNOTATION_TOOL_TO_ZONE14[toolName] || null;
+                    Object.entries(zone14ToolElements).forEach(([name, button]) => {
+                              if (!button) {
+                                        return;
+                              }
+                              button.classList.toggle('is-active', name === zone14Key);
+                    });
+          }
+
           function selectTool(toolName) {
                     state.tool = toolName;
                     toolButtons.forEach((btn) => {
                               btn.classList.toggle('is-active', btn.dataset.annotationTool === toolName);
                     });
+                    updateZone14Toolbar(toolName);
           }
 
           function targetHasId() {
@@ -1681,8 +1747,58 @@ function startDrag(annotation, normalized, pointerId, options = {}) {
                     });
           });
 
+          Object.entries(zone14ToolElements).forEach(([name, button]) => {
+                    if (!button) {
+                              return;
+                    }
+                    button.addEventListener('click', (event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              const annotationTool = ZONE14_TO_ANNOTATION_TOOL[name];
+                              if (!annotationTool) {
+                                        return;
+                              }
+                              const targetButton = document.querySelector(`[data-annotation-tool="${annotationTool}"]`);
+                              if (targetButton) {
+                                        targetButton.click();
+                              }
+                    });
+          });
+
+          zone14ColourButton?.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setZone14PaletteOpen(!zone14PaletteOpen);
+          });
+
+          zone14ColourPalette?.addEventListener('click', (event) => {
+                    event.stopPropagation();
+          });
+
+          zone14PaletteOptions.forEach((option) => {
+                    option.addEventListener('click', (event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              applyZone14Colour(option.dataset.zone14Colour);
+                              setZone14PaletteOpen(false);
+                    });
+          });
+
+          document.addEventListener('click', () => {
+                    if (zone14PaletteOpen) {
+                              setZone14PaletteOpen(false);
+                    }
+          });
+
+          document.addEventListener('keydown', (event) => {
+                    if (event.key === 'Escape') {
+                              setZone14PaletteOpen(false);
+                    }
+          });
+
           colorInput.addEventListener('change', () => {
                     state.color = colorInput.value;
+                    refreshZone14ColourSwatch();
           });
 
           strokeInput.addEventListener('input', () => {
@@ -1737,6 +1853,9 @@ function startDrag(annotation, normalized, pointerId, options = {}) {
           updateVisibilityState(true);
           updateModeState(false);
           renderDrawingsPlaylist([]);
+          setZone14PaletteOpen(false);
+          refreshZone14ColourSwatch();
+          selectTool(state.tool);
           window.DeskAnnotationTimelineBridge = timelineBridge;
           window.addEventListener('DeskDrawingEditRequested', (event) => {
                     const annotationId = Number(event?.detail?.annotationId);

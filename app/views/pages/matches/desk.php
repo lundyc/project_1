@@ -74,7 +74,7 @@ $tags = $tagsStmt->fetchAll();
 
 $title = 'Analysis Desk';
 $headExtras = '<link href="' . htmlspecialchars($base) . '/assets/css/desk.css?v=' . time() . '" rel="stylesheet">';
-$headExtras .= '<script>window.ANNOTATIONS_ENABLED = false;</script>';
+$headExtras .= '<script>window.ANNOTATIONS_ENABLED = true;</script>';
 $projectRoot = realpath(__DIR__ . '/../../../../');
 $matchId = (int)$match['id'];
 $isVeo = (($match['video_source_type'] ?? '') === 'veo');
@@ -252,18 +252,40 @@ ob_start();
                                                                                             preload="metadata"
                                                                                             <?= $videoReady ? 'src="' . htmlspecialchars($videoSrc) . '"' : '' ?>>
                                                                                   </video>
-                                                                                  <?php if ($ANNOTATIONS_ENABLED): ?>
-                                                                                            <div class="annotation-overlay" data-annotation-overlay>
-                                                                                                      <canvas id="deskAnnotationCanvas" data-annotation-canvas></canvas>
-                                                                                                      <div class="annotation-text-input" data-annotation-text-input>
-                                                                                                                <input type="text" maxlength="120" placeholder="Annotation text" data-annotation-text-field>
-                                                                                                                <div class="annotation-text-actions">
-                                                                                                                          <button type="button" class="ghost-btn ghost-btn-sm" data-annotation-text-save>Save</button>
-                                                                                                                          <button type="button" class="ghost-btn ghost-btn-sm" data-annotation-text-cancel>Cancel</button>
-                                                                                                                </div>
+                                                                                 <?php if ($ANNOTATIONS_ENABLED): ?>
+                                                                                           <div class="annotation-overlay" data-annotation-overlay>
+                                                                                                     <canvas id="deskAnnotationCanvas" data-annotation-canvas></canvas>
+                                                                                                     <div class="annotation-text-input" data-annotation-text-input>
+                                                                                                               <input type="text" maxlength="120" placeholder="Annotation text" data-annotation-text-field>
+                                                                                                               <div class="annotation-text-actions">
+                                                                                                                         <button type="button" class="ghost-btn ghost-btn-sm" data-annotation-text-save>Save</button>
+                                                                                                                         <button type="button" class="ghost-btn ghost-btn-sm" data-annotation-text-cancel>Cancel</button>
+                                                                                                               </div>
+                                                                                                     </div>
+                                                                                                     <div id="zone14Toolbar" class="zone14-toolbar" aria-label="Annotation tools">
+                                                                                                               <button id="toolMove" type="button" class="z14-tool" data-zone14-tool="move" aria-label="Select and move">
+                                                                                                                         <i class="fa-solid fa-arrows-up-down-left-right" aria-hidden="true"></i>
+                                                                                                               </button>
+                                                                                                               <button id="toolArrow" type="button" class="z14-tool" data-zone14-tool="arrow" aria-label="Arrow tool">
+                                                                                                                         <i class="fa-solid fa-arrow-up-right" aria-hidden="true"></i>
+                                                                                                               </button>
+                                                                                                               <button id="toolText" type="button" class="z14-tool" data-zone14-tool="text" aria-label="Text tool">
+                                                                                                                         A
+                                                                                                               </button>
+                                                                                                               <button id="toolColour" type="button" class="z14-tool z14-colour" data-zone14-tool="colour" aria-label="Change colour">
+                                                                                                                         <span class="z14-colour-swatch" data-zone14-colour-swatch></span>
+                                                                                                               </button>
+                                                                                                     </div>
+                                                                                                      <div id="zone14ColourPalette" class="zone14-colour-palette" aria-hidden="true">
+                                                                                                                <button type="button" class="z14-colour-option" style="background-color:#facc15;" data-zone14-colour="#facc15" aria-label="Yellow" title="Yellow"></button>
+                                                                                                                <button type="button" class="z14-colour-option" style="background-color:#10b981;" data-zone14-colour="#10b981" aria-label="Green" title="Green"></button>
+                                                                                                                <button type="button" class="z14-colour-option" style="background-color:#38bdf8;" data-zone14-colour="#38bdf8" aria-label="Sky blue" title="Sky blue"></button>
+                                                                                                                <button type="button" class="z14-colour-option" style="background-color:#f472b6;" data-zone14-colour="#f472b6" aria-label="Pink" title="Pink"></button>
+                                                                                                                <button type="button" class="z14-colour-option" style="background-color:#a855f7;" data-zone14-colour="#a855f7" aria-label="Purple" title="Purple"></button>
+                                                                                                                <button type="button" class="z14-colour-option" style="background-color:#fb923c;" data-zone14-colour="#fb923c" aria-label="Orange" title="Orange"></button>
                                                                                                       </div>
-                                                                                            </div>
-                                                                                  <?php endif; ?>
+                                                                                           </div>
+                                                                                 <?php endif; ?>
                                                                         </div>
                                                                         <?php if ($ANNOTATIONS_ENABLED): ?>
                                                                                   <div class="annotation-toolbar-shell">
@@ -312,7 +334,13 @@ ob_start();
                                                                                   </div>
                                                                         <?php endif; ?>
                                                                         <div class="custom-video-controls" id="deskControls">
+                                                                                  <div class="desk-timeline" id="deskTimeline" role="slider" tabindex="0" aria-label="Video timeline">
+                                                                                            <div class="desk-timeline-track" id="deskTimelineTrack">
+                                                                                                      <div class="desk-timeline-progress" id="deskTimelineProgress"></div>
+                                                                                            </div>
+                                                                                  </div>
                                                                                   <div class="desk-control-group">
+                                                                                            <div class="desk-time-display" id="deskTimeDisplay">00:00 / 00:00</div>
                                                                                             <div class="desk-control-primary">
                                                                                                       <button id="deskPlayPause" class="control-btn" data-tooltip="Play/Pause" aria-label="Play or pause">
                                                                                                                 <i class="fa-solid fa-play" aria-hidden="true"></i>
@@ -344,14 +372,6 @@ ob_start();
                                                                                             </div>
                                                                                   </div>
                                                                         </div>
-                                                                        <?php if ($ANNOTATIONS_ENABLED): ?>
-                                                                                  <div class="video-timeline" data-video-timeline>
-                                                                                            <div class="video-timeline-track" data-video-timeline-track aria-hidden="true">
-                                                                                                      <div class="video-timeline-markers" data-video-timeline-markers></div>
-                                                                                                      <div class="video-timeline-playhead" data-video-timeline-playhead></div>
-                                                                                            </div>
-                                                                                  </div>
-                                                                        <?php endif; ?>
                                                           </div>
                                                             <div id="deskVideoPlaceholder" class="text-center text-muted mb-3<?= $videoReady ? ' d-none' : '' ?>">
                                                                       <?= htmlspecialchars($placeholderMessage) ?>
