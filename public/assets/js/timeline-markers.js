@@ -49,6 +49,122 @@
 
           const ANNOTATION_WINDOW_SECONDS = 3;
           let annotationBridgeAttached = false;
+          let markerDragState = null;
+          let skipMarkerClickId = null;
+
+          function getTimelineDuration() {
+                    return state.matchDuration > 0 ? state.matchDuration : 1;
+          }
+
+          function computeTimestampFromClientX(clientX) {
+                    const rect = trackEl.getBoundingClientRect();
+                    if (!rect.width) {
+                              return 0;
+                    }
+                    const offset = Math.min(rect.width, Math.max(0, clientX - rect.left));
+                    const duration = getTimelineDuration();
+                    return Math.min(duration, Math.max(0, (offset / rect.width) * duration));
+          }
+
+          function renderMarkerPosition(marker, entry, timestamp) {
+                    const duration = getTimelineDuration();
+                    const safeTimestamp = Math.min(duration, Math.max(0, Number(timestamp) || 0));
+                    entry.timestamp = safeTimestamp;
+                    if (duration > 0) {
+                              const percent = Math.min(100, Math.max(0, (safeTimestamp / duration) * 100));
+                              marker.style.left = `${percent}%`;
+                    } else {
+                              marker.style.left = '0%';
+                    }
+                    marker.dataset.timestamp = String(safeTimestamp);
+                    marker.title = buildTooltip(entry);
+          }
+
+          function cleanupMarkerDrag() {
+                    if (!markerDragState) {
+                              return;
+                    }
+                    const { marker, pointerId } = markerDragState;
+                    marker.classList.remove('is-dragging');
+                    marker.releasePointerCapture?.(pointerId);
+                    document.removeEventListener('pointermove', handleMarkerPointerMove);
+                    document.removeEventListener('pointerup', finalizeMarkerDrag);
+                    document.removeEventListener('pointercancel', cancelMarkerDrag);
+                    markerDragState = null;
+          }
+
+          function handleMarkerPointerDown(entry, marker, event) {
+                    if (event.button !== 0) {
+                              return;
+                    }
+                    const rect = trackEl.getBoundingClientRect();
+                    if (!rect.width || state.matchDuration <= 0) {
+                              return;
+                    }
+                    event.preventDefault();
+                    event.stopPropagation();
+                    cleanupMarkerDrag();
+                    markerDragState = {
+                              entry,
+                              marker,
+                              pointerId: event.pointerId,
+                              currentTime: entry.timestamp,
+                    };
+                    marker.classList.add('is-dragging');
+                    marker.setPointerCapture?.(event.pointerId);
+                    document.addEventListener('pointermove', handleMarkerPointerMove);
+                    document.addEventListener('pointerup', finalizeMarkerDrag);
+                    document.addEventListener('pointercancel', cancelMarkerDrag);
+          }
+
+          function handleMarkerPointerMove(event) {
+                    if (!markerDragState || event.pointerId !== markerDragState.pointerId) {
+                              return;
+                    }
+                    const timestamp = computeTimestampFromClientX(event.clientX);
+                    markerDragState.currentTime = timestamp;
+                    markerDragState.entry.timestamp = timestamp;
+                    renderMarkerPosition(markerDragState.marker, markerDragState.entry, timestamp);
+                    event.preventDefault();
+          }
+
+          function finalizeMarkerDrag(event) {
+                    if (!markerDragState || event.pointerId !== markerDragState.pointerId) {
+                              return;
+                    }
+                    const { entry } = markerDragState;
+                    const timestamp = Number(markerDragState.currentTime ?? entry.timestamp) || 0;
+                    cleanupMarkerDrag();
+                    skipMarkerClickId = entry.id;
+                    requestAnimationFrame(() => {
+                              if (skipMarkerClickId === entry.id) {
+                                        skipMarkerClickId = null;
+                              }
+                    });
+                    window.dispatchEvent(
+                              new CustomEvent('DeskDrawingTimestampUpdate', {
+                                        detail: { drawingId: entry.id, timestamp },
+                              })
+                    );
+                    if (window.DeskAnnotationTimelineBridge && typeof window.DeskAnnotationTimelineBridge.highlightAnnotation === 'function') {
+                              window.DeskAnnotationTimelineBridge.highlightAnnotation(entry.id);
+                    }
+          }
+
+          function cancelMarkerDrag(event) {
+                    if (!markerDragState || event.pointerId !== markerDragState.pointerId) {
+                              return;
+                    }
+                    const entryId = markerDragState.entry.id;
+                    cleanupMarkerDrag();
+                    skipMarkerClickId = entryId;
+                    requestAnimationFrame(() => {
+                              if (skipMarkerClickId === entryId) {
+                                        skipMarkerClickId = null;
+                              }
+                    });
+                    renderMarkers();
+          }
 
           function updateTimelineVisibility() {
                     timelineEl.classList.toggle('is-hidden', !state.annotationsVisible);
@@ -239,9 +355,13 @@
           }
 
           function handleMarkerClick(entry) {
-                    if (!entry || !Number.isFinite(entry.timestamp)) {
+                    if (!entry || skipMarkerClickId === entry.id) {
+                              skipMarkerClickId = null;
                               return;
                     }
+                    if (!Number.isFinite(entry.timestamp)) {
+                              return;
+                   }
                     state.selectedAnnotationId = entry.id;
                     videoEl.currentTime = Math.max(0, entry.timestamp);
                     handleTimeUpdate();
@@ -251,7 +371,7 @@
           }
 
           function renderMarkers() {
-                    const duration = state.matchDuration > 0 ? state.matchDuration : 1;
+                    cleanupMarkerDrag();
                     const annotations = collectAnnotationsForContext();
                     state.currentMarkers = annotations;
                     markersEl.innerHTML = '';
@@ -268,12 +388,14 @@
                               if (entry.isClip) {
                                         marker.classList.add('video-timeline-marker--clip');
                               }
-                              const percent = Math.min(100, Math.max(0, (entry.timestamp / duration) * 100));
-                              marker.style.left = `${percent}%`;
                               marker.dataset.annotationId = String(entry.id);
-                              marker.dataset.timestamp = String(entry.timestamp);
-                              marker.title = buildTooltip(entry);
-                              marker.addEventListener('click', () => handleMarkerClick(entry));
+                              renderMarkerPosition(marker, entry, entry.timestamp);
+                              marker.addEventListener('pointerdown', (event) => handleMarkerPointerDown(entry, marker, event));
+                              marker.addEventListener('click', (event) => {
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        handleMarkerClick(entry);
+                              });
                               fragment.appendChild(marker);
                     });
                     markersEl.appendChild(fragment);

@@ -26,6 +26,7 @@
   function applyTransform() {
     transformLayer.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
     transformLayer.style.cursor = interactiveEnabled ? (dragging ? 'grabbing' : 'grab') : 'unset';
+    dispatchTransformChange();
   }
 
   function dispatchInteractiveChange(enabled) {
@@ -34,6 +35,10 @@
         detail: { enabled: Boolean(enabled) },
       })
     );
+  }
+
+  function dispatchTransformChange() {
+    window.dispatchEvent(new CustomEvent('DeskVideoTransformChanged'));
   }
 
   function setInteractiveState(enabled) {

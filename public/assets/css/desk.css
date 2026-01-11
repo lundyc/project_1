@@ -93,6 +93,100 @@ body {
   pointer-events: auto;
 }
 
+.panoramic-shell {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  background: radial-gradient(circle at top, rgba(255, 255, 255, 0.1), transparent 55%), #020205;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: stretch;
+}
+
+.panoramic-shell.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.panoramic-shell canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: #010106;
+  touch-action: none;
+}
+
+.panoramic-shell .panoramic-message {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.7);
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.panoramic-shell .panoramic-message.is-visible {
+  opacity: 1;
+}
+
+.panoramic-shell .panoramic-controls {
+  position: relative;
+  z-index: 12;
+  padding: 16px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: linear-gradient(180deg, rgba(3, 3, 9, 0.15), rgba(3, 3, 9, 0.85));
+}
+
+.panoramic-shell .panoramic-control-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.panoramic-shell .panoramic-control-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.panoramic-shell .panoramic-seek-track {
+  flex: 1;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.panoramic-shell .panoramic-seek-progress {
+  position: absolute;
+  inset: 0;
+  width: 0%;
+  background: linear-gradient(90deg, #21d1ff, #b00bff);
+}
+
+.panoramic-shell .panoramic-time-label {
+  min-width: 140px;
+  font-size: 0.85rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 .custom-video-controls {
   position: absolute;
   bottom: 12px;
@@ -132,6 +226,61 @@ body {
   background: linear-gradient(90deg, rgba(59, 130, 246, 0.9), rgba(59, 130, 246, 0.6));
   border-radius: 999px;
   transition: width 0.1s linear;
+}
+
+.desk-timeline-track[data-video-timeline-track] {
+  position: relative;
+}
+
+[data-video-timeline-markers] {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+[data-video-timeline-playhead] {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  background: #3b82f6;
+  opacity: 0.9;
+  pointer-events: none;
+  transform: translateX(-50%);
+  z-index: 3;
+}
+
+.video-timeline-marker {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  background: rgba(250, 204, 21, 0.9);
+  cursor: pointer;
+  pointer-events: auto;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  z-index: 2;
+}
+
+.video-timeline-marker.video-timeline-marker--clip {
+  background: rgba(59, 130, 246, 0.9);
+}
+
+.video-timeline-marker.is-active {
+  box-shadow: 0 0 0 6px rgba(250, 204, 21, 0.3);
+}
+
+.video-timeline-marker.is-selected {
+  border-color: rgba(16, 185, 129, 0.9);
+  background: rgba(16, 185, 129, 0.9);
+}
+
+.video-timeline-marker.is-dragging {
+  transform: translate(-50%, -50%) scale(1.35);
 }
 
 .desk-timeline:focus-visible .desk-timeline-track {
@@ -293,20 +442,21 @@ body {
 .annotation-overlay {
   position: absolute;
   inset: 0;
-  pointer-events: none;
+  pointer-events: auto;
   border-radius: 8px;
-  z-index: 2;
+  z-index: 5;
 }
 
 .annotation-overlay canvas {
   width: 100%;
   height: 100%;
   display: block;
+  pointer-events: auto;
 }
 
 .annotation-overlay canvas,
 .annotation-text-input {
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .zone14-toolbar {

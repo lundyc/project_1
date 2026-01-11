@@ -195,6 +195,7 @@ $videoProgressConfig = [
           'csrfToken' => $csrfToken,
 ];
 $footerScripts .= '<script>window.MatchVideoDeskConfig = ' . json_encode($videoProgressConfig) . ';</script>';
+$footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/panoramic-player.js?v=' . time() . '"></script>';
 $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/match-video-progress.js?v=' . time() . '"></script>';
 
 ob_start();
@@ -222,13 +223,14 @@ ob_start();
                                                                                 <?php if (!empty($videoFormats) && count($videoFormats) > 1): ?>
                                                                                           <div class="video-format-toggle" data-video-format-toggle>
                                                                                                     <?php foreach ($videoFormats as $format): ?>
-                                                                                                              <button
-                                                                                                                        type="button"
-                                                                                                                        class="toggle-btn video-format-btn<?= $format['id'] === $defaultFormatId ? ' is-active' : '' ?>"
-                                                                                                                        data-video-format-id="<?= htmlspecialchars($format['id']) ?>"
-                                                                                                                        aria-pressed="<?= $format['id'] === $defaultFormatId ? 'true' : 'false' ?>">
-                                                                                                                        <?= htmlspecialchars($format['label']) ?>
-                                                                                                              </button>
+                                              <button
+                                                        type="button"
+                                                        class="toggle-btn video-format-btn<?= $format['id'] === $defaultFormatId ? ' is-active' : '' ?>"
+                                                        data-video-format-id="<?= htmlspecialchars($format['id']) ?>"
+                                                        <?= !empty($format['relative_path']) ? 'data-video-format-src="' . htmlspecialchars($format['relative_path']) . '"' : '' ?>
+                                                        aria-pressed="<?= $format['id'] === $defaultFormatId ? 'true' : 'false' ?>">
+                                                        <?= htmlspecialchars($format['label']) ?>
+                                              </button>
                                                                                                     <?php endforeach; ?>
                                                                                           </div>
                                                                                 <?php endif; ?>
@@ -262,6 +264,7 @@ ob_start();
                                                                                                                          <button type="button" class="ghost-btn ghost-btn-sm" data-annotation-text-cancel>Cancel</button>
                                                                                                                </div>
                                                                                                      </div>
+                                                                                                     <!-- Zone14 toolbar (FINAL / DO NOT MODIFY) -->
                                                                                                      <div id="zone14Toolbar" class="zone14-toolbar" aria-label="Annotation tools">
                                                                                                                <button id="toolMove" type="button" class="z14-tool" data-zone14-tool="move" aria-label="Select and move">
                                                                                                                          <i class="fa-solid fa-arrows-up-down-left-right" aria-hidden="true"></i>
@@ -276,16 +279,37 @@ ob_start();
                                                                                                                          <span class="z14-colour-swatch" data-zone14-colour-swatch></span>
                                                                                                                </button>
                                                                                                      </div>
-                                                                                                      <div id="zone14ColourPalette" class="zone14-colour-palette" aria-hidden="true">
-                                                                                                                <button type="button" class="z14-colour-option" style="background-color:#facc15;" data-zone14-colour="#facc15" aria-label="Yellow" title="Yellow"></button>
-                                                                                                                <button type="button" class="z14-colour-option" style="background-color:#10b981;" data-zone14-colour="#10b981" aria-label="Green" title="Green"></button>
-                                                                                                                <button type="button" class="z14-colour-option" style="background-color:#38bdf8;" data-zone14-colour="#38bdf8" aria-label="Sky blue" title="Sky blue"></button>
-                                                                                                                <button type="button" class="z14-colour-option" style="background-color:#f472b6;" data-zone14-colour="#f472b6" aria-label="Pink" title="Pink"></button>
-                                                                                                                <button type="button" class="z14-colour-option" style="background-color:#a855f7;" data-zone14-colour="#a855f7" aria-label="Purple" title="Purple"></button>
-                                                                                                                <button type="button" class="z14-colour-option" style="background-color:#fb923c;" data-zone14-colour="#fb923c" aria-label="Orange" title="Orange"></button>
-                                                                                                      </div>
+                                                                                                     <!-- Zone14 colour palette (FINAL / DO NOT MODIFY) -->
+                                                                                                     <div id="zone14ColourPalette" class="zone14-colour-palette" aria-hidden="true">
+                                                                                                               <button type="button" class="z14-colour-option" style="background-color:#facc15;" data-zone14-colour="#facc15" aria-label="Yellow" title="Yellow"></button>
+                                                                                                               <button type="button" class="z14-colour-option" style="background-color:#10b981;" data-zone14-colour="#10b981" aria-label="Green" title="Green"></button>
+                                                                                                               <button type="button" class="z14-colour-option" style="background-color:#38bdf8;" data-zone14-colour="#38bdf8" aria-label="Sky blue" title="Sky blue"></button>
+                                                                                                               <button type="button" class="z14-colour-option" style="background-color:#f472b6;" data-zone14-colour="#f472b6" aria-label="Pink" title="Pink"></button>
+                                                                                                               <button type="button" class="z14-colour-option" style="background-color:#a855f7;" data-zone14-colour="#a855f7" aria-label="Purple" title="Purple"></button>
+                                                                                                               <button type="button" class="z14-colour-option" style="background-color:#fb923c;" data-zone14-colour="#fb923c" aria-label="Orange" title="Orange"></button>
+                                                                                                     </div>
                                                                                            </div>
                                                                                  <?php endif; ?>
+                                                                        </div>
+                                                                        <div class="panoramic-shell" data-panoramic-shell>
+                                                                                  <video id="deskPanoramicVideo" playsinline muted data-panoramic-video></video>
+                                                                                  <canvas id="deskPanoramicCanvas" data-panoramic-canvas aria-label="Panoramic video viewport"></canvas>
+                                                                                  <div class="panoramic-message" data-panoramic-message>Preparing panoramic view…</div>
+                                                                                  <div class="panoramic-controls">
+                                                                                            <div class="panoramic-control-row">
+                                                                                                      <div class="panoramic-control-group">
+                                                                                                                <button type="button" class="control-btn" data-panoramic-play aria-label="Play/pause panoramic video">Play</button>
+                                                                                                                <button type="button" class="control-btn" data-panoramic-fullscreen aria-label="Toggle fullscreen">Fullscreen</button>
+                                                                                                      </div>
+                                                                                                      <button type="button" class="control-btn control-btn--ghost" data-panoramic-close aria-label="Return to standard view">Return</button>
+                                                                                            </div>
+                                                                                            <div class="panoramic-control-row">
+                                                                                                      <div class="panoramic-seek-track" data-panoramic-seek-track aria-label="Seek">
+                                                                                                                <div class="panoramic-seek-progress" data-panoramic-seek-progress></div>
+                                                                                                      </div>
+                                                                                                      <div class="panoramic-time-label" data-panoramic-time>00:00 / 00:00</div>
+                                                                                            </div>
+                                                                                  </div>
                                                                         </div>
                                                                         <?php if ($ANNOTATIONS_ENABLED): ?>
                                                                                   <div class="annotation-toolbar-shell">
@@ -334,11 +358,13 @@ ob_start();
                                                                                   </div>
                                                                         <?php endif; ?>
                                                                         <div class="custom-video-controls" id="deskControls">
-                                                                                  <div class="desk-timeline" id="deskTimeline" role="slider" tabindex="0" aria-label="Video timeline">
-                                                                                            <div class="desk-timeline-track" id="deskTimelineTrack">
-                                                                                                      <div class="desk-timeline-progress" id="deskTimelineProgress"></div>
-                                                                                            </div>
+                                                                        <div class="desk-timeline" id="deskTimeline" role="slider" tabindex="0" aria-label="Video timeline" data-video-timeline>
+                                                                                  <div class="desk-timeline-track" id="deskTimelineTrack" data-video-timeline-track>
+                                                                                            <div class="desk-timeline-markers" data-video-timeline-markers></div>
+                                                                                            <div class="desk-timeline-progress" id="deskTimelineProgress"></div>
+                                                                                            <div class="desk-timeline-playhead" data-video-timeline-playhead></div>
                                                                                   </div>
+                                                                        </div>
                                                                                   <div class="desk-control-group">
                                                                                             <div class="desk-time-display" id="deskTimeDisplay">00:00 / 00:00</div>
                                                                                             <div class="desk-control-primary">

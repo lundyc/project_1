@@ -57,6 +57,7 @@
                     arrow: zone14Toolbar?.querySelector('[data-zone14-tool="arrow"]'),
                     text: zone14Toolbar?.querySelector('[data-zone14-tool="text"]'),
           };
+          // Zone14 toolbar is FINAL; do NOT mutate or re-render this section via legacy annotation builders.
 
           const drawingEditModal = document.querySelector('[data-drawing-edit-modal]');
           const drawingEditBeforeValue = drawingEditModal?.querySelector('[data-drawing-edit-before-value]');
@@ -113,6 +114,7 @@
                     pointerId: null,
                     dragging: null,
                     textAnchor: null,
+                    textEditingAnnotationId: null,
                     isDeleting: false,
           };
           const drawingEditState = {
@@ -284,6 +286,21 @@
                     return `${minutes}:${String(remainder).padStart(2, '0')}`;
           }
 
+          function getAnnotationTime(annotation) {
+                    if (!annotation) {
+                              return null;
+                    }
+                    const raw = annotation.timestamp_second ?? annotation.time ?? null;
+                    if (raw === null || raw === undefined) {
+                              return null;
+                    }
+                    const parsed = Number(raw);
+                    if (!Number.isFinite(parsed) || parsed < 0) {
+                              return null;
+                    }
+                    return parsed;
+          }
+
           function buildTargetKey(type, id) {
                     return `${type}:${id}`;
           }
@@ -326,6 +343,7 @@
                     if (!colour) {
                               return;
                     }
+                    state.color = colour;
                     if (colorInput) {
                               colorInput.value = colour;
                               colorInput.dispatchEvent(new Event('change', { bubbles: true }));
@@ -453,18 +471,20 @@
           }
 
           function setAnnotationCache(key, annotations) {
-                    state.annotations.set(key, { annotations, timestamp: Date.now() });
+                    const normalized = Array.isArray(annotations) ? annotations.map(normalizeAnnotation) : [];
+                    state.annotations.set(key, { annotations: normalized, timestamp: Date.now() });
                     const parsed = parseTargetKey(key);
                     const matchesCurrentTarget =
                               parsed &&
                               parsed.type === state.targetType &&
                               Number(parsed.id) === Number(state.targetId);
                     if (matchesCurrentTarget) {
-                              renderDrawingsPlaylist(annotations);
+                              renderDrawingsPlaylist(normalized);
                     }
                     if (parsed) {
-                              timelineBridge.notify(parsed.type, parsed.id, annotations);
+                              timelineBridge.notify(parsed.type, parsed.id, normalized);
                     }
+                    return normalized;
           }
 
           function renderDrawingsPlaylist(annotations) {
@@ -586,8 +606,8 @@
                               }
                               return Number(a.id) - Number(b.id);
                     });
-                    setAnnotationCache(key, updated);
-                    state.visibleAnnotations = updated;
+                    const normalized = setAnnotationCache(key, updated);
+                    state.visibleAnnotations = normalized;
                     const selected = findAnnotationById(drawingId);
                     if (selected) {
                               handleSelection(selected);
@@ -640,12 +660,12 @@
                               return;
                     }
                     try {
-                              updateStatus('Loading annotations…');
-                              const annotations = await fetchAnnotations(type, id);
-                              setAnnotationCache(key, annotations);
-                              state.visibleAnnotations = annotations;
-                              updateStatus(`Annotations ready (${annotations.length})`);
-                              render();
+                             updateStatus('Loading annotations…');
+                             const annotations = await fetchAnnotations(type, id);
+                              const normalized = setAnnotationCache(key, annotations);
+                              state.visibleAnnotations = normalized;
+                             updateStatus(`Annotations ready (${annotations.length})`);
+                             render();
                     } catch (error) {
                               console.error('Failed to load annotations', error);
                               updateStatus('Unable to load annotations');
@@ -837,7 +857,7 @@
                     if (!state.annotationsVisible) {
                               return;
                     }
-                    const current = Math.round(videoEl.currentTime || 0);
+                    const current = Math.max(0, Number(videoEl.currentTime) || 0);
                     const key = state.targetType && state.targetId ? buildTargetKey(state.targetType, state.targetId) : null;
                     const cached = key ? getAnnotationCache(key) : null;
                     const candidates = cached ? cached.annotations : [];
@@ -845,11 +865,8 @@
                               if (!annotation) {
                                         return false;
                               }
-                              if (!Number.isFinite(Number(annotation.timestamp_second))) {
-                                        return false;
-                              }
-                              const window = resolveAnnotationWindow(annotation);
-                              return current >= window.start && current <= window.end;
+                              const timestamp = getAnnotationTime(annotation);
+                              return Number.isFinite(timestamp) && current >= timestamp;
                     });
                     state.visibleAnnotations.forEach((annotation) => {
                               renderAnnotation(ctx, annotation, { highlight: annotation.id === state.selectedId });
@@ -890,6 +907,28 @@
                               normalized.height = height;
                     }
                     return normalized;
+          }
+
+          function normalizeAnnotation(annotation) {
+                    if (!annotation || typeof annotation !== 'object') {
+                              return annotation;
+                    }
+                    const drawingData = annotation.drawing_data || {};
+                    const timestamp = getAnnotationTime(annotation);
+                    const tool = String((drawingData.tool || annotation.tool_type || 'drawing') || 'drawing');
+                    const geometry = Array.isArray(drawingData.points)
+                              ? drawingData.points.slice()
+                              : drawingData.position
+                                        ? { ...drawingData.position }
+                                        : null;
+                    return {
+                              ...annotation,
+                              time: Number.isFinite(timestamp) ? timestamp : 0,
+                              type: tool,
+                              geometry,
+                              color: drawingData.color || '#facc15',
+                              text: drawingData.text || '',
+                    };
           }
 
           function updateDrawingHandle(baseDrawing, handleIndex, normalizedPoint) {
@@ -1208,6 +1247,12 @@ function startDrag(annotation, normalized, pointerId, options = {}) {
                     }
 
                     if (state.tool === 'text') {
+                              const hit = findAnnotationAt(absX, absY);
+                              if (hit && isTextAnnotation(hit) && openTextEditorForAnnotation(hit, event)) {
+                                        event.preventDefault();
+                                        return;
+                              }
+                              state.textEditingAnnotationId = null;
                               openTextInput(event, { x, y });
                               event.preventDefault();
                               return;
@@ -1291,26 +1336,69 @@ function startDrag(annotation, normalized, pointerId, options = {}) {
                     cancelDrawing(event);
           }
 
-          function openTextInput(event, anchor) {
+          function openTextInput(event, anchor, initialValue = '') {
                     if (!textInputWrapper || !textInputField) {
                               return;
                     }
-                    const normalized = anchor || normalizePoint(event.clientX, event.clientY);
+                    const normalized = anchor || normalizePoint(event?.clientX || 0, event?.clientY || 0);
                     state.textAnchor = normalized;
                     const rect = overlayEl.getBoundingClientRect();
-                    const left = clamp((event.clientX - rect.left) / rect.width, 0, 1) * rect.width;
-                    const top = clamp((event.clientY - rect.top) / rect.height, 0, 1) * rect.height;
+                    const clientX = typeof event?.clientX === 'number' ? event.clientX : rect.left + rect.width / 2;
+                    const clientY = typeof event?.clientY === 'number' ? event.clientY : rect.top + rect.height / 2;
+                    const left = clamp((clientX - rect.left) / rect.width, 0, 1) * rect.width;
+                    const top = clamp((clientY - rect.top) / rect.height, 0, 1) * rect.height;
                     textInputWrapper.style.left = `${left}px`;
                     textInputWrapper.style.top = `${top}px`;
                     textInputWrapper.classList.add('is-active');
-                    textInputField.value = '';
+                    textInputField.value = initialValue;
                     textInputField.focus();
+                    textInputField.select();
           }
 
           function hideTextInput() {
                     if (!textInputWrapper) return;
                     textInputWrapper.classList.remove('is-active');
                     state.textAnchor = null;
+                    state.textEditingAnnotationId = null;
+                    textInputField && textInputField.blur();
+          }
+
+          function getAnnotationTextAnchor(annotation) {
+                    if (!annotation || !annotation.drawing_data) {
+                              return null;
+                    }
+                    const data = annotation.drawing_data;
+                    if (data.position && typeof data.position === 'object') {
+                              return clampNormalizedPoint(data.position);
+                    }
+                    const points = Array.isArray(data.points) ? data.points : [];
+                    if (points.length) {
+                              return clampNormalizedPoint(points[0]);
+                    }
+                    return null;
+          }
+
+          function isTextAnnotation(annotation) {
+                    if (!annotation || !annotation.drawing_data) {
+                              return false;
+                    }
+                    const tool = (annotation.drawing_data.tool || annotation.tool_type || '').toString().toLowerCase();
+                    return tool === 'text';
+          }
+
+          function openTextEditorForAnnotation(annotation, event) {
+                    if (!annotation) {
+                              return false;
+                    }
+                    const anchor = getAnnotationTextAnchor(annotation);
+                    if (!anchor) {
+                              return false;
+                    }
+                    state.textEditingAnnotationId = Number(annotation.id) || null;
+                    handleSelection(annotation);
+                    const textValue = annotation.drawing_data?.text || '';
+                    openTextInput(event, anchor, textValue);
+                    return true;
           }
 
           function createAnnotation(drawingData) {
@@ -1356,8 +1444,8 @@ function startDrag(annotation, normalized, pointerId, options = {}) {
                                                   }
                                                   return Number(a.id) - Number(b.id);
                                         });
-                                        setAnnotationCache(key, sorted);
-                                        state.visibleAnnotations = sorted;
+                                        const normalized = setAnnotationCache(key, sorted);
+                                        state.visibleAnnotations = normalized;
                                         updateStatus(`Annotation saved`);
                                         handleSelection(res.annotation);
                                         render();
@@ -1425,8 +1513,8 @@ function startDrag(annotation, normalized, pointerId, options = {}) {
                                                   }
                                                   return Number(a.id) - Number(b.id);
                                         });
-                                        setAnnotationCache(key, sorted);
-                                        state.visibleAnnotations = sorted;
+                                        const normalized = setAnnotationCache(key, sorted);
+                                        state.visibleAnnotations = normalized;
                                         updateStatus('Annotation updated');
                                         handleSelection(res.annotation);
                                         render();
@@ -1438,23 +1526,45 @@ function startDrag(annotation, normalized, pointerId, options = {}) {
           }
 
           function handleTextSave() {
-                    if (!state.textAnchor) {
+                    const anchor = state.textAnchor;
+                    if (!anchor) {
                               hideTextInput();
                               return;
                     }
                     const textValue = (textInputField.value || '').trim();
+                    const editingAnnotationId = state.textEditingAnnotationId;
                     hideTextInput();
                     if (!textValue) {
                               return;
                     }
-                    const drawingData = {
-                              tool: 'text',
-                              color: state.color,
-                              strokeWidth: state.strokeWidth / Math.max(canvasEl.width, canvasEl.height, 1),
-                              fontSize: Math.max(0.02, state.strokeWidth / Math.max(canvasEl.height, 1)),
-                              position: state.textAnchor,
-                              text: textValue,
-                    };
+                    if (editingAnnotationId) {
+                              const annotation = findAnnotationById(editingAnnotationId);
+                              if (annotation) {
+                                        const updatedDrawing = {
+                                                  ...annotation.drawing_data,
+                                                  text: textValue,
+                                                  color: annotation.drawing_data?.color || state.color,
+                                                  position: anchor,
+                                                  strokeWidth:
+                                                            annotation.drawing_data?.strokeWidth ??
+                                                            state.strokeWidth / Math.max(canvasEl.width, canvasEl.height, 1),
+                                                  fontSize:
+                                                            annotation.drawing_data?.fontSize ??
+                                                            Math.max(0.02, state.strokeWidth / Math.max(canvasEl.height, 1)),
+                                        };
+                                        const timestamp = getAnnotationTime(annotation) ?? Math.max(0, Number(annotation.timestamp_second) || 0);
+                                        submitAnnotationUpdate(editingAnnotationId, updatedDrawing, timestamp);
+                              }
+                              return;
+                    }
+                                        const drawingData = {
+                                                  tool: 'text',
+                                                  color: state.color,
+                                                  strokeWidth: state.strokeWidth / Math.max(canvasEl.width, canvasEl.height, 1),
+                                                  fontSize: Math.max(0.02, state.strokeWidth / Math.max(canvasEl.height, 1)),
+                                                  position: anchor,
+                                                  text: textValue,
+                                        };
                     createAnnotation(drawingData);
           }
 
@@ -1648,13 +1758,9 @@ function startDrag(annotation, normalized, pointerId, options = {}) {
                                         const remaining = cached
                                                   ? cached.annotations.filter((annotation) => Number(annotation.id) !== Number(selectedId))
                                                   : [];
-                                        setAnnotationCache(key, remaining);
-                                        state.visibleAnnotations = remaining;
+                                        const normalizedRemaining = setAnnotationCache(key, remaining);
+                                        state.visibleAnnotations = normalizedRemaining;
                                         removeAnnotationFromUnsaved(selectedId);
-                                        const parsedTarget = parseTargetKey(key);
-                                        if (parsedTarget && typeof timelineBridge.notify === 'function') {
-                                                  timelineBridge.notify(parsedTarget.type, parsedTarget.id, remaining);
-                                        }
                                         state.isDeleting = false;
                                         handleSelection(null);
                                         hideTextInput();
@@ -1837,8 +1943,13 @@ function startDrag(annotation, normalized, pointerId, options = {}) {
           videoEl.addEventListener('resize', updateCanvasSize);
           videoEl.addEventListener('timeupdate', render);
           videoEl.addEventListener('seeked', render);
+          videoEl.addEventListener('play', render);
+          videoEl.addEventListener('pause', render);
           window.addEventListener('resize', () => {
                     updateCanvasSize();
+          });
+          window.addEventListener('DeskVideoTransformChanged', () => {
+                    render();
           });
 
           updateCanvasSize();

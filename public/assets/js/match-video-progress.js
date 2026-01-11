@@ -139,7 +139,23 @@
                     }
           };
           formatButtons.forEach((btn) => {
-                    btn.addEventListener('click', () => handleFormatToggle(btn.dataset.videoFormatId));
+                    btn.addEventListener('click', () => {
+                              const formatId = btn.dataset.videoFormatId;
+                              handleFormatToggle(formatId);
+                              if (formatId === 'panoramic') {
+                                        const format = getFormat(formatId);
+                                        if (format && format.ready && btn.dataset.videoFormatSrc) {
+                                                  window.PanoramicDesk?.show({
+                                                            src: btn.dataset.videoFormatSrc,
+                                                            time: videoPlayer?.currentTime,
+                                                  });
+                                        } else {
+                                                  window.PanoramicDesk?.hide();
+                                        }
+                              } else {
+                                        window.PanoramicDesk?.hide();
+                              }
+                    });
           });
 
           const formatGB = (bytes) => {
