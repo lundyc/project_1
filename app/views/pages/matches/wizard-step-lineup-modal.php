@@ -22,7 +22,12 @@
                               </div>
                               <div class="col-6">
                                         <label class="form-label text-light" for="lineupPlayerPosition">Primary position</label>
-                                        <input type="text" name="primary_position" id="lineupPlayerPosition" class="form-control input-dark">
+                                        <select name="primary_position" id="lineupPlayerPosition" class="form-select select-dark">
+                                                  <option value="">Select position</option>
+                                                  <?php foreach ($positionOptions as $position): ?>
+                                                            <option value="<?= htmlspecialchars($position) ?>"><?= htmlspecialchars($position) ?></option>
+                                                  <?php endforeach; ?>
+                                        </select>
                               </div>
                               <div class="col-6">
                                         <label class="form-label text-light" for="lineupPlayerTeam">Team</label>
@@ -36,9 +41,90 @@
                               <div class="col-12">
                                         <div id="lineupCreatePlayerError" class="text-danger small d-none"></div>
                               </div>
+                              <div class="col-6">
+                                        <label class="form-label text-light mb-0">Captain</label>
+                                        <div class="form-check form-switch text-light">
+                                                  <input type="checkbox" name="is_captain" id="lineupCreatePlayerCaptain" class="form-check-input">
+                                                  <label class="form-check-label" for="lineupCreatePlayerCaptain">Mark as captain</label>
+                                        </div>
+                              </div>
                               <div class="col-12 d-flex justify-content-end gap-2">
                                         <button type="button" class="btn btn-secondary-soft" data-lineup-modal-close>Cancel</button>
                                         <button type="submit" class="btn btn-primary-soft">Create player</button>
+                              </div>
+                    </form>
+</div>
+</div>
+
+<div id="lineupQuickAddModal" aria-hidden="true" role="dialog" style="display:none; position:fixed; inset:0; z-index:2200; background:rgba(0,0,0,0.6); align-items:center; justify-content:center;">
+          <div class="panel p-3 rounded-md" style="max-width:420px; width:100%; margin:0 16px;">
+                              <div class="d-flex align-items-center justify-content-between mb-3">
+                                        <div>
+                                        <div class="text-lg text-white fw-semibold lineup-quick-add-title" id="lineupQuickAddTitle">Add player</div>
+                                        </div>
+                                        <button type="button" class="btn btn-sm btn-secondary-soft" data-lineup-quick-add-close aria-label="Close modal">×</button>
+                              </div>
+                    <form id="lineupQuickAddForm" class="row g-3">
+                              <input type="hidden" name="lineup_entry_id" id="lineupQuickAddEntryId" value="">
+                              <div class="col-12">
+                                        <label class="form-label text-light" for="lineupQuickAddPlayer">Select player</label>
+                                        <div class="d-flex align-items-center gap-2 lineup-quick-add-select-row">
+                                                  <select name="player_id" id="lineupQuickAddPlayer" class="form-select select-dark flex-grow-1">
+                                                            <option value="">Select player</option>
+                                                  </select>
+                                        <button type="button" class="btn btn-secondary-soft btn-sm lineup-quick-add-create" data-lineup-quick-add-create aria-label="Add new player">
+                                                  <i class="fa-solid fa-plus" aria-hidden="true"></i>
+                                        </button>
+                                        </div>
+                              </div>
+                              <input type="hidden" name="position_label" id="lineupQuickAddPosition" value="">
+                              <div class="col-6">
+                                        <label class="form-label text-light" for="lineupQuickAddNumber">Jersey number</label>
+                              </div>
+                              <div class="col-6 d-flex justify-content-end align-items-center">
+                                        <span class="form-label text-light mb-0">Captain</span>
+                              </div>
+                              <div class="col-6">
+                                        <input type="text" inputmode="numeric" pattern="^[1-9][0-9]?$" maxlength="2" name="shirt_number" id="lineupQuickAddNumber" class="form-control input-dark" placeholder="Number (optional)" min="1" max="99">
+                              </div>
+                              <div class="col-6 d-flex justify-content-end">
+                                        <div class="form-check form-switch text-light d-flex align-items-center gap-2 quick-add-captain-toggle">
+                                                  <input type="checkbox" name="is_captain" id="lineupQuickAddCaptain" class="form-check-input" aria-label="Captain">
+                                        </div>
+                              </div>
+                              <div class="col-12 d-flex justify-content-end gap-2">
+                                        <button type="button" class="btn btn-secondary-soft" data-lineup-quick-add-close>Cancel</button>
+                                        <button type="submit" class="btn btn-primary-soft" data-lineup-quick-add-submit>Save</button>
+                              </div>
+                    </form>
+          </div>
+</div>
+
+<div id="lineupSubstituteModal" aria-hidden="true" role="dialog" style="display:none; position:fixed; inset:0; z-index:2200; background:rgba(0,0,0,0.6); align-items:center; justify-content:center;">
+          <div class="panel p-3 rounded-md" style="max-width:420px; width:100%; margin:0 16px;">
+                              <div class="d-flex align-items-center justify-content-between mb-3">
+                                        <div>
+                                                  <div class="text-lg text-white fw-semibold" id="lineupSubstituteTitle">Add substitute</div>
+                                                  <div class="text-xs text-muted-alt" id="lineupSubstituteSubtitle">Select a player to add to the bench</div>
+                                        </div>
+                                        <button type="button" class="btn btn-sm btn-secondary-soft" data-lineup-sub-close aria-label="Close modal">×</button>
+                              </div>
+                    <form id="lineupSubstituteForm" class="row g-3">
+                              <input type="hidden" name="lineup_entry_id" id="lineupSubstituteEntryId" value="">
+                              <input type="hidden" name="team_side" id="lineupSubstituteSide" value="">
+                              <div class="col-12">
+                                        <label class="form-label text-light" for="lineupSubstitutePlayer">Select player</label>
+                                        <select name="player_id" id="lineupSubstitutePlayer" class="form-select select-dark">
+                                                  <option value="">Select player</option>
+                                        </select>
+                              </div>
+                              <div class="col-12">
+                                        <label class="form-label text-light" for="lineupSubstituteNumber">Jersey number</label>
+                                        <input type="text" inputmode="numeric" pattern="^[1-9][0-9]?$" maxlength="2" name="shirt_number" id="lineupSubstituteNumber" class="form-control input-dark" placeholder="Number (optional)">
+                              </div>
+                              <div class="col-12 d-flex justify-content-end gap-2">
+                                        <button type="button" class="btn btn-secondary-soft" data-lineup-sub-close>Cancel</button>
+                                        <button type="submit" class="btn btn-primary-soft">Save substitute</button>
                               </div>
                     </form>
           </div>

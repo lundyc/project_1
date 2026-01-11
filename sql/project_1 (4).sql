@@ -510,10 +510,10 @@ CREATE TABLE `match_players` (
   `match_id` bigint(20) UNSIGNED NOT NULL,
   `team_side` enum('home','away') NOT NULL,
   `player_id` bigint(20) UNSIGNED DEFAULT NULL,
-  `display_name` varchar(120) NOT NULL,
   `shirt_number` int(11) DEFAULT NULL,
   `position_label` varchar(40) DEFAULT NULL,
   `is_starting` tinyint(1) NOT NULL DEFAULT 0,
+  `is_captain` tinyint(1) NOT NULL DEFAULT 0,
   `created_at` datetime NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -521,9 +521,9 @@ CREATE TABLE `match_players` (
 -- Dumping data for table `match_players`
 --
 
-INSERT INTO `match_players` (`id`, `match_id`, `team_side`, `player_id`, `display_name`, `shirt_number`, `position_label`, `is_starting`, `created_at`) VALUES
-(3, 1, 'away', 2, 'Player 1', NULL, 'Striker', 1, '2025-12-26 17:15:12'),
-(4, 1, 'away', 1, 'Player 2', NULL, 'Striker', 1, '2025-12-26 17:15:16');
+INSERT INTO `match_players` (`id`, `match_id`, `team_side`, `player_id`, `shirt_number`, `position_label`, `is_starting`, `is_captain`, `created_at`) VALUES
+(3, 1, 'away', 2, NULL, 'Striker', 1, 0, '2025-12-26 17:15:12'),
+(4, 1, 'away', 1, NULL, 'Striker', 1, 0, '2025-12-26 17:15:16');
 
 -- --------------------------------------------------------
 

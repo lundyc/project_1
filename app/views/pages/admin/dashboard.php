@@ -1,5 +1,6 @@
 <?php
-require_role('platform_admin');
+require_once __DIR__ . '/../../../middleware/require_admin.php';
+require_admin();
 
 $title = 'Platform Admin';
 $base = base_path();

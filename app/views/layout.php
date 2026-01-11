@@ -10,6 +10,7 @@ auth_boot();
           <title><?= htmlspecialchars($title ?? 'Analytics') ?></title>
           <?php $base = base_path(); ?>
           <?php $cacheBuster = time(); ?>
+          <meta name="base-path" content="<?= htmlspecialchars($base ?: '') ?>">
 
           <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css?v=<?= $cacheBuster ?>" rel="stylesheet">
           <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css?v=<?= $cacheBuster ?>" rel="stylesheet">

@@ -174,33 +174,35 @@ ob_start();
           <div class="alert alert-success"><?= htmlspecialchars($success) ?></div>
 <?php endif; ?>
 
-<div class="wizard-nav mb-3">
-          <div class="wizard-step-card is-active" data-step-nav="1">
-                    <div class="wizard-step-index">1</div>
-                    <div>
-                              <div class="text-xs text-muted-alt">Step 1</div>
-                              <div class="wizard-step-title">Match details</div>
+<div class="wizard-nav-wrapper mb-3">
+          <div class="wizard-nav">
+                    <div class="wizard-step-card is-active" data-step-nav="1">
+                              <div class="wizard-step-index">1</div>
+                              <div>
+                                        <div class="text-xs text-muted-alt">Step 1</div>
+                                        <div class="wizard-step-title">Match details</div>
+                              </div>
                     </div>
-          </div>
-          <div class="wizard-step-card" data-step-nav="2">
-                    <div class="wizard-step-index">2</div>
-                    <div>
-                              <div class="text-xs text-muted-alt">Step 2</div>
-                              <div class="wizard-step-title">Video source</div>
+                    <div class="wizard-step-card" data-step-nav="2">
+                              <div class="wizard-step-index">2</div>
+                              <div>
+                                        <div class="text-xs text-muted-alt">Step 2</div>
+                                        <div class="wizard-step-title">Video source</div>
+                              </div>
                     </div>
-          </div>
-          <div class="wizard-step-card" data-step-nav="3">
-                    <div class="wizard-step-index">3</div>
-                    <div>
-                              <div class="text-xs text-muted-alt">Step 3</div>
-                              <div class="wizard-step-title">Download progress</div>
+                    <div class="wizard-step-card" data-step-nav="3">
+                              <div class="wizard-step-index">3</div>
+                              <div>
+                                        <div class="text-xs text-muted-alt">Step 3</div>
+                                        <div class="wizard-step-title">Download progress</div>
+                              </div>
                     </div>
-          </div>
-          <div class="wizard-step-card" data-step-nav="4">
-                    <div class="wizard-step-index">4</div>
-                    <div>
-                              <div class="text-xs text-muted-alt">Step 4</div>
-                              <div class="wizard-step-title">Player lineup</div>
+                    <div class="wizard-step-card" data-step-nav="4">
+                              <div class="wizard-step-index">4</div>
+                              <div>
+                                        <div class="text-xs text-muted-alt">Step 4</div>
+                                        <div class="wizard-step-title">Player lineup</div>
+                              </div>
                     </div>
           </div>
 </div>
@@ -219,7 +221,10 @@ ob_start();
       data-initial-video-type="<?= htmlspecialchars($videoType) ?>"
       data-initial-download-status="<?= htmlspecialchars($initialDownloadStatus) ?>"
       data-initial-download-progress="<?= (int)$initialDownloadProgress ?>"
-      data-initial-veo-url="<?= htmlspecialchars($initialVeoUrl) ?>">
+      data-initial-veo-url="<?= htmlspecialchars($initialVeoUrl) ?>"
+      data-saved-club-id="<?= $selectedClubId ? (int)$selectedClubId : '' ?>"
+      data-saved-home-team-id="<?= $matchHomeId ? (int)$matchHomeId : '' ?>"
+      data-saved-away-team-id="<?= $matchAwayId ? (int)$matchAwayId : '' ?>">
 
           <input type="hidden" id="matchIdInput" name="match_id" value="<?= $matchIdValue ? (int)$matchIdValue : '' ?>">
 
@@ -355,7 +360,10 @@ ob_start();
                                                             </div>
                                                   </div>
                                         </div>
-                                        <div class="d-flex justify-content-end mt-3">
+                                        <div class="d-flex justify-content-end mt-3 gap-2">
+                                                  <?php if ($isEdit): ?>
+                                                            <button type="button" class="btn btn-outline-secondary-soft btn-sm" id="step1SaveInline">Save details</button>
+                                                  <?php endif; ?>
                                                   <button type="button" class="btn btn-primary-soft" id="step1Next" <?= empty($teams) ? 'disabled' : '' ?>>Continue to video</button>
                                         </div>
                               </div>
@@ -481,8 +489,12 @@ ob_start();
           <div class="wizard-step-panel" data-step="4">
                     <?php require __DIR__ . '/wizard-step-lineup.php'; ?>
           </div>
-<?php require __DIR__ . '/wizard-step-lineup-modal.php'; ?>
+          <div class="wizard-actions mt-4">
+                    <button type="button" class="btn btn-outline-secondary-soft btn-sm" id="wizardSaveBtn">Save progress</button>
+                    <a href="<?= htmlspecialchars($base) ?>/matches" class="btn btn-secondary-soft btn-sm" id="wizardFinishBtn">Finish</a>
+          </div>
 </form>
+<?php require __DIR__ . '/wizard-step-lineup-modal.php'; ?>
 
 <div id="setupModals">
           <div id="teamCreateModal" class="setup-modal" role="dialog" aria-hidden="true" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:2100; align-items:center; justify-content:center;">

@@ -2,13 +2,37 @@
 
 require_once __DIR__ . '/db.php';
 
+function match_players_supports_captain_column(): bool
+{
+          static $supported;
+          if ($supported !== null) {
+                    return $supported;
+          }
+          try {
+                    db()->query('SELECT is_captain FROM match_players LIMIT 1');
+                    $supported = true;
+          } catch (\Throwable $e) {
+                    $supported = false;
+          }
+          return $supported;
+}
+
 function get_match_players(int $matchId): array
 {
+          $supportsCaptain = match_players_supports_captain_column();
+          $selectColumns = 'mp.id, mp.match_id, mp.team_side, mp.player_id, mp.shirt_number, mp.position_label, mp.is_starting';
+          $orderSuffix = '';
+          if ($supportsCaptain) {
+                    $selectColumns .= ', mp.is_captain';
+                    $orderSuffix = ', mp.is_captain DESC';
+          }
+          $selectColumns .= ', COALESCE(p.display_name, \'\') AS display_name';
           $stmt = db()->prepare(
-                    'SELECT id, match_id, team_side, player_id, display_name, shirt_number, position_label, is_starting
-             FROM match_players
-             WHERE match_id = :match_id
-             ORDER BY team_side ASC, is_starting DESC, shirt_number ASC, id ASC'
+                    "SELECT {$selectColumns}
+             FROM match_players mp
+             LEFT JOIN players p ON p.id = mp.player_id
+             WHERE mp.match_id = :match_id
+             ORDER BY mp.team_side ASC, mp.is_starting DESC{$orderSuffix}, mp.shirt_number ASC, mp.id ASC"
           );
 
           $stmt->execute(['match_id' => $matchId]);
@@ -19,6 +43,7 @@ function get_match_players(int $matchId): array
 function replace_match_players(int $matchId, array $players): void
 {
           $pdo = db();
+          $supportsCaptain = match_players_supports_captain_column();
           $pdo->beginTransaction();
 
           try {
@@ -26,21 +51,30 @@ function replace_match_players(int $matchId, array $players): void
                     $delete->execute(['match_id' => $matchId]);
 
                     if ($players) {
+                              $columns = 'match_id, team_side, player_id, shirt_number, position_label, is_starting';
+                              $placeholders = ':match_id, :team_side, :player_id, :shirt_number, :position_label, :is_starting';
+                              if ($supportsCaptain) {
+                                        $columns .= ', is_captain';
+                                        $placeholders .= ', :is_captain';
+                              }
                               $insert = $pdo->prepare(
-                                        'INSERT INTO match_players (match_id, team_side, player_id, display_name, shirt_number, position_label, is_starting)
-                             VALUES (:match_id, :team_side, :player_id, :display_name, :shirt_number, :position_label, :is_starting)'
+                                        "INSERT INTO match_players ({$columns})
+                             VALUES ({$placeholders})"
                               );
 
                               foreach ($players as $player) {
-                                        $insert->execute([
+                                        $params = [
                                                   'match_id' => $matchId,
                                                   'team_side' => $player['team_side'],
-                                                  'player_id' => $player['player_id'],
-                                                  'display_name' => $player['display_name'],
+                                                  'player_id' => $player['player_id'] ?? null,
                                                   'shirt_number' => $player['shirt_number'],
                                                   'position_label' => $player['position_label'],
                                                   'is_starting' => $player['is_starting'],
-                                        ]);
+                                        ];
+                                        if ($supportsCaptain) {
+                                                  $params['is_captain'] = isset($player['is_captain']) && $player['is_captain'] ? 1 : 0;
+                                        }
+                                        $insert->execute($params);
                               }
                     }
 
@@ -53,7 +87,19 @@ function replace_match_players(int $matchId, array $players): void
 
 function get_match_player(int $id): ?array
 {
-          $stmt = db()->prepare('SELECT id, match_id, team_side, player_id, display_name, shirt_number, position_label, is_starting FROM match_players WHERE id = :id LIMIT 1');
+          $supportsCaptain = match_players_supports_captain_column();
+          $selectColumns = 'mp.id, mp.match_id, mp.team_side, mp.player_id, mp.shirt_number, mp.position_label, mp.is_starting';
+          if ($supportsCaptain) {
+                    $selectColumns .= ', mp.is_captain';
+          }
+          $selectColumns .= ', COALESCE(p.display_name, \'\') AS display_name';
+          $stmt = db()->prepare(
+                    "SELECT {$selectColumns}
+             FROM match_players mp
+             LEFT JOIN players p ON p.id = mp.player_id
+             WHERE mp.id = :id
+             LIMIT 1"
+          );
           $stmt->execute(['id' => $id]);
           $row = $stmt->fetch();
 
@@ -73,38 +119,69 @@ function find_match_player_by_player(int $matchId, string $teamSide, int $player
           return $row ?: null;
 }
 
+function clear_team_captain(int $matchId, string $teamSide): void
+{
+          if (!match_players_supports_captain_column()) {
+                    return;
+          }
+          $stmt = db()->prepare('UPDATE match_players SET is_captain = 0 WHERE match_id = :match_id AND team_side = :team_side');
+          $stmt->execute([
+                    'match_id' => $matchId,
+                    'team_side' => $teamSide,
+          ]);
+}
+
 function insert_match_player(array $data): int
 {
+          $supportsCaptain = match_players_supports_captain_column();
+          $columns = 'match_id, team_side, player_id, shirt_number, position_label, is_starting';
+          $placeholders = ':match_id, :team_side, :player_id, :shirt_number, :position_label, :is_starting';
+          if ($supportsCaptain) {
+                    $columns .= ', is_captain';
+                    $placeholders .= ', :is_captain';
+          }
           $stmt = db()->prepare(
-                    'INSERT INTO match_players (match_id, team_side, player_id, display_name, shirt_number, position_label, is_starting)
-                    VALUES (:match_id, :team_side, :player_id, :display_name, :shirt_number, :position_label, :is_starting)'
+                    "INSERT INTO match_players ({$columns})
+                    VALUES ({$placeholders})"
           );
-          $stmt->execute([
+          $params = [
                     'match_id' => $data['match_id'],
                     'team_side' => $data['team_side'],
                     'player_id' => $data['player_id'] ?? null,
-                    'display_name' => $data['display_name'],
                     'shirt_number' => $data['shirt_number'] ?? null,
                     'position_label' => $data['position_label'] ?? null,
                     'is_starting' => isset($data['is_starting']) && $data['is_starting'] ? 1 : 0,
-          ]);
+          ];
+          if ($supportsCaptain) {
+                    $params['is_captain'] = isset($data['is_captain']) && $data['is_captain'] ? 1 : 0;
+          }
+          $stmt->execute($params);
 
           return (int)db()->lastInsertId();
 }
 
 function update_match_player(int $id, array $data): bool
 {
+          $supportsCaptain = match_players_supports_captain_column();
+          $setClauses = 'shirt_number = :shirt_number, position_label = :position_label, is_starting = :is_starting';
+          if ($supportsCaptain) {
+                    $setClauses .= ', is_captain = :is_captain';
+          }
           $stmt = db()->prepare(
-                    'UPDATE match_players
-                    SET shirt_number = :shirt_number, position_label = :position_label, is_starting = :is_starting
-                    WHERE id = :id'
+                    "UPDATE match_players
+                    SET {$setClauses}
+                    WHERE id = :id"
           );
-          return $stmt->execute([
+          $params = [
                     'id' => $id,
                     'shirt_number' => $data['shirt_number'] ?? null,
                     'position_label' => $data['position_label'] ?? null,
                     'is_starting' => isset($data['is_starting']) && $data['is_starting'] ? 1 : 0,
-          ]);
+          ];
+          if ($supportsCaptain) {
+                    $params['is_captain'] = isset($data['is_captain']) && $data['is_captain'] ? 1 : 0;
+          }
+          return $stmt->execute($params);
 }
 
 function delete_match_player(int $id): bool
@@ -116,7 +193,7 @@ function delete_match_player(int $id): bool
 function get_club_players(int $clubId): array
 {
           $stmt = db()->prepare(
-                    'SELECT id, display_name, primary_position
+                    'SELECT id, display_name, primary_position, team_id
              FROM players
              WHERE club_id = :club_id AND is_active = 1
              ORDER BY display_name ASC'

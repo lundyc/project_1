@@ -113,20 +113,42 @@ function get_matches_for_user(array $user): array
           $roles = $_SESSION['roles'] ?? [];
           $isPlatformAdmin = in_array('platform_admin', $roles, true);
 
+          $availableCols = ensure_match_video_columns();
+          $videoColumns = [
+                    'mv.id AS video_id',
+                    'mv.source_type AS video_source_type',
+                    'mv.source_path AS video_source_path',
+          ];
+          if (in_array('duration_seconds', $availableCols, true)) {
+                    $videoColumns[] = 'mv.duration_seconds AS video_duration_seconds';
+          }
+          $videoSelect = implode(",\n                         ", $videoColumns);
+
           $sql = 'SELECT m.id,
                          m.club_id,
                          m.home_team_id,
                          m.away_team_id,
                          m.kickoff_at,
                          m.status,
+                         m.venue,
+                         m.notes,
                          ht.name AS home_team,
                          at.name AS away_team,
                          c.name AS competition,
-                         EXISTS(SELECT 1 FROM match_videos mv WHERE mv.match_id = m.id) AS has_video
+                         cl.name AS club_name,
+                         ' . $videoSelect . ',
+                         mv.id IS NOT NULL AS has_video
                   FROM matches m
                   JOIN teams ht ON ht.id = m.home_team_id
                   JOIN teams at ON at.id = m.away_team_id
-                  LEFT JOIN competitions c ON c.id = m.competition_id';
+                  LEFT JOIN competitions c ON c.id = m.competition_id
+                  LEFT JOIN clubs cl ON cl.id = m.club_id
+                  LEFT JOIN match_videos mv ON mv.id = (
+                            SELECT id FROM match_videos
+                            WHERE match_id = m.id
+                            ORDER BY id DESC
+                            LIMIT 1
+                  )';
 
           $params = [];
 

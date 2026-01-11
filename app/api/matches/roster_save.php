@@ -41,14 +41,12 @@ $rows = [];
 $sides = [
           'home' => [
                     'player_ids' => $_POST['home_player_id'] ?? [],
-                    'names' => $_POST['home_display_name'] ?? [],
                     'numbers' => $_POST['home_shirt_number'] ?? [],
                     'positions' => $_POST['home_position_label'] ?? [],
                     'starting' => $_POST['home_is_starting'] ?? [],
           ],
           'away' => [
                     'player_ids' => $_POST['away_player_id'] ?? [],
-                    'names' => $_POST['away_display_name'] ?? [],
                     'numbers' => $_POST['away_shirt_number'] ?? [],
                     'positions' => $_POST['away_position_label'] ?? [],
                     'starting' => $_POST['away_is_starting'] ?? [],
@@ -56,33 +54,25 @@ $sides = [
 ];
 
 foreach ($sides as $teamSide => $payload) {
-          foreach ($payload['names'] as $idx => $name) {
-                    $displayName = trim((string)$name);
-                    $playerIdRaw = $payload['player_ids'][$idx] ?? '';
-                    $playerId = $playerIdRaw === '' ? null : (int)$playerIdRaw;
-                    $numberRaw = trim((string)($payload['numbers'][$idx] ?? ''));
-                    $positionLabel = trim((string)($payload['positions'][$idx] ?? ''));
-                    $isStarting = isset($payload['starting'][$idx]) ? 1 : 0;
-
-                    if ($displayName === '') {
-                              if ($playerId !== null && isset($clubPlayerMap[$playerId])) {
-                                        $displayName = $clubPlayerMap[$playerId];
-                              } else {
-                                        continue;
-                              }
+          foreach ($payload['player_ids'] as $idx => $playerIdRaw) {
+                    $playerId = trim((string)$playerIdRaw) === '' ? null : (int)$playerIdRaw;
+                    if ($playerId === null) {
+                              continue;
                     }
-
-                    if ($playerId !== null && !isset($clubPlayerMap[$playerId])) {
+                    if (!isset($clubPlayerMap[$playerId])) {
                               $_SESSION['roster_error'] = 'Invalid player selection';
                               redirect('/matches/' . $matchId . '/roster');
                     }
+
+                    $numberRaw = trim((string)($payload['numbers'][$idx] ?? ''));
+                    $positionLabel = trim((string)($payload['positions'][$idx] ?? ''));
+                    $isStarting = isset($payload['starting'][$idx]) ? 1 : 0;
 
                     $shirtNumber = $numberRaw === '' ? null : (int)$numberRaw;
 
                     $rows[] = [
                               'team_side' => $teamSide,
                               'player_id' => $playerId,
-                              'display_name' => $displayName,
                               'shirt_number' => $shirtNumber,
                               'position_label' => $positionLabel !== '' ? $positionLabel : null,
                               'is_starting' => $isStarting,

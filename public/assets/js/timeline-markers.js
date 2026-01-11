@@ -1,7 +1,7 @@
 (() => {
           'use strict';
 
-          if (window.ANNOTATIONS_ENABLED === false) {
+          if (!window.ANNOTATIONS_ENABLED) {
                     return;
           }
 

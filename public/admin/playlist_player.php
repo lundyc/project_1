@@ -101,7 +101,6 @@ if ($scriptPath === '') {
                               border: 1px solid #e2e8f0;
                               border-radius: 0.5rem;
                               padding: 1rem;
-                              box-shadow: 0 2px 5px rgba(15, 23, 42, 0.08);
                     }
                     .panel h2 {
                               margin-top: 0;

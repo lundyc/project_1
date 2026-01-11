@@ -6,7 +6,15 @@ function playlist_list_for_match(int $matchId): array
 {
           $stmt = db()->prepare(
                     'SELECT p.*,
-                            (SELECT COUNT(*) FROM playlist_clips pc WHERE pc.playlist_id = p.id) AS clip_count
+                            (SELECT COUNT(*) FROM playlist_clips pc WHERE pc.playlist_id = p.id) AS clip_count,
+                            (
+                                      SELECT GROUP_CONCAT(DISTINCT ev.team_side ORDER BY FIELD(ev.team_side, \'home\', \'away\') SEPARATOR \',\')
+                                      FROM playlist_clips pc
+                                      JOIN clips c ON c.id = pc.clip_id
+                                      JOIN events ev ON ev.id = c.event_id
+                                      WHERE pc.playlist_id = p.id
+                                        AND ev.team_side IN (\'home\', \'away\')
+                            ) AS team_sides
              FROM playlists p
              WHERE p.match_id = :match_id
                AND p.deleted_at IS NULL
@@ -227,6 +235,12 @@ function playlist_cast_row(array $row): array
           }
           if (isset($row['clip_count'])) {
                     $row['clip_count'] = (int)$row['clip_count'];
+          }
+          if (isset($row['team_sides'])) {
+                    $sides = array_filter(array_map('trim', explode(',', (string)$row['team_sides'])), fn($value) => $value !== '');
+                    $row['team_sides'] = array_values($sides);
+          } else {
+                    $row['team_sides'] = [];
           }
           return $row;
 }

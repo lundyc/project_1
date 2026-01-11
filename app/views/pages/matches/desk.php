@@ -1,4 +1,6 @@
 <?php
+$ANNOTATIONS_ENABLED = false;
+
 require_auth();
 require_once __DIR__ . '/../../../lib/match_permissions.php';
 require_once __DIR__ . '/../../../lib/match_repository.php';
@@ -12,7 +14,6 @@ require_once __DIR__ . '/../../../lib/csrf.php';
 
 $user = current_user();
 $roles = $_SESSION['roles'] ?? [];
-$ANNOTATIONS_ENABLED = false;
 
 if (!isset($match)) {
           http_response_code(404);
@@ -73,6 +74,7 @@ $tags = $tagsStmt->fetchAll();
 
 $title = 'Analysis Desk';
 $headExtras = '<link href="' . htmlspecialchars($base) . '/assets/css/desk.css?v=' . time() . '" rel="stylesheet">';
+$headExtras .= '<script>window.ANNOTATIONS_ENABLED = false;</script>';
 $projectRoot = realpath(__DIR__ . '/../../../../');
 $matchId = (int)$match['id'];
 $isVeo = (($match['video_source_type'] ?? '') === 'veo');
@@ -125,6 +127,8 @@ $deskConfig = [
           'eventTypes' => $eventTypes,
           'tags' => $tags,
           'players' => array_merge($homePlayers, $awayPlayers),
+          'homeTeamName' => $match['home_team'] ?? 'Home',
+          'awayTeamName' => $match['away_team'] ?? 'Away',
           'outcomeOptions' => $outcomeOptions,
           'outcomeOptionsByTypeId' => $outcomeOptionsByTypeId,
           'actionStack' => get_event_action_stack_status($matchId, (int)$user['id']),
@@ -164,6 +168,9 @@ $deskConfig = [
                   'playlistClipsAdd' => $base . '/api/matches/' . (int)$match['id'] . '/playlists/clips/add',
                   'playlistClipsRemove' => $base . '/api/matches/' . (int)$match['id'] . '/playlists/clips/remove',
                   'playlistClipsReorder' => $base . '/api/matches/' . (int)$match['id'] . '/playlists/clips/reorder',
+                  'playlistRename' => $base . '/api/matches/' . (int)$match['id'] . '/playlists/rename',
+                  'playlistDelete' => $base . '/api/matches/' . (int)$match['id'] . '/playlists/delete',
+                  'playlistDownload' => $base . '/api/matches/' . (int)$match['id'] . '/playlists/download',
                   'annotationsList' => $base . '/api/matches/' . (int)$match['id'] . '/annotations',
                   'annotationsCreate' => $base . '/api/matches/' . (int)$match['id'] . '/annotations/create',
                   'annotationsUpdate' => $base . '/api/matches/' . (int)$match['id'] . '/annotations/update',
@@ -171,9 +178,7 @@ $deskConfig = [
           ],
 ];
 
-$footerScripts = '<script>window.ANNOTATIONS_ENABLED = false;</script>';
-$footerScripts .= '<script>window.DeskConfig = ' . json_encode($deskConfig) . ';</script>';
-$footerScripts .= '<script>console.log(\'DeskConfig.outcomeOptionsByTypeId\', DeskConfig.outcomeOptionsByTypeId);</script>';
+$footerScripts = '<script>window.DeskConfig = ' . json_encode($deskConfig) . ';</script>';
 $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-events.js?v=' . time() . '"></script>';
 $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-annotations.js?v=' . time() . '"></script>';
 $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/timeline-markers.js?v=' . time() . '"></script>';
@@ -237,24 +242,24 @@ ob_start();
                                                             </div>
                                                   </div>
                                                   <div class="video-content">
-                                                            <div class="annotation-block">
-                                                                      <div class="video-frame">
-                                                                                <video
-                                                                                          id="deskVideoPlayer"
-                                                                                          class="video-player<?= $videoReady ? '' : ' d-none' ?>"
-                                                                                          preload="metadata"
-                                                                                          controls
-                                                                                          <?= $videoReady ? 'src="' . htmlspecialchars($videoSrc) . '"' : '' ?>>
-                                                                                </video>
-                                                                                <?php if ($ANNOTATIONS_ENABLED): ?>
+                                                            <div class="video-frame">
+                                                                      <video
+                                                                                id="deskVideoPlayer"
+                                                                                class="video-player<?= $videoReady ? '' : ' d-none' ?>"
+                                                                                preload="metadata"
+                                                                                controls
+                                                                                <?= $videoReady ? 'src="' . htmlspecialchars($videoSrc) . '"' : '' ?>>
+                                                                      </video>
+                                                                      <?php if ($ANNOTATIONS_ENABLED): ?>
                                                                                 <div class="annotation-overlay" data-annotation-overlay>
-                                                                                         <canvas id="deskAnnotationCanvas" data-annotation-canvas></canvas>
-                                                                                         <div class="annotation-text-input" data-annotation-text-input>
-                                                                                                   <input type="text" maxlength="120" placeholder="Annotation text" data-annotation-text-field>
-                                                                                                   <div class="annotation-text-actions">
-                                                                                                             <button type="button" class="ghost-btn ghost-btn-sm" data-annotation-text-save>Save</button>
-                                                                                                             <button type="button" class="ghost-btn ghost-btn-sm" data-annotation-text-cancel>Cancel</button>
-                                                                                                   </div>
+                                                                                          <canvas id="deskAnnotationCanvas" data-annotation-canvas></canvas>
+                                                                                          <div class="annotation-text-input" data-annotation-text-input>
+                                                                                                    <input type="text" maxlength="120" placeholder="Annotation text" data-annotation-text-field>
+                                                                                                    <div class="annotation-text-actions">
+                                                                                                              <button type="button" class="ghost-btn ghost-btn-sm" data-annotation-text-save>Save</button>
+                                                                                                              <button type="button" class="ghost-btn ghost-btn-sm" data-annotation-text-cancel>Cancel</button>
+                                                                                                    </div>
+                                                                                          </div>
                                                                                 </div>
                                                                                 <div class="video-timeline" data-video-timeline>
                                                                                           <div class="video-timeline-track" data-video-timeline-track aria-hidden="true">
@@ -262,9 +267,9 @@ ob_start();
                                                                                                     <div class="video-timeline-playhead" data-video-timeline-playhead></div>
                                                                                           </div>
                                                                                 </div>
-                                                                                <?php endif; ?>
-                                                                      </div>
-                                                                      <?php if ($ANNOTATIONS_ENABLED): ?>
+                                                                      <?php endif; ?>
+                                                            </div>
+                                                            <?php if ($ANNOTATIONS_ENABLED): ?>
                                                                       <div class="annotation-toolbar" data-annotation-toolbar>
                                                                                 <div class="annotation-toolbar-row">
                                                                                           <button type="button" class="toggle-btn annotation-visibility-btn is-active" data-annotation-visibility-toggle>Hide annotations</button>
@@ -296,8 +301,7 @@ ob_start();
                                                                                           <button type="button" class="ghost-btn ghost-btn-sm annotation-delete-btn" data-annotation-delete disabled>Delete</button>
                                                                                 </div>
                                                                       </div>
-                                                                      <?php endif; ?>
-                                                            </div>
+                                                            <?php endif; ?>
                                                             <div id="deskVideoPlaceholder" class="text-center text-muted mb-3<?= $videoReady ? ' d-none' : '' ?>">
                                                                       <?= htmlspecialchars($placeholderMessage) ?>
                                                             </div>
@@ -332,6 +336,52 @@ ob_start();
                                                             </div>
                                                   </div>
                                         </div>
+                              <div class="panel-dark timeline-panel timeline-panel-full">
+                                        <div class="panel-row">
+                                                  <div class="text-sm text-subtle">Timeline</div>
+                                                  <div class="timeline-actions">
+                                                            <button id="timelineDeleteAll" class="ghost-btn ghost-btn-sm desk-editable" type="button" data-tooltip="Delete all events" aria-label="Delete all events">
+                                                                      <i class="fa-solid fa-trash" aria-hidden="true"></i>
+                                                            </button>
+                                                            <div class="timeline-undo-redo">
+                                                                      <button class="ghost-btn ghost-btn-sm desk-editable" id="eventUndoBtn" type="button" data-tooltip="Undo" disabled aria-label="Undo">
+                                                                                <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>
+                                                                      </button>
+                                                                      <button class="ghost-btn ghost-btn-sm desk-editable" id="eventRedoBtn" type="button" data-tooltip="Redo" disabled aria-label="Redo">
+                                                                                <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
+                                                                      </button>
+                                                            </div>
+                                                            <div class="timeline-mode">
+                                                                     <button type="button" class="ghost-btn ghost-btn-sm timeline-mode-btn is-active" data-mode="list">List</button>
+                                                                     <button type="button" class="ghost-btn ghost-btn-sm timeline-mode-btn" data-mode="matrix">Matrix</button>
+                                                            </div>
+                                                            <div class="timeline-filters">
+                                                                      <select id="filterTeam" class="input-pill input-pill-sm">
+                                                                                <option value="">All teams</option>
+                                                                                <option value="home">Home</option>
+                                                                                <option value="away">Away</option>
+                                                                                <option value="unknown">Unknown</option>
+                                                                      </select>
+                                                                      <select id="filterType" class="input-pill input-pill-sm">
+                                                                                <option value="">All types</option>
+                                                                                <?php foreach ($eventTypes as $type): ?>
+                                                                                          <option value="<?= (int)$type['id'] ?>"><?= htmlspecialchars($type['label']) ?></option>
+                                                                                <?php endforeach; ?>
+                                                                      </select>
+                                                                      <select id="filterPlayer" class="input-pill input-pill-sm">
+                                                                                <option value="">All players</option>
+                                                                                <?php foreach (array_merge($homePlayers, $awayPlayers) as $p): ?>
+                                                                                          <option value="<?= (int)$p['id'] ?>"><?= htmlspecialchars($p['display_name']) ?></option>
+                                                                                <?php endforeach; ?>
+                                                                      </select>
+                                                            </div>
+                                                  </div>
+                                        </div>
+                                        <div class="timeline-scroll">
+                                                  <div class="timeline-view is-active" id="timelineList"></div>
+                                                  <div class="timeline-view" id="timelineMatrix"></div>
+                                        </div>
+                              </div>
                               </div>
 
                               <div class="desk-right">
@@ -346,14 +396,19 @@ ob_start();
 
                                                   <div class="period-controls period-btn-row">
                                                             <button class="ghost-btn ghost-btn-sm desk-editable period-btn period-start" id="btnPeriodFirstStart" type="button" data-period-key="first_half" data-period-action="start" data-period-label="First Half" data-period-event="period_start">▶ 1H</button>
-                                                            <button class="ghost-btn ghost-btn-sm desk-editable period-btn period-end" id="btnPeriodFirstEnd" type="button" data-period-key="first_half" data-period-action="end" data-period-label="First Half" data-period-event="period_end">■ 1H</button>
                                                             <button class="ghost-btn ghost-btn-sm desk-editable period-btn period-start" id="btnPeriodSecondStart" type="button" data-period-key="second_half" data-period-action="start" data-period-label="Second Half" data-period-event="period_start">▶ 2H</button>
-                                                            <button class="ghost-btn ghost-btn-sm desk-editable period-btn period-end" id="btnPeriodSecondEnd" type="button" data-period-key="second_half" data-period-action="end" data-period-label="Second Half" data-period-event="period_end">■ 2H</button>
                                                             <button class="ghost-btn ghost-btn-sm desk-editable period-btn period-start" id="btnPeriodET1Start" type="button" data-period-key="extra_time_1" data-period-action="start" data-period-label="Extra Time 1" data-period-event="period_start">▶ ET1</button>
+
+                                                            <button class="ghost-btn ghost-btn-sm desk-editable period-btn period-end" id="btnPeriodFirstEnd" type="button" data-period-key="first_half" data-period-action="end" data-period-label="First Half" data-period-event="period_end">■ 1H</button>
+                                                            <button class="ghost-btn ghost-btn-sm desk-editable period-btn period-end" id="btnPeriodSecondEnd" type="button" data-period-key="second_half" data-period-action="end" data-period-label="Second Half" data-period-event="period_end">■ 2H</button>
                                                             <button class="ghost-btn ghost-btn-sm desk-editable period-btn period-end" id="btnPeriodET1End" type="button" data-period-key="extra_time_1" data-period-action="end" data-period-label="Extra Time 1" data-period-event="period_end">■ ET1</button>
+
                                                             <button class="ghost-btn ghost-btn-sm desk-editable period-btn period-start" id="btnPeriodET2Start" type="button" data-period-key="extra_time_2" data-period-action="start" data-period-label="Extra Time 2" data-period-event="period_start">▶ ET2</button>
-                                                            <button class="ghost-btn ghost-btn-sm desk-editable period-btn period-end" id="btnPeriodET2End" type="button" data-period-key="extra_time_2" data-period-action="end" data-period-label="Extra Time 2" data-period-event="period_end">■ ET2</button>
                                                             <button class="ghost-btn ghost-btn-sm desk-editable period-btn period-start" id="btnPeriodPenaltiesStart" type="button" data-period-key="penalties" data-period-action="start" data-period-label="Penalties" data-period-event="period_start">▶ P</button>
+                                                            
+                                                            <button class="ghost-btn ghost-btn-sm desk-editable period-btn" id="blank_space_button" type="button" disabled></button>
+
+                                                            <button class="ghost-btn ghost-btn-sm desk-editable period-btn period-end" id="btnPeriodET2End" type="button" data-period-key="extra_time_2" data-period-action="end" data-period-label="Extra Time 2" data-period-event="period_end">■ ET2</button>
                                                             <button class="ghost-btn ghost-btn-sm desk-editable period-btn period-end" id="btnPeriodPenaltiesEnd" type="button" data-period-key="penalties" data-period-action="end" data-period-label="Penalties" data-period-event="period_end">■ P</button>
                                                   </div>
 
@@ -363,100 +418,122 @@ ob_start();
                                                   </div>
 
                                                   <div id="quickTagBoard" class="qt-board"></div>
-                                                  <div id="tagToast" class="desk-toast" style="display:none;"></div>
-                                                  <div id="playlistsPanel" class="panel-dark playlists-panel">
-                                                            <div class="panel-row">
-                                                                      <div>
-                                                                                <div class="text-sm text-subtle">Playlists</div>
-                                                                                <div class="text-xs text-muted-alt">Curate clips for replay</div>
-                                                                      </div>
-                                                                      <button id="playlistRefreshBtn" type="button" class="ghost-btn ghost-btn-sm">Refresh</button>
-                                                            </div>
-                                                            <form id="playlistCreateForm" class="playlist-create-form">
-                                                                      <input id="playlistTitleInput" class="input-dark" type="text" name="title" placeholder="New playlist title" autocomplete="off">
-                                                                      <button type="submit" class="ghost-btn ghost-btn-sm">Create</button>
-                                                            </form>
-                                                            <div id="playlistList" class="playlist-list text-sm text-muted-alt">Loading playlists…</div>
-                                                            <div class="playlist-mode">
-                                                                      <div class="playlist-mode-header">
+                                                  <div id="goalPlayerModal" class="goal-player-modal" role="dialog" aria-modal="true" aria-hidden="true" hidden>
+                                                            <div class="goal-player-modal-backdrop" data-goal-modal-close></div>
+                                                            <div class="panel-dark goal-player-modal-card">
+                                                                      <div class="goal-player-modal-header">
                                                                                 <div>
-                                                                                          <div class="text-xs text-muted-alt">Active playlist</div>
-                                                                                          <div id="playlistActiveTitle" class="text-sm text-subtle">Select a playlist to begin</div>
+                                                                                          <div class="text-sm text-subtle">Goal scorer</div>
+                                                                                          <div class="text-xs text-muted-alt">Pick a player to log the goal</div>
                                                                                 </div>
-                                                                                <button id="playlistAddClipBtn" type="button" class="ghost-btn ghost-btn-sm" disabled>Add clip</button>
+                                                                                <div class="goal-player-modal-header-actions">
+                                                                                          <button type="button" class="ghost-btn ghost-btn-sm" data-goal-unknown>Unknown player</button>
+                                                                                          <button type="button" class="editor-modal-close" data-goal-modal-close aria-label="Close goal scorer modal">✕</button>
+                                                                                </div>
                                                                       </div>
-                                                                      <div class="playlist-controls">
-                                                                                <button id="playlistPrevBtn" type="button" class="ghost-btn ghost-btn-sm" disabled>Previous clip</button>
-                                                                                <button id="playlistNextBtn" type="button" class="ghost-btn ghost-btn-sm" disabled>Next clip</button>
-                                                                      </div>
-                                                                      <div id="playlistClips" class="playlist-clips text-sm text-muted-alt">No playlist selected.</div>
+                                                                      <div id="goalPlayerList" class="goal-player-modal-list"></div>
                                                             </div>
                                                   </div>
+                                                  <div id="shotPlayerModal" class="goal-player-modal shot-player-modal" role="dialog" aria-modal="true" aria-hidden="true" hidden>
+                                                            <div class="goal-player-modal-backdrop" data-shot-modal-close></div>
+                                                            <div class="panel-dark goal-player-modal-card">
+                                                                      <div class="goal-player-modal-header">
+                                                                                <div>
+                                                                                          <div class="text-sm text-subtle">Shot recorder</div>
+                                                                                          <div class="text-xs text-muted-alt">Select the shooter and outcome</div>
+                                                                                </div>
+                                                                                <div class="goal-player-modal-header-actions">
+                                                                                          <button type="button" class="ghost-btn ghost-btn-sm" data-shot-unknown>Unknown player</button>
+                                                                                          <button type="button" class="editor-modal-close" data-shot-modal-close aria-label="Close shot modal">✕</button>
+                                                                                </div>
+                                                                      </div>
+                                                                      <div class="shot-outcome-controls">
+                                                                                <button type="button" class="ghost-btn shot-outcome-btn" data-shot-outcome="on_target">On Target</button>
+                                                                                <button type="button" class="ghost-btn shot-outcome-btn" data-shot-outcome="off_target">Off Target</button>
+                                                                      </div>
+                                                                      <div id="shotPlayerList" class="goal-player-modal-list shot-player-modal-list"></div>
+                                                            </div>
+                                                  </div>
+                                                  <div id="cardPlayerModal" class="goal-player-modal card-player-modal" role="dialog" aria-modal="true" aria-hidden="true" hidden>
+                                                            <div class="goal-player-modal-backdrop" data-card-modal-close></div>
+                                                            <div class="panel-dark goal-player-modal-card">
+                                                                      <div class="goal-player-modal-header">
+                                                                                <div>
+                                                                                          <div class="text-sm text-subtle">Card recipient</div>
+                                                                                          <div class="text-xs text-muted-alt">Pick a player to log the card</div>
+                                                                                </div>
+                                                                                <div class="goal-player-modal-header-actions">
+                                                                                          <button type="button" class="ghost-btn ghost-btn-sm" data-card-unknown>Unknown player</button>
+                                                                                          <button type="button" class="editor-modal-close" data-card-modal-close aria-label="Close card modal">✕</button>
+                                                                                </div>
+                                                                      </div>
+                                                                      <div id="cardPlayerList" class="goal-player-modal-list"></div>
+                                                            </div>
+                                                  </div>
+                                                  <div id="tagToast" class="desk-toast" style="display:none;"></div>
+                                    
                                         </div>
-
-                              </div>
-                    </div>
-
-                    <div class="panel-dark timeline-panel timeline-panel-full">
-                              <div class="panel-row">
-                                        <div class="text-sm text-subtle">Timeline</div>
-                                        <div class="timeline-actions">
-                                                  <button id="timelineDeleteAll" class="ghost-btn ghost-btn-sm desk-editable" type="button">Delete all</button>
-                                                  <div class="timeline-undo-redo">
-                                                            <button class="ghost-btn ghost-btn-sm desk-editable" id="eventUndoBtn" type="button" disabled>Undo</button>
-                                                            <button class="ghost-btn ghost-btn-sm desk-editable" id="eventRedoBtn" type="button" disabled>Redo</button>
-                                                  </div>
-                                                  <div class="timeline-mode">
-                                                            <button type="button" class="ghost-btn ghost-btn-sm timeline-mode-btn is-active" data-mode="list">List</button>
-                                                            <button type="button" class="ghost-btn ghost-btn-sm timeline-mode-btn" data-mode="matrix">Matrix</button>
-                                                  </div>
-                                                  <div class="timeline-filters">
-                                                            <select id="filterTeam" class="input-pill input-pill-sm">
-                                                                      <option value="">All teams</option>
-                                                                      <option value="home">Home</option>
-                                                                      <option value="away">Away</option>
-                                                                      <option value="unknown">Unknown</option>
-                                                            </select>
-                                                            <select id="filterType" class="input-pill input-pill-sm">
-                                                                      <option value="">All types</option>
-                                                                      <?php foreach ($eventTypes as $type): ?>
-                                                                                <option value="<?= (int)$type['id'] ?>"><?= htmlspecialchars($type['label']) ?></option>
-                                                                      <?php endforeach; ?>
-                                                            </select>
-                                                            <select id="filterPlayer" class="input-pill input-pill-sm">
-                                                                      <option value="">All players</option>
-                                                                      <?php foreach (array_merge($homePlayers, $awayPlayers) as $p): ?>
-                                                                                <option value="<?= (int)$p['id'] ?>"><?= htmlspecialchars($p['display_name']) ?></option>
-                                                                      <?php endforeach; ?>
-                                                            </select>
-                                                  </div>
-                                                  <div class="timeline-zoom-controls">
-                                                            <button type="button" class="ghost-btn ghost-btn-sm" id="timelineZoomOut">
-                                                                      <svg viewBox="0 0 16 16" aria-hidden="true">
-                                                                                <circle cx="6.5" cy="6.5" r="4.5" stroke-width="1.6" stroke="currentColor" fill="none" />
-                                                                                <line x1="4" y1="6.5" x2="9" y2="6.5" stroke-width="1.6" stroke="currentColor" stroke-linecap="round" />
-                                                                                <line x1="10.5" y1="10.5" x2="14.5" y2="14.5" stroke-width="1.6" stroke="currentColor" stroke-linecap="round" />
-                                                                      </svg>
-                                                                      <span>Zoom out</span>
-                                                            </button>
-                                                            <button type="button" class="ghost-btn ghost-btn-sm" id="timelineZoomIn">
-                                                                      <svg viewBox="0 0 16 16" aria-hidden="true">
-                                                                                <circle cx="6.5" cy="6.5" r="4.5" stroke-width="1.6" stroke="currentColor" fill="none" />
-                                                                                <line x1="6.5" y1="4" x2="6.5" y2="9" stroke-width="1.6" stroke="currentColor" stroke-linecap="round" />
-                                                                                <line x1="4" y1="6.5" x2="9" y2="6.5" stroke-width="1.6" stroke="currentColor" stroke-linecap="round" />
-                                                                                <line x1="10.5" y1="10.5" x2="14.5" y2="14.5" stroke-width="1.6" stroke="currentColor" stroke-linecap="round" />
-                                                                      </svg>
-                                                                      <span>Zoom in</span>
-                                                            </button>
-                                                            <button type="button" class="ghost-btn ghost-btn-sm" id="timelineZoomReset">Reset</button>
-                                                  </div>
+              <div id="playlistsPanel" class="panel-dark playlists-panel">
+                    <div class="playlist-panel-header">
+                              <div class="playlist-panel-heading">
+                                        <div>
+                                                  <div class="text-sm text-subtle">Playlists</div>
+                                                  <div class="text-xs text-muted-alt">Curate clips for replay</div>
                                         </div>
                               </div>
-                              <div class="timeline-scroll">
-                                        <div class="timeline-view is-active" id="timelineList"></div>
-                                        <div class="timeline-view" id="timelineMatrix"></div>
+                              <div class="playlist-panel-controls">
+                                        <div class="playlist-control-buttons">
+                                                  <button id="playlistFilterBtn" type="button" class="ghost-btn ghost-btn-sm playlist-filter-btn" aria-label="Filter playlists" aria-expanded="false">
+                                                            <i class="fa-solid fa-filter" aria-hidden="true"></i>
+                                                  </button>
+                                                  <button id="playlistSearchToggle" type="button" class="ghost-btn ghost-btn-sm playlist-toggle-btn" aria-label="Search playlists">
+                                                            <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                                                  </button>
+                                                  <button id="playlistCreateToggle" type="button" class="ghost-btn ghost-btn-sm playlist-toggle-btn" aria-label="Create playlist">
+                                                            <i class="fa-solid fa-plus" aria-hidden="true"></i>
+                                                  </button>
+                                        </div>
+                                        <div id="playlistSearchRow" class="playlist-input-row">
+                                                  <div class="playlist-search-wrapper">
+                                                            <input id="playlistSearchInput" class="input-dark playlist-search-input" type="text" placeholder="Search playlists…" autocomplete="off">
+                                                            <span class="playlist-search-icon" aria-hidden="true"><i class="fa-solid fa-magnifying-glass"></i></span>
+                                                  </div>
+                                        </div>
+                                        <div id="playlistCreateRow" class="playlist-input-row">
+                                                  <form id="playlistCreateForm" class="playlist-create-form" autocomplete="off">
+                                                            <input id="playlistTitleInput" class="input-dark playlist-title-input" type="text" name="title" placeholder="New playlist title" autocomplete="off" aria-label="New playlist title">
+                                                            <button type="submit" class="ghost-btn ghost-btn-sm playlist-create-btn" aria-label="Create playlist">
+                                                                      <i class="fa-solid fa-plus" aria-hidden="true"></i>
+                                                            </button>
+                                                  </form>
+                                        </div>
                               </div>
                     </div>
+                    <div id="playlistFilterPopover" class="playlist-filter-popover" hidden>
+                              <button type="button" class="playlist-filter-option" data-team="">All teams</button>
+                              <button type="button" class="playlist-filter-option" data-team="home">Home - <?= htmlspecialchars($match['home_team'] ?? 'Home') ?></button>
+                              <button type="button" class="playlist-filter-option" data-team="away">Away - <?= htmlspecialchars($match['away_team'] ?? 'Away') ?></button>
+                    </div>
+                    <div id="playlistList" class="playlist-list text-sm text-muted-alt">Loading playlists…</div>
+                    <div class="playlist-mode">
+                              <div class="playlist-mode-header">
+                                        <div>
+                                                  <div class="text-xs text-muted-alt">Clips</div>
+                                                  <div id="playlistActiveTitle" class="text-sm text-subtle">click on playlist to show clips</div>
+                                        </div>
+                                        <button id="playlistAddClipBtn" type="button" class="ghost-btn ghost-btn-sm" disabled aria-label="Add clip">
+                                                  <i class="fa-solid fa-plus" aria-hidden="true"></i>
+                                        </button>
+                              </div>
+                              <div class="playlist-controls">
+                                        <button id="playlistPrevBtn" type="button" class="ghost-btn ghost-btn-sm" disabled>Previous clip</button>
+                                        <button id="playlistNextBtn" type="button" class="ghost-btn ghost-btn-sm" disabled>Next clip</button>
+                              </div>
+                              <div id="playlistClips" class="playlist-clips text-sm text-muted-alt">No playlist selected.</div>
+                    </div>
+          </div>
+    </div>
+</div>
 
                     <div id="editorPanel" class="editor-modal is-hidden" role="dialog" aria-modal="true" aria-labelledby="editorTitle">
                               <div class="editor-modal-backdrop" data-editor-close></div>

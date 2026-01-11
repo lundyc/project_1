@@ -60,20 +60,18 @@ ob_start();
                                                             <div class="table-responsive">
                                                                       <table class="table table-dark table-sm align-middle mb-0">
                                                                                 <thead>
-                                                                                          <tr>
-                                                                                                    <th scope="col">Player</th>
-                                                                                                    <th scope="col">Display name</th>
-                                                                                                    <th scope="col">#</th>
-                                                                                                    <th scope="col">Pos</th>
-                                                                                                    <th scope="col">Start</th>
-                                                                                          </tr>
+                                                                                    <tr>
+                                                                                              <th scope="col">Player</th>
+                                                                                              <th scope="col">#</th>
+                                                                                              <th scope="col">Pos</th>
+                                                                                              <th scope="col">Start</th>
+                                                                                    </tr>
                                                                                 </thead>
                                                                                 <tbody>
                                                                                           <?php for ($i = 0; $i < $homeRowCount; $i++): ?>
                                                                                                     <?php
                                                                                                     $row = $homePlayers[$i] ?? null;
                                                                                                     $playerId = $row['player_id'] ?? null;
-                                                                                                    $displayName = roster_row_value($homePlayers, $i, 'display_name');
                                                                                                     $shirt = roster_row_value($homePlayers, $i, 'shirt_number');
                                                                                                     $pos = roster_row_value($homePlayers, $i, 'position_label');
                                                                                                     $starting = $row ? (bool)$row['is_starting'] : false;
@@ -88,9 +86,6 @@ ob_start();
                                                                                                                                             </option>
                                                                                                                                   <?php endforeach; ?>
                                                                                                                         </select>
-                                                                                                              </td>
-                                                                                                              <td>
-                                                                                                                        <input type="text" name="home_display_name[<?= $i ?>]" class="form-control form-control-sm input-dark" value="<?= htmlspecialchars($displayName) ?>" placeholder="Name" <?= $i >= $homeRowCount ? 'disabled' : '' ?>>
                                                                                                               </td>
                                                                                                               <td style="max-width:70px">
                                                                                                                         <input type="number" name="home_shirt_number[<?= $i ?>]" class="form-control form-control-sm input-dark" min="0" step="1" value="<?= htmlspecialchars($shirt) ?>">
@@ -118,20 +113,18 @@ ob_start();
                                                             <div class="table-responsive">
                                                                       <table class="table table-dark table-sm align-middle mb-0">
                                                                                 <thead>
-                                                                                          <tr>
-                                                                                                    <th scope="col">Player</th>
-                                                                                                    <th scope="col">Display name</th>
-                                                                                                    <th scope="col">#</th>
-                                                                                                    <th scope="col">Pos</th>
-                                                                                                    <th scope="col">Start</th>
-                                                                                          </tr>
+                                                                                    <tr>
+                                                                                              <th scope="col">Player</th>
+                                                                                              <th scope="col">#</th>
+                                                                                              <th scope="col">Pos</th>
+                                                                                              <th scope="col">Start</th>
+                                                                                    </tr>
                                                                                 </thead>
                                                                                 <tbody>
                                                                                           <?php for ($i = 0; $i < $awayRowCount; $i++): ?>
                                                                                                     <?php
                                                                                                     $row = $awayPlayers[$i] ?? null;
                                                                                                     $playerId = $row['player_id'] ?? null;
-                                                                                                    $displayName = roster_row_value($awayPlayers, $i, 'display_name');
                                                                                                     $shirt = roster_row_value($awayPlayers, $i, 'shirt_number');
                                                                                                     $pos = roster_row_value($awayPlayers, $i, 'position_label');
                                                                                                     $starting = $row ? (bool)$row['is_starting'] : false;
@@ -146,9 +139,6 @@ ob_start();
                                                                                                                                             </option>
                                                                                                                                   <?php endforeach; ?>
                                                                                                                         </select>
-                                                                                                              </td>
-                                                                                                              <td>
-                                                                                                                        <input type="text" name="away_display_name[<?= $i ?>]" class="form-control form-control-sm input-dark" value="<?= htmlspecialchars($displayName) ?>" placeholder="Name">
                                                                                                               </td>
                                                                                                               <td style="max-width:70px">
                                                                                                                         <input type="number" name="away_shirt_number[<?= $i ?>]" class="form-control form-control-sm input-dark" min="0" step="1" value="<?= htmlspecialchars($shirt) ?>">

@@ -16,6 +16,97 @@ $safe = function (string $key) use ($byType, $defaultCounts) {
           return $byType[$key] ?? $defaultCounts;
 };
 
+function gauge_arc_path(float $share, float $offset): ?string
+{
+          if ($share <= 0) {
+                    return null;
+          }
+          $startAngle = M_PI + M_PI * $offset;
+          $endAngle = M_PI + M_PI * min(1, $offset + $share);
+          $startX = 60 + 50 * cos($startAngle);
+          $startY = 60 + 50 * sin($startAngle);
+          $endX = 60 + 50 * cos($endAngle);
+          $endY = 60 + 50 * sin($endAngle);
+          $largeArcFlag = ($share >= 1 - 1e-6) ? 1 : 0;
+          return sprintf('M %.2f %.2f A 50 50 0 %d 1 %.2f %.2f', $startX, $startY, $largeArcFlag, $endX, $endY);
+}
+
+function build_overview_gauge(int $home, int $away): array
+{
+          $total = max(0, $home + $away);
+          if ($total === 0) {
+                    return [
+                              'homePercent' => 0,
+                              'awayPercent' => 0,
+                              'total' => 0,
+                              'homePath' => null,
+                              'awayPath' => null,
+                    ];
+          }
+          $homeShare = $home / $total;
+          $awayShare = $away / $total;
+          $clampedHome = round(min(1, max(0, $homeShare)), 10);
+          $clampedAway = round(min(1, max(0, $awayShare)), 10);
+          return [
+                    'homePercent' => (int)round($clampedHome * 100),
+                    'awayPercent' => (int)round($clampedAway * 100),
+                    'total' => $total,
+                    'homePath' => gauge_arc_path($clampedHome, 0),
+                    'awayPath' => gauge_arc_path($clampedAway, $clampedHome),
+          ];
+}
+
+function render_graph_card(string $label, int $homeVal, int $awayVal, string $note = ''): string
+{
+          $gauge = build_overview_gauge($homeVal, $awayVal);
+          $ariaLabel = htmlspecialchars(sprintf('%s home share %d%% away share %d%%', $label, $gauge['homePercent'], $gauge['awayPercent']));
+          ob_start();
+          ?>
+          <div class="overview-graph-card">
+                    <div class="phase2-card-label"><?= htmlspecialchars($label) ?></div>
+                    <?php if ($note): ?>
+                              <div class="phase2-highlight"><?= htmlspecialchars($note) ?></div>
+                    <?php endif; ?>
+                    <div class="overview-gauge-wrapper">
+                              <div class="overview-gauge" role="img" aria-label="<?= $ariaLabel ?>">
+                                        <svg viewBox="0 0 120 60" aria-hidden="true">
+                                                  <path class="overview-gauge-base" d="M 10 60 A 50 50 0 0 1 110 60"></path>
+                                                  <?php if ($gauge['homePath']): ?>
+                                                            <path class="overview-gauge-fill overview-gauge-home" d="<?= $gauge['homePath'] ?>"></path>
+                                                  <?php endif; ?>
+                                                  <?php if ($gauge['awayPath']): ?>
+                                                            <path class="overview-gauge-fill overview-gauge-away" d="<?= $gauge['awayPath'] ?>"></path>
+                                                  <?php endif; ?>
+                                        </svg>
+                                        <div class="overview-gauge-labels">
+                                                  <span class="overview-gauge-label-home"><?= $gauge['homePercent'] ?>%</span>
+                                                  <span class="overview-gauge-label-away"><?= $gauge['awayPercent'] ?>%</span>
+                                        </div>
+                                        <div class="overview-gauge-center">
+                                                  <div class="overview-gauge-percent"><?= $gauge['homePercent'] ?>%</div>
+                                                  <div class="overview-gauge-caption">Home share</div>
+                                        </div>
+                              </div>
+                              <div class="overview-stats">
+                                        <div class="overview-stats-row overview-stats-labels">
+                                                  <span class="overview-stats-label">Home</span>
+                                                  <span class="overview-stats-label">Away</span>
+                                        </div>
+                                        <div class="overview-stats-row overview-stats-values">
+                                                  <span><?= $homeVal ?></span>
+                                                  <span><?= $awayVal ?></span>
+                                        </div>
+                                        <div class="overview-stats-row overview-stats-values">
+                                                  <span><?= $gauge['homePercent'] ?>%</span>
+                                                  <span><?= $gauge['awayPercent'] ?>%</span>
+                                        </div>
+                              </div>
+                    </div>
+          </div>
+          <?php
+          return ob_get_clean();
+}
+
 $phase2 = $derivedStats['phase_2'] ?? []; // Phase 2 summary data from derived_stats.payload_json
 $phase2ByPeriod = $phase2['by_period'] ?? [];
 $phase2Buckets = $phase2['per_15_minute'] ?? [];
@@ -182,7 +273,12 @@ $headExtras = <<<HTML
 }
 .phase2-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px;
+}
+.phase2-panel-column {
+          display: flex;
+          flex-direction: column;
           gap: 12px;
 }
 .phase2-panel {
@@ -243,36 +339,116 @@ $headExtras = <<<HTML
 .distribution-table {
           display: flex;
           flex-direction: column;
+          gap: 10px;
+}
+.distribution-legend {
+          display: flex;
+          flex-wrap: wrap;
           gap: 8px;
+          font-size: 11px;
+          letter-spacing: 0.06em;
+          color: #94a3b8;
+}
+.distribution-legend-pill {
+          text-transform: uppercase;
+          border-radius: 999px;
+          padding: 4px 10px;
+          font-weight: 600;
+          font-size: 10px;
+}
+.distribution-legend-pill-home {
+          background: rgba(59, 130, 246, 0.15);
+          color: #3b82f6;
+}
+.distribution-legend-pill-away {
+          background: rgba(251, 146, 60, 0.15);
+          color: #fb923c;
+}
+.distribution-legend-pill-unknown {
+          background: rgba(148, 163, 184, 0.15);
+          color: #94a3b8;
 }
 .distribution-row {
           display: flex;
+          flex-direction: column;
+          gap: 10px;
+          padding: 14px;
+          border: 1px solid #1f2f4a;
+          border-radius: 10px;
+          background: #0f1c33;
+}
+.distribution-row-heading {
+          display: flex;
           justify-content: space-between;
           align-items: center;
-          padding: 10px 12px;
-          border: 1px solid #1f2f4a;
-          border-radius: 8px;
-          background: #0f1c33;
+          gap: 12px;
 }
 .distribution-label {
           font-size: 12px;
           font-weight: 600;
           color: #cbd5e1;
 }
-.distribution-values {
-          display: flex;
-          gap: 12px;
-          font-weight: 600;
-}
-.distribution-unknown {
+.distribution-total {
           font-size: 11px;
           color: #94a3b8;
+}
+.distribution-info {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+}
+.distribution-chart {
+          display: flex;
+          height: 10px;
+          border-radius: 999px;
+          overflow: hidden;
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.distribution-segment {
+          display: block;
+          height: 100%;
+}
+.distribution-segment-home {
+          background: linear-gradient(90deg, #3b82f6, #0ea5e9);
+}
+.distribution-segment-away {
+          background: linear-gradient(90deg, #fb923c, #f97316);
+}
+.distribution-segment-unknown {
+          background: linear-gradient(90deg, #94a3b8, #64748b);
+}
+.distribution-pill-row {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+}
+.distribution-pill {
+          font-size: 11px;
+          font-weight: 600;
+          padding: 6px 12px;
+          border-radius: 999px;
+          color: #f8fafc;
+          text-transform: none;
+}
+.distribution-pill-home {
+          background: linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(14, 165, 233, 0.45));
+}
+.distribution-pill-away {
+          background: linear-gradient(135deg, rgba(251, 146, 60, 0.25), rgba(249, 115, 22, 0.45));
+}
+.distribution-pill-unknown {
+          background: linear-gradient(135deg, rgba(148, 163, 184, 0.25), rgba(100, 116, 139, 0.45));
 }
 @media (max-width: 768px) {
           .phase2-grid {
                     grid-template-columns: 1fr;
           }
-          .distribution-row {
+          .distribution-row-heading {
+                    flex-direction: column;
+                    align-items: flex-start;
+          }
+          .distribution-pill-row {
                     flex-direction: column;
                     align-items: flex-start;
           }
@@ -397,6 +573,148 @@ $headExtras = <<<HTML
 }
 .momentum-bar-away {
           background: linear-gradient(90deg, #fb923c, #f97316);
+}
+.match-overview-graphs {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px;
+          margin-top: 12px;
+}
+.overview-graph-card {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          padding: 16px;
+          background: #0d1526;
+          border: 1px solid #1d2740;
+          border-radius: 14px;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+.overview-graph-card .phase2-card-label {
+          margin-bottom: 0;
+          text-transform: uppercase;
+          letter-spacing: 0.18em;
+          font-size: 13px;
+          color: #a5b7cf;
+}
+.overview-gauge-wrapper {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 16px;
+}
+.overview-gauge {
+          position: relative;
+          width: 160px;
+          min-height: 80px;
+          margin: 0 auto;
+}
+.overview-gauge svg {
+          width: 160px;
+          height: 80px;
+          display: block;
+}
+.overview-gauge path {
+          fill: none;
+          stroke-width: 14;
+          stroke-linecap: butt;
+}
+.overview-gauge-base {
+          stroke: rgba(255, 255, 255, 0.15);
+}
+.overview-gauge-fill {
+          opacity: 0.95;
+}
+.overview-gauge-fill.overview-gauge-away {
+          stroke: #f97316;
+}
+.overview-gauge-fill.overview-gauge-home {
+          stroke: #3b82f6;
+}
+.overview-gauge-center {
+          position: absolute;
+          top: 36px;
+          left: 50%;
+          transform: translateX(-50%);
+          text-align: center;
+}
+.overview-gauge-percent {
+          font-size: 1.4rem;
+          font-weight: 700;
+          color: #ffffff;
+}
+.overview-gauge-caption {
+          font-size: 10px;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          color: #94a3b8;
+}
+.overview-gauge-labels {
+          position: absolute;
+          top: 6px;
+          left: 10px;
+          right: 10px;
+          display: flex;
+          justify-content: space-between;
+          font-size: 11px;
+          text-transform: uppercase;
+}
+.overview-gauge-label-home {
+          color: #3b82f6;
+}
+.overview-gauge-label-away {
+          color: #f97316;
+          text-align: right;
+}
+.overview-stats {
+          width: 100%;
+}
+.overview-stats-row {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 8px;
+}
+.overview-stats-labels {
+          text-transform: uppercase;
+          justify-items: center;
+          text-align: center;
+                    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+          padding-bottom: 2px;
+}
+
+.overview-stats-row span {
+          text-align: center;
+}
+.overview-stats-label {
+          font-size: 10px;
+          letter-spacing: 0.12em;
+          color: #8fa4c7;
+
+}
+.overview-stats-label:last-child {
+          text-align: right;
+}
+.overview-stats-values {
+          font-size: 14px;
+          font-weight: 600;
+          color: #fdfdfd;
+}
+.overview-stats-values span:last-child {
+          text-align: center;
+}
+.overview-gauge-meta {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          font-size: 12px;
+          color: #e2e8f0;
+}
+.overview-gauge-value {
+          font-weight: 600;
+}
+.overview-gauge-total {
+          font-size: 11px;
+          color: #94a3b8;
 }
 .momentum-row-values {
           display: flex;
@@ -674,10 +992,10 @@ ob_start();
 <?php
 // Use Phase 2 payload to power the new coach-friendly blocks below.
 $overviewMetrics = [
-          ['label' => 'Shots', 'key' => 'shot', 'note' => 'Phase 2 shot total'],
-          ['label' => 'Goals', 'key' => 'goal', 'note' => 'Phase 2 goal total'],
-          ['label' => 'Corners', 'key' => 'corner', 'note' => 'Phase 2 corner total'],
-          ['label' => 'Fouls', 'key' => 'foul', 'note' => 'Phase 2 foul total'],
+          ['label' => 'Shots', 'key' => 'shot'],
+          ['label' => 'Goals', 'key' => 'goal'],
+          ['label' => 'Corners', 'key' => 'corner'],
+          ['label' => 'Fouls', 'key' => 'foul'],
 ];
 $firstHalfCounts = $phase2ByPeriod['1H'] ?? $defaultCounts;
 $secondHalfCounts = $phase2ByPeriod['2H'] ?? $defaultCounts;
@@ -740,80 +1058,50 @@ $awayHalfShift = (int)$secondHalfCounts['away'] - (int)$firstHalfCounts['away'];
                                         <div class="phase2-panel-title">Match overview</div>
                                         <div class="phase2-panel-note">Totals by team</div>
                               </div>
-                              <!-- Phase 2 by_type_team totals surface here to reinforce the summary -->
-                              <div class="phase2-grid">
+                              <div class="match-overview-graphs">
                                         <?php foreach ($overviewMetrics as $metric):
-                                                  $counts = $safe($metric['key'] ?? '');
+                                                  $counts = $metric['key'] ? $safe($metric['key']) : ($metric['value'] ?? $defaultCounts);
                                                   $homeVal = (int)$counts['home'];
                                                   $awayVal = (int)$counts['away'];
-                                        ?>
-                                                  <div class="phase2-card">
-                                                            <div class="phase2-card-label"><?= htmlspecialchars($metric['label']) ?></div>
-                                                            <div class="phase2-card-values">
-                                                                      <span class="text-start"><?= $homeVal ?> <small>H</small></span>
-                                                                      <span class="text-end"><?= $awayVal ?> <small>A</small></span>
-                                                            </div>
-                                                            <div class="phase2-highlight"><?= htmlspecialchars($metric['note']) ?></div>
-                                                  </div>
-                                        <?php endforeach; ?>
+                                                  echo render_graph_card($metric['label'], $homeVal, $awayVal, $metric['note'] ?? '');
+                                        endforeach; ?>
                               </div>
                     </div>
-                    <div class="phase2-panel">
-                              <div class="phase2-panel-header">
-                                        <div class="phase2-panel-title">First Half vs Second Half</div>
-                                        <div class="phase2-panel-note">Per-team comparison</div>
-                              </div>
-                              <!-- Phase 2 by_period counts highlight how activity shifted between 1H and 2H -->
-                              <div class="phase2-grid">
-                                        <div class="phase2-card">
-                                                  <div class="phase2-card-label">First Half</div>
-                                                  <div class="phase2-card-values">
-                                                            <span><?= (int)$firstHalfCounts['home'] ?> <small>H</small></span>
-                                                            <span><?= (int)$firstHalfCounts['away'] ?> <small>A</small></span>
-                                                  </div>
-                                                  <div class="half-cue"><?= $homeHalfCue ?> · <?= $awayHalfCue ?></div>
+                    <div class="phase2-panel-column">
+                              <div class="phase2-panel">
+                                        <div class="phase2-panel-header">
+                                                  <div class="phase2-panel-title">First Half vs Second Half</div>
+                                                  <div class="phase2-panel-note">Per-team comparison</div>
                                         </div>
-                                        <div class="phase2-card">
-                                                  <div class="phase2-card-label">Second Half</div>
-                                                  <div class="phase2-card-values">
-                                                            <span><?= (int)$secondHalfCounts['home'] ?> <small>H</small></span>
-                                                            <span><?= (int)$secondHalfCounts['away'] ?> <small>A</small></span>
-                                                  </div>
-                                                  <div class="half-cue"><?= $homeHalfCue ?> · <?= $awayHalfCue ?></div>
+                                        <div class="match-overview-graphs">
+                                                  <?= render_graph_card('First Half', (int)$firstHalfCounts['home'], (int)$firstHalfCounts['away'], $homeHalfCue) ?>
+                                                  <?= render_graph_card('Second Half', (int)$secondHalfCounts['home'], (int)$secondHalfCounts['away'], $awayHalfCue) ?>
+                                        </div>
+                              </div>
+                              <div class="phase2-panel">
+                                        <div class="phase2-panel-header">
+                                                  <div class="phase2-panel-title">Set pieces &amp; discipline</div>
+                                                  <div class="phase2-panel-note">Combined derived totals</div>
+                                        </div>
+                                        <div class="match-overview-graphs">
+                                                  <?= render_graph_card('Set pieces (corners + free kicks + penalties)', (int)$setPieces['home'], (int)$setPieces['away'], 'Aggregated from derived stats totals') ?>
+                                                  <?= render_graph_card('Cards (yellow + red)', (int)$cards['home'], (int)$cards['away'], 'Discipline totals from derived stats') ?>
                                         </div>
                               </div>
                     </div>
           </div>
           <div class="phase2-grid">
                     <div class="phase2-panel">
-                              <div class="phase2-panel-header">
-                                        <div class="phase2-panel-title">Set pieces &amp; discipline</div>
-                                        <div class="phase2-panel-note">Combined derived totals</div>
-                              </div>
-                              <!-- Derived stats already combine corners/free kicks/penalties and card counts -->
-                              <div class="phase2-card">
-                                        <div class="phase2-card-label">Set pieces (corners + free kicks + penalties)</div>
-                                        <div class="phase2-card-values">
-                                                  <span><?= (int)$setPieces['home'] ?> <small>H</small></span>
-                                                  <span><?= (int)$setPieces['away'] ?> <small>A</small></span>
-                                        </div>
-                                        <div class="phase2-highlight">Aggregated from derived stats totals</div>
-                              </div>
-                              <div class="phase2-card">
-                                        <div class="phase2-card-label">Cards (yellow + red)</div>
-                                        <div class="phase2-card-values">
-                                                  <span><?= (int)$cards['home'] ?> <small>H</small></span>
-                                                  <span><?= (int)$cards['away'] ?> <small>A</small></span>
-                                        </div>
-                                        <div class="phase2-highlight">Discipline totals from derived stats</div>
-                              </div>
+                    <div class="phase2-panel-header">
+                              <div class="phase2-panel-title">Event distribution</div>
+                              <div class="phase2-panel-note">Phase 2 · 15 minute buckets</div>
                     </div>
-                    <div class="phase2-panel">
-                              <div class="phase2-panel-header">
-                                        <div class="phase2-panel-title">Event distribution</div>
-                                        <div class="phase2-panel-note">Phase 2 · 15 minute buckets</div>
-                              </div>
-                              <!-- phase_2.per_15_minute buckets drive the per-interval counts below -->
+                    <div class="distribution-legend">
+                              <span class="legend-pill legend-home">H = Home</span>
+                              <span class="legend-pill legend-away">A = Away</span>
+                              <span class="legend-pill legend-unknown">U = Unassigned</span>
+                    </div>
+                    <!-- phase_2.per_15_minute buckets drive the per-interval counts below -->
                               <div class="phase2-card">
                                         <div class="distribution-table">
                                                   <?php if (empty($phase2Buckets)): ?>
@@ -821,24 +1109,47 @@ $awayHalfShift = (int)$secondHalfCounts['away'] - (int)$firstHalfCounts['away'];
                                                                       <div class="distribution-label">No distribution data yet.</div>
                                                             </div>
                                                   <?php else: ?>
-                                                            <?php foreach ($phase2Buckets as $bucket):
-                                                                      $label = $bucket['label'] ?? 'Bucket';
-                                                                      $homeBucket = (int)$bucket['home'];
-                                                                      $awayBucket = (int)$bucket['away'];
-                                                                      $unknownBucket = (int)$bucket['unknown'];
-                                                                      $bucketTotal = $homeBucket + $awayBucket + $unknownBucket;
-                                                            ?>
-                                                                      <div class="distribution-row">
-                                                                                <div>
-                                                                                          <div class="distribution-label"><?= htmlspecialchars($label) ?></div>
-                                                                                          <div class="distribution-unknown"><?= $bucketTotal ?> events · <?= $unknownBucket ?> unassigned</div>
-                                                                                </div>
-                                                                                <div class="distribution-values">
-                                                                                          <span>H <?= $homeBucket ?></span>
-                                                                                          <span>A <?= $awayBucket ?></span>
-                                                                                </div>
-                                                                      </div>
-                                                            <?php endforeach; ?>
+                              <?php foreach ($phase2Buckets as $bucket):
+                                        $label = $bucket['label'] ?? 'Bucket';
+                                        $homeBucket = (int)$bucket['home'];
+                                        $awayBucket = (int)$bucket['away'];
+                                        $unknownBucket = (int)$bucket['unknown'];
+                                        $bucketTotal = $homeBucket + $awayBucket + $unknownBucket;
+                                        $homePct = $bucketTotal > 0 ? round(($homeBucket / $bucketTotal) * 100, 1) : 0;
+                                        $awayPct = $bucketTotal > 0 ? round(($awayBucket / $bucketTotal) * 100, 1) : 0;
+                                        $unknownPct = $bucketTotal > 0 ? round(($unknownBucket / $bucketTotal) * 100, 1) : 0;
+                                        $chartLabel = sprintf('%s bucket: Home %.1f%% · Away %.1f%% · Unknown %.1f%%', $label, $homePct, $awayPct, $unknownPct);
+                              ?>
+                                        <div class="distribution-row">
+                                                  <div class="distribution-info">
+                                                            <div class="distribution-label"><?= htmlspecialchars($label) ?></div>
+                                                            <div class="distribution-unknown"><?= $bucketTotal ?> events · <?= $unknownBucket ?> unassigned</div>
+                                                            <div class="distribution-chart" role="img" aria-label="<?= htmlspecialchars($chartLabel) ?>">
+                                                                      <?php if ($homePct > 0): ?>
+                                                                                <span class="distribution-segment distribution-segment-home" style="width: <?= $homePct ?>%;"></span>
+                                                                      <?php endif; ?>
+                                                                      <?php if ($awayPct > 0): ?>
+                                                                                <span class="distribution-segment distribution-segment-away" style="width: <?= $awayPct ?>%;"></span>
+                                                                      <?php endif; ?>
+                                                                      <?php if ($unknownPct > 0): ?>
+                                                                                <span class="distribution-segment distribution-segment-unknown" style="width: <?= $unknownPct ?>%;"></span>
+                                                                      <?php endif; ?>
+                                                            </div>
+                                                  </div>
+                                                  <div class="distribution-statistics">
+                                                            <div class="distribution-chart-meta">
+                                                                      <span class="distribution-pill distribution-pill-home">H <?= $homePct ?>%</span>
+                                                                      <span class="distribution-pill distribution-pill-away">A <?= $awayPct ?>%</span>
+                                                                      <span class="distribution-pill distribution-pill-unknown">U <?= $unknownPct ?>%</span>
+                                                            </div>
+                                                            <div class="distribution-counts">
+                                                                      <span class="distribution-count distribution-count-home">H <?= $homeBucket ?></span>
+                                                                      <span class="distribution-count distribution-count-away">A <?= $awayBucket ?></span>
+                                                                      <span class="distribution-count distribution-count-unknown">U <?= $unknownBucket ?></span>
+                                                            </div>
+                                                  </div>
+                                        </div>
+                              <?php endforeach; ?>
                                                   <?php endif; ?>
                                         </div>
                               </div>
@@ -1042,57 +1353,6 @@ $awayHalfShift = (int)$secondHalfCounts['away'] - (int)$firstHalfCounts['away'];
           <?php endif; ?>
 </div>
 
-<div class="panel p-3 rounded-md">
-          <div class="panel-header d-flex align-items-center justify-content-between mb-2">
-                    <h5 class="mb-0 text-light">Clips</h5>
-                    <div class="text-muted-alt text-sm">Events with saved clips</div>
-          </div>
-          <?php if (empty($clips)): ?>
-                    <div class="text-muted-alt text-sm">No clips yet.</div>
-          <?php else: ?>
-                    <div class="table-responsive">
-                              <table class="table table-dark table-sm align-middle mb-0">
-                                        <thead>
-                                                  <tr>
-                                                            <th scope="col">Event</th>
-                                                            <th scope="col">Team</th>
-                                                            <th scope="col">Time</th>
-                                                            <th scope="col">Clip</th>
-                                                            <th scope="col" class="text-end">Actions</th>
-                                                  </tr>
-                                        </thead>
-                                        <?php foreach ($clips as $clipEv): ?>
-                                                  <?php
-                                                  $start = (int)$clipEv['clip_start_second'];
-                                                  $end = (int)$clipEv['clip_end_second'];
-                                                  $duration = max(0, $end - $start);
-                                                  $jumpUrl = $deskUrlBase . '?t=' . $start;
-                                                  $clipLabel = display_event_label($clipEv);
-                                                  $clipTimeLabel = formatMatchSecondText((int)$clipEv['match_second']);
-                                                  if (!empty($clipEv['minute_extra'])) {
-                                                            $clipTimeLabel .= '+' . (int)$clipEv['minute_extra'];
-                                                  }
-                                                  ?>
-                                                  <tr>
-                                                            <td>
-                                                                      <div class="fw-semibold"><?= htmlspecialchars($clipLabel) ?></div>
-                                                                      <div class="text-muted-alt text-xs"><?= (int)$clipEv['minute'] ?>' - <?= htmlspecialchars($clipTimeLabel) ?></div>
-                                                            </td>
-                                                            <td><span class="team-badge <?= $clipEv['team_side'] === 'home' ? 'badge-home' : ($clipEv['team_side'] === 'away' ? 'badge-away' : 'badge-unknown') ?>"><?= htmlspecialchars(ucfirst($clipEv['team_side'] ?? 'unknown')) ?></span></td>
-                                                            <td><?= htmlspecialchars($clipTimeLabel) ?></td>
-                                                            <td><?= htmlspecialchars(formatMatchSecondText($start)) ?> - <?= htmlspecialchars(formatMatchSecondText($end)) ?> (<?= (int)$duration ?>s)</td>
-                                                            <td class="text-end">
-                                                                      <a href="<?= htmlspecialchars($jumpUrl) ?>" class="btn-icon btn-icon-primary" data-bs-toggle="tooltip" data-bs-title="Open in desk">
-                                                                                <i class="fa-solid fa-play"></i>
-                                                                      </a>
-                                                            </td>
-                                                  </tr>
-                                        <?php endforeach; ?>
-                                        </tbody>
-                              </table>
-                    </div>
-          <?php endif; ?>
-</div>
 <?php
 $content = ob_get_clean();
 $footerScripts = <<<HTML

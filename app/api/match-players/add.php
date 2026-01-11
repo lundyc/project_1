@@ -29,12 +29,12 @@ if (empty($input) && $rawInput) {
 $matchId = isset($input['match_id']) ? (int)$input['match_id'] : 0;
 $teamSide = isset($input['team_side']) ? trim((string)$input['team_side']) : '';
 $playerId = isset($input['player_id']) ? (int)$input['player_id'] : 0;
-$displayName = isset($input['display_name']) ? trim((string)$input['display_name']) : '';
 $shirtNumberRaw = isset($input['shirt_number']) ? trim((string)$input['shirt_number']) : '';
 $positionLabel = isset($input['position_label']) ? trim((string)$input['position_label']) : '';
 $isStarting = !empty($input['is_starting']) && ($input['is_starting'] === '1' || $input['is_starting'] === 1 || $input['is_starting'] === true);
+$isCaptain = !empty($input['is_captain']) && ($input['is_captain'] === '1' || $input['is_captain'] === 1 || $input['is_captain'] === true);
 
-if ($matchId <= 0 || !in_array($teamSide, ['home', 'away'], true) || $playerId <= 0 || $displayName === '') {
+if ($matchId <= 0 || !in_array($teamSide, ['home', 'away'], true)) {
           respond_json(422, ['ok' => false, 'error' => 'Invalid lineup data']);
 }
 
@@ -51,12 +51,18 @@ if (!can_manage_match_for_club($user, $roles, (int)$match['club_id'])) {
 }
 
 $pdo = db();
+if ($playerId <= 0) {
+          respond_json(422, ['ok' => false, 'error' => 'Player is required']);
+}
+
 $playerStmt = $pdo->prepare('SELECT id, display_name, primary_position FROM players WHERE id = :id AND club_id = :club_id AND is_active = 1 LIMIT 1');
 $playerStmt->execute(['id' => $playerId, 'club_id' => (int)$match['club_id']]);
 $playerRow = $playerStmt->fetch();
-
 if (!$playerRow) {
           respond_json(404, ['ok' => false, 'error' => 'Player not found']);
+}
+if ($positionLabel === '') {
+          $positionLabel = $playerRow['primary_position'] ?: null;
 }
 
 if (find_match_player_by_player($matchId, $teamSide, $playerId)) {
@@ -64,17 +70,18 @@ if (find_match_player_by_player($matchId, $teamSide, $playerId)) {
 }
 
 $shirtNumber = $shirtNumberRaw === '' ? null : (int)$shirtNumberRaw;
-$positionLabel = $positionLabel === '' ? ($playerRow['primary_position'] ?: null) : $positionLabel;
-$displayName = $displayName ?: $playerRow['display_name'];
+if ($isCaptain) {
+          clear_team_captain($matchId, $teamSide);
+}
 
 $newId = insert_match_player([
           'match_id' => $matchId,
           'team_side' => $teamSide,
-          'player_id' => $playerId,
-          'display_name' => $displayName,
+          'player_id' => $playerId > 0 ? $playerId : null,
           'shirt_number' => $shirtNumber,
-          'position_label' => $positionLabel,
+          'position_label' => $positionLabel ?: null,
           'is_starting' => $isStarting ? 1 : 0,
+          'is_captain' => $isCaptain ? 1 : 0,
 ]);
 
 $record = get_match_player($newId);

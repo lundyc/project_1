@@ -4,6 +4,7 @@ error_reporting(E_ALL);
 
 require_once __DIR__ . '/../app/lib/auth.php';
 require_once __DIR__ . '/../app/lib/router.php';
+require_once __DIR__ . '/../app/middleware/require_admin.php';
 
 auth_boot();
 require_once __DIR__ . '/../app/routes/admin_players.php';
@@ -49,7 +50,7 @@ route('/api/matches/create', function () {
 });
 
 route('/admin', function () {
-          require_role('platform_admin');
+          require_admin();
           require __DIR__ . '/../app/views/pages/admin/dashboard.php';
 });
 
@@ -162,6 +163,47 @@ route('/', function () {
           require __DIR__ . '/../app/views/pages/dashboard.php';
 });
 
+function render_match_summary(int $matchId): bool
+{
+          require_auth();
+          require_once __DIR__ . '/../app/lib/match_repository.php';
+          require_once __DIR__ . '/../app/lib/match_permissions.php';
+          require_once __DIR__ . '/../app/lib/event_repository.php';
+          require_once __DIR__ . '/../app/lib/match_stats_service.php';
+          require_once __DIR__ . '/../app/lib/match_period_repository.php';
+
+          $match = get_match($matchId);
+
+          if (!$match) {
+                    http_response_code(404);
+                    echo '404 Not Found';
+                    return true;
+          }
+
+          $user = current_user();
+          $roles = $_SESSION['roles'] ?? [];
+
+          if (!can_view_match($user, $roles, (int)$match['club_id'])) {
+                    http_response_code(403);
+                    echo '403 Forbidden';
+                    return true;
+          }
+
+          ensure_default_event_types((int)$match['club_id']);
+
+          $events = event_list_for_match($matchId);
+
+          $eventTypesStmt = db()->prepare('SELECT id, type_key, label FROM event_types WHERE club_id = :club_id ORDER BY label ASC');
+          $eventTypesStmt->execute(['club_id' => (int)$match['club_id']]);
+          $eventTypes = $eventTypesStmt->fetchAll();
+
+          $derivedStats = get_or_compute_match_stats((int)$match['id'], (int)$match['events_version'], $events, $eventTypes);
+          $matchPeriods = get_match_periods($matchId);
+
+          require __DIR__ . '/../app/views/pages/matches/summary.php';
+          return true;
+}
+
 function handle_dynamic_match_routes(string $path): bool
 {
           if (preg_match('#^/matches/(\d+)/desk$#', $path, $m)) {
@@ -204,51 +246,18 @@ function handle_dynamic_match_routes(string $path): bool
                               $pendingProgress = $videoProgress;
                               require __DIR__ . '/../app/views/pages/matches/video_pending.php';
                               return true;
-                    }
+                     }
 
                     require __DIR__ . '/../app/views/pages/matches/desk.php';
                     return true;
           }
 
+          if (preg_match('#^/matches/(\d+)$#', $path, $m)) {
+                    return render_match_summary((int)$m[1]);
+          }
+
           if (preg_match('#^/matches/(\d+)/summary$#', $path, $m)) {
-                    require_auth();
-                    require_once __DIR__ . '/../app/lib/match_repository.php';
-                    require_once __DIR__ . '/../app/lib/match_permissions.php';
-                    require_once __DIR__ . '/../app/lib/event_repository.php';
-                    require_once __DIR__ . '/../app/lib/match_stats_service.php';
-                    require_once __DIR__ . '/../app/lib/match_period_repository.php';
-
-                    $matchId = (int)$m[1];
-                    $match = get_match($matchId);
-
-                    if (!$match) {
-                              http_response_code(404);
-                              echo '404 Not Found';
-                              return true;
-                    }
-
-                    $user = current_user();
-                    $roles = $_SESSION['roles'] ?? [];
-
-                    if (!can_view_match($user, $roles, (int)$match['club_id'])) {
-                              http_response_code(403);
-                              echo '403 Forbidden';
-                              return true;
-                    }
-
-                    ensure_default_event_types((int)$match['club_id']);
-
-                    $events = event_list_for_match($matchId);
-
-                    $eventTypesStmt = db()->prepare('SELECT id, type_key, label FROM event_types WHERE club_id = :club_id ORDER BY label ASC');
-                    $eventTypesStmt->execute(['club_id' => (int)$match['club_id']]);
-                    $eventTypes = $eventTypesStmt->fetchAll();
-
-                    $derivedStats = get_or_compute_match_stats((int)$match['id'], (int)$match['events_version'], $events, $eventTypes);
-                    $matchPeriods = get_match_periods($matchId);
-
-                    require __DIR__ . '/../app/views/pages/matches/summary.php';
-                    return true;
+                    return render_match_summary((int)$m[1]);
           }
 
           if (preg_match('#^/matches/(\d+)/summary/recompute$#', $path, $m)) {
@@ -462,6 +471,12 @@ function handle_dynamic_match_routes(string $path): bool
                     return true;
           }
 
+          if (preg_match('#^/api/matches/(\d+)/share$#', $path, $m)) {
+                    $matchId = (int)$m[1];
+                    require __DIR__ . '/../app/api/matches/share.php';
+                    return true;
+          }
+
           if ($path === '/api/match-periods/set') {
                     require __DIR__ . '/../app/api/match-periods/set.php';
                     return true;
@@ -531,6 +546,12 @@ function handle_dynamic_match_routes(string $path): bool
           if (preg_match('#^/api/matches/(\d+)/playlists$#', $path, $m)) {
                     $matchId = (int)$m[1];
                     require __DIR__ . '/../app/api/matches/playlists/list.php';
+                    return true;
+          }
+
+          if (preg_match('#^/api/matches/(\d+)/playlists/download$#', $path, $m)) {
+                    $matchId = (int)$m[1];
+                    require __DIR__ . '/../app/api/matches/playlists/download.php';
                     return true;
           }
 

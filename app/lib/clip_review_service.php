@@ -62,7 +62,7 @@ function clip_review_service_list_clips_for_match(int $matchId): array
                             e.team_side,
                             et.label AS event_type_label,
                             et.type_key AS event_type_key,
-                            mp.display_name AS player_name,
+                            COALESCE(pl.display_name, \'\') AS player_name,
                             cr.status AS clip_review_status,
                             cr.reviewed_at,
                             cr.reviewed_by,
@@ -71,6 +71,7 @@ function clip_review_service_list_clips_for_match(int $matchId): array
              JOIN events e ON e.id = c.event_id
              LEFT JOIN event_types et ON et.id = e.event_type_id
              LEFT JOIN match_players mp ON mp.id = e.match_player_id
+             LEFT JOIN players pl ON pl.id = mp.player_id
              LEFT JOIN clip_reviews cr ON cr.clip_id = c.id
              LEFT JOIN users u ON u.id = cr.reviewed_by
              WHERE c.match_id = :match_id AND c.deleted_at IS NULL
@@ -252,7 +253,7 @@ function clip_review_service_get_clip_for_match(\PDO $pdo, int $matchId, int $cl
                             e.team_side,
                             et.label AS event_type_label,
                             et.type_key AS event_type_key,
-                            mp.display_name AS player_name,
+                            COALESCE(pl.display_name, \'\') AS player_name,
                             cr.status AS clip_review_status,
                             cr.reviewed_at,
                             cr.reviewed_by,
@@ -261,6 +262,7 @@ function clip_review_service_get_clip_for_match(\PDO $pdo, int $matchId, int $cl
              JOIN events e ON e.id = c.event_id
              LEFT JOIN event_types et ON et.id = e.event_type_id
              LEFT JOIN match_players mp ON mp.id = e.match_player_id
+             LEFT JOIN players pl ON pl.id = mp.player_id
              LEFT JOIN clip_reviews cr ON cr.clip_id = c.id
              LEFT JOIN users u ON u.id = cr.reviewed_by
              WHERE c.match_id = :match_id AND c.id = :clip_id AND c.deleted_at IS NULL

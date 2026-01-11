@@ -23,6 +23,8 @@
           const continueBtn = document.getElementById('wizardContinueBtn');
           const submitBtn = document.getElementById('wizardSubmitBtn');
           const step1Next = document.getElementById('step1Next');
+          const step1SaveInline = document.getElementById('step1SaveInline');
+          const step1SaveInlineDefaultText = step1SaveInline ? step1SaveInline.textContent.trim() : 'Save details';
           const step2Back = document.getElementById('step2Back');
           const veoInput = document.getElementById('video_url_input');
           const uploadSelect = document.getElementById('video_file_select');
@@ -42,12 +44,15 @@
           const veoInlineError = document.getElementById('veoInlineError');
           const veoInlineRetryBtn = document.getElementById('veoInlineRetryBtn');
           const matchIdInput = document.getElementById('matchIdInput');
+          const saveBtn = document.getElementById('wizardSaveBtn');
+          const saveBtnDefaultText = saveBtn ? saveBtn.textContent.trim() : 'Save progress';
 
           let currentStep = 1;
           let isSubmitting = false;
           let isCreatingMatch = false;
           let pollTimer = null;
           let matchId = cfg.matchId || null;
+          let isSaving = false;
 
           function saveState(nextState) {
                     try {
@@ -385,13 +390,30 @@
                     continueBtn.href = '#';
           }
 
+          const savedFieldDefaults = {
+                    club_id: form.dataset.savedClubId || '',
+                    home_team_id: form.dataset.savedHomeTeamId || '',
+                    away_team_id: form.dataset.savedAwayTeamId || '',
+          };
+
+          function getFieldValue(name) {
+                    const field = form.elements[name];
+                    if (field) {
+                              const value = field.value;
+                              if (value !== undefined && value !== null && value !== '') {
+                                        return value;
+                              }
+                    }
+                    return savedFieldDefaults[name] || '';
+          }
+
           function collectPayload(videoMode) {
                     const payload = {
-                              club_id: form.elements['club_id'] ? form.elements['club_id'].value : '',
+                              club_id: getFieldValue('club_id'),
                               season_id: form.elements['season_id'] ? form.elements['season_id'].value : '',
                               competition_id: form.elements['competition_id'] ? form.elements['competition_id'].value : '',
-                              home_team_id: form.elements['home_team_id'] ? form.elements['home_team_id'].value : '',
-                              away_team_id: form.elements['away_team_id'] ? form.elements['away_team_id'].value : '',
+                              home_team_id: getFieldValue('home_team_id'),
+                              away_team_id: getFieldValue('away_team_id'),
                               kickoff_at: form.elements['kickoff_at'] ? form.elements['kickoff_at'].value : '',
                               venue: form.elements['venue'] ? form.elements['venue'].value : '',
                               referee: form.elements['referee'] ? form.elements['referee'].value : '',
@@ -407,13 +429,13 @@
           }
 
           function validateStep1() {
-                    const home = form.elements['home_team_id'] ? form.elements['home_team_id'].value : '';
-                    const away = form.elements['away_team_id'] ? form.elements['away_team_id'].value : '';
-                    const club = form.elements['club_id'] ? form.elements['club_id'].value : '';
-                    if (!club || !home || !away) {
-                              setFlash('danger', 'Club, home team, and away team are required.');
-                              return false;
-                    }
+                    const home = getFieldValue('home_team_id');
+                    const away = getFieldValue('away_team_id');
+                    const club = getFieldValue('club_id');
+                   if (!club || !home || !away) {
+                             setFlash('danger', 'Club, home team, and away team are required.');
+                             return false;
+                   }
                     if (home === away) {
                               setFlash('danger', 'Home and away teams must be different.');
                               return false;
@@ -733,11 +755,56 @@
                               setFlash('danger', e.message || 'Unable to save match');
                     } finally {
                               isSubmitting = false;
-                              if (submitBtn) {
-                                        submitBtn.disabled = false;
-                                        submitBtn.textContent = cfg.isEdit ? 'Save & start' : 'Create & start';
-                              }
+                             if (submitBtn) {
+                                       submitBtn.disabled = false;
+                                       submitBtn.textContent = cfg.isEdit ? 'Save & start' : 'Create & start';
+                             }
                     }
+          }
+
+          async function handleSaveClick() {
+                    clearFlash();
+                    if (isSaving || isSubmitting) return;
+                    if (!validateStep1()) {
+                              showStep(1);
+                              return;
+                    }
+                    isSaving = true;
+                   if (saveBtn) {
+                             saveBtn.disabled = true;
+                             saveBtn.textContent = 'Saving...';
+                   }
+                   if (step1SaveInline) {
+                             step1SaveInline.disabled = true;
+                             step1SaveInline.textContent = 'Saving...';
+                   }
+                    const mode = getVideoMode();
+                    if (mode === 'veo' && (!veoInput || !veoInput.value.trim())) {
+                              setFlash('danger', 'VEO URL required to save.');
+                              showStep(2);
+                              isSaving = false;
+                              if (saveBtn) {
+                                        saveBtn.disabled = false;
+                                        saveBtn.textContent = saveBtnDefaultText;
+                              }
+                              return;
+                    }
+                    try {
+                              await saveMatch(mode);
+                              setFlash('success', 'Match saved.');
+                    } catch (e) {
+                             setFlash('danger', e.message || 'Unable to save match');
+                   } finally {
+                             isSaving = false;
+                             if (saveBtn) {
+                                       saveBtn.disabled = false;
+                                       saveBtn.textContent = saveBtnDefaultText;
+                             }
+                             if (step1SaveInline) {
+                                       step1SaveInline.disabled = false;
+                                       step1SaveInline.textContent = step1SaveInlineDefaultText;
+                             }
+                   }
           }
 
           function resumeIfNeeded() {
@@ -799,26 +866,40 @@
                     showStep(1);
                     resumeIfNeeded();
 
-                    if (videoModeRadios.length) {
-                              videoModeRadios.forEach((radio) => radio.addEventListener('change', toggleVideoInputs));
-                    }
-                    if (step1Next) {
-                              step1Next.addEventListener('click', async () => {
-                                        clearFlash();
-                                        if (!validateStep1()) {
-                                                  showStep(1);
-                                                  return;
-                                        }
-                                        try {
-                                                  await ensureMatchCreatedForVideo();
-                                        } catch {
-                                                  // Error already surfaced
+                   if (videoModeRadios.length) {
+                             videoModeRadios.forEach((radio) => radio.addEventListener('change', toggleVideoInputs));
+                   }
+                   if (step1Next) {
+                             step1Next.addEventListener('click', async () => {
+                                       clearFlash();
+                                       if (!validateStep1()) {
+                                                 showStep(1);
+                                                 return;
+                                       }
+                                       try {
+                                                 await ensureMatchCreatedForVideo();
+                                       } catch {
+                                                 // Error already surfaced
+                                       }
+                             });
+                   }
+                   if (step1SaveInline) {
+                             step1SaveInline.addEventListener('click', handleSaveClick);
+                   }
+                    navSteps.forEach((nav) => {
+                              nav.addEventListener('click', () => {
+                                        const target = Number(nav.dataset.stepNav);
+                                        if (!Number.isNaN(target)) {
+                                                  showStep(target);
                                         }
                               });
+                    });
+                    if (saveBtn) {
+                              saveBtn.addEventListener('click', handleSaveClick);
                     }
-                    if (step2Back) {
-                              step2Back.addEventListener('click', () => showStep(1));
-                    }
+                   if (step2Back) {
+                             step2Back.addEventListener('click', () => showStep(1));
+                   }
                     if (submitBtn) {
                               submitBtn.addEventListener('click', handleSubmit);
                     }

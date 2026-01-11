@@ -592,7 +592,6 @@ function renderStatusLabel(string $text, string $type): string
             border: 1px solid #e1e4ef;
             border-radius: 0.5rem;
             padding: 1rem 1.25rem 1.25rem;
-            box-shadow: 0 2px 6px rgba(30, 40, 60, 0.06);
         }
         .notes {
             font-size: 0.85rem;

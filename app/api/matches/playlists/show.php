@@ -1,11 +1,11 @@
 <?php
 
-require_once __DIR__ . '/../../lib/auth.php';
-require_once __DIR__ . '/../../lib/api_helpers.php';
-require_once __DIR__ . '/../../lib/match_permissions.php';
-require_once __DIR__ . '/../../lib/match_repository.php';
-require_once __DIR__ . '/../../lib/playlist_service.php';
-require_once __DIR__ . '/playlists/common.php';
+require_once __DIR__ . '/../../../lib/auth.php';
+require_once __DIR__ . '/../../../lib/api_helpers.php';
+require_once __DIR__ . '/../../../lib/match_permissions.php';
+require_once __DIR__ . '/../../../lib/match_repository.php';
+require_once __DIR__ . '/../../../lib/playlist_service.php';
+require_once __DIR__ . '/common.php';
 
 auth_boot();
 require_auth();

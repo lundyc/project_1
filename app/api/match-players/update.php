@@ -50,11 +50,17 @@ if (!can_manage_match_for_club($user, $roles, (int)$match['club_id'])) {
 $shirtNumberRaw = isset($input['shirt_number']) ? trim((string)$input['shirt_number']) : '';
 $positionLabel = isset($input['position_label']) ? trim((string)$input['position_label']) : '';
 $isStarting = isset($input['is_starting']) && in_array($input['is_starting'], [1, '1', true], true);
+$isCaptain = isset($input['is_captain']) && in_array($input['is_captain'], [1, '1', true], true);
+
+if ($isCaptain) {
+          clear_team_captain((int)$matchPlayer['match_id'], (string)$matchPlayer['team_side']);
+}
 
 update_match_player($matchPlayerId, [
           'shirt_number' => $shirtNumberRaw === '' ? null : (int)$shirtNumberRaw,
           'position_label' => $positionLabel === '' ? null : $positionLabel,
           'is_starting' => $isStarting,
+          'is_captain' => $isCaptain,
 ]);
 
 $updated = get_match_player($matchPlayerId);

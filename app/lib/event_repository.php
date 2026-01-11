@@ -44,19 +44,20 @@ function event_list_for_match(int $matchId): array
                     'SELECT e.*,
                             et.label AS event_type_label,
                             et.type_key AS event_type_key,
-                            mp.display_name AS match_player_name,
+                            COALESCE(pl.display_name, \'\') AS match_player_name,
                             mp.shirt_number AS match_player_shirt,
                             mp.team_side AS match_player_team_side,
                             mp.position_label AS match_player_position,
                             mp.id AS match_player_id,
-                            p.label AS period_label,
+                            mpd.label AS period_label,
                             c.id AS clip_id,
                             c.start_second AS clip_start_second,
                             c.end_second AS clip_end_second
              FROM events e
              LEFT JOIN event_types et ON et.id = e.event_type_id
              LEFT JOIN match_players mp ON mp.id = e.match_player_id
-             LEFT JOIN match_periods p ON p.id = e.period_id
+             LEFT JOIN players pl ON pl.id = mp.player_id
+             LEFT JOIN match_periods mpd ON mpd.id = e.period_id
              LEFT JOIN clips c ON c.event_id = e.id
              WHERE e.match_id = :match_id
              ORDER BY e.match_second ASC, e.id ASC'
@@ -104,19 +105,20 @@ function event_get_by_id(int $eventId): ?array
                     'SELECT e.*,
                             et.label AS event_type_label,
                             et.type_key AS event_type_key,
-                            mp.display_name AS match_player_name,
+                            COALESCE(pl.display_name, \'\') AS match_player_name,
                             mp.shirt_number AS match_player_shirt,
                             mp.team_side AS match_player_team_side,
                             mp.position_label AS match_player_position,
                             mp.id AS match_player_id,
-                            p.label AS period_label,
+                            mpd.label AS period_label,
                             c.id AS clip_id,
                             c.start_second AS clip_start_second,
                             c.end_second AS clip_end_second
              FROM events e
              LEFT JOIN event_types et ON et.id = e.event_type_id
              LEFT JOIN match_players mp ON mp.id = e.match_player_id
-             LEFT JOIN match_periods p ON p.id = e.period_id
+             LEFT JOIN players pl ON pl.id = mp.player_id
+             LEFT JOIN match_periods mpd ON mpd.id = e.period_id
              LEFT JOIN clips c ON c.event_id = e.id
              WHERE e.id = :id
              LIMIT 1'

@@ -1,7 +1,6 @@
 (function () {
 
-          if (window.ANNOTATIONS_ENABLED === false) {
-                    console.info('[annotations] disabled');
+          if (!window.ANNOTATIONS_ENABLED) {
                     return;
           }
 
