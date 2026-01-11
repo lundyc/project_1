@@ -242,6 +242,7 @@
       let annotationBridge = null;
       let timelineAnnotations = [];
       let matrixPan = { active: false, startX: 0, scrollLeft: 0 };
+      let drawingDragState = null;
       let matrixWheelListenerBound = false;
       let resizeTimer = null;
       let editorDirty = false;
@@ -2005,6 +2006,96 @@
             $(viewport).removeClass('is-dragging');
       }
 
+      function updateDrawingDragElement() {
+            if (!drawingDragState || !drawingDragState.element) {
+                      return;
+            }
+            const timelineWidth = Math.max(
+                      0,
+                      timelineMetrics.duration * timelineZoom.pixelsPerSecond * timelineZoom.scale
+            );
+            const position = timelineWidth > 0
+                      ? Math.min(
+                                timelineWidth,
+                                Math.max(0, drawingDragState.currentTime * timelineZoom.pixelsPerSecond * timelineZoom.scale)
+                      )
+                      : 0;
+            drawingDragState.element.style.left = `${position}px`;
+            drawingDragState.element.dataset.second = String(drawingDragState.currentTime);
+      }
+
+      function cleanupDrawingDragListeners() {
+            document.removeEventListener('pointermove', handleMatrixDrawingPointerMove);
+            document.removeEventListener('pointerup', finalizeMatrixDrawingDrag);
+            document.removeEventListener('pointercancel', cancelMatrixDrawingDrag);
+      }
+
+      function handleMatrixDrawingPointerDown(event) {
+            if (event.button !== 0) return;
+            const target = event.currentTarget;
+            const drawingId = Number(target.dataset.drawingId);
+            if (!Number.isFinite(drawingId)) return;
+            const baseTime = Number(target.dataset.second) || 0;
+            drawingDragState = {
+                      id: drawingId,
+                      pointerId: event.pointerId,
+                      startX: event.clientX,
+                      baseTime,
+                      currentTime: baseTime,
+                      element: target,
+            };
+            drawingDragState.element.classList.add('is-dragging');
+            document.addEventListener('pointermove', handleMatrixDrawingPointerMove);
+            document.addEventListener('pointerup', finalizeMatrixDrawingDrag);
+            document.addEventListener('pointercancel', cancelMatrixDrawingDrag);
+      }
+
+      function handleMatrixDrawingPointerMove(event) {
+            if (!drawingDragState || event.pointerId !== drawingDragState.pointerId) {
+                      return;
+            }
+            const scaleFactor = timelineZoom.pixelsPerSecond * timelineZoom.scale;
+            if (!scaleFactor) {
+                      return;
+            }
+            const deltaX = event.clientX - drawingDragState.startX;
+            const deltaSeconds = deltaX / scaleFactor;
+            const duration = Math.max(0, timelineMetrics.duration);
+            drawingDragState.currentTime = Math.min(
+                      duration,
+                      Math.max(0, drawingDragState.baseTime + deltaSeconds)
+            );
+            updateDrawingDragElement();
+            event.preventDefault();
+      }
+
+      function finalizeMatrixDrawingDrag(event) {
+            if (!drawingDragState || event.pointerId !== drawingDragState.pointerId) {
+                      return;
+            }
+            const drawingId = drawingDragState.id;
+            const timestamp = Math.max(0, drawingDragState.currentTime);
+            drawingDragState.element.classList.remove('is-dragging');
+            cleanupDrawingDragListeners();
+            drawingDragState = null;
+            window.dispatchEvent(
+                      new CustomEvent('DeskDrawingTimestampUpdate', {
+                                detail: { drawingId, timestamp },
+                      })
+            );
+            scrollMatrixToSecond(timestamp);
+      }
+
+      function cancelMatrixDrawingDrag(event) {
+            if (!drawingDragState || event.pointerId !== drawingDragState.pointerId) {
+                      return;
+            }
+            drawingDragState.element && drawingDragState.element.classList.remove('is-dragging');
+            cleanupDrawingDragListeners();
+            drawingDragState = null;
+            renderTimeline();
+      }
+
       function handleMatrixResize() {
             if (timelineMode !== 'matrix') return;
             clearTimeout(resizeTimer);
@@ -3697,6 +3788,7 @@
                   }
             });
             if (annotationsEnabled) {
+                  $timelineMatrix.on('pointerdown', '.matrix-drawing', handleMatrixDrawingPointerDown);
                   $timelineMatrix.on('click', '.matrix-drawing', function () {
                         const annotationId = Number($(this).data('annotationId'));
                         const sec = Number($(this).data('second'));

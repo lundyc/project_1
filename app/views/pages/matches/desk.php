@@ -1,5 +1,5 @@
 <?php
-$ANNOTATIONS_ENABLED = false;
+$ANNOTATIONS_ENABLED = true;
 
 require_auth();
 require_once __DIR__ . '/../../../lib/match_permissions.php';
@@ -181,6 +181,8 @@ $deskConfig = [
 $footerScripts = '<script>window.DeskConfig = ' . json_encode($deskConfig) . ';</script>';
 $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-events.js?v=' . time() . '"></script>';
 $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-annotations.js?v=' . time() . '"></script>';
+$footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-video-controls.js?v=' . time() . '"></script>';
+$footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-video-interactive.js?v=' . time() . '"></script>';
 $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/timeline-markers.js?v=' . time() . '"></script>';
 $videoProgressConfig = [
           'matchId' => $matchId,
@@ -242,66 +244,115 @@ ob_start();
                                                             </div>
                                                   </div>
                                                   <div class="video-content">
-                                                            <div class="video-frame">
-                                                                      <video
-                                                                                id="deskVideoPlayer"
-                                                                                class="video-player<?= $videoReady ? '' : ' d-none' ?>"
-                                                                                preload="metadata"
-                                                                                controls
-                                                                                <?= $videoReady ? 'src="' . htmlspecialchars($videoSrc) . '"' : '' ?>>
-                                                                      </video>
-                                                                      <?php if ($ANNOTATIONS_ENABLED): ?>
-                                                                                <div class="annotation-overlay" data-annotation-overlay>
-                                                                                          <canvas id="deskAnnotationCanvas" data-annotation-canvas></canvas>
-                                                                                          <div class="annotation-text-input" data-annotation-text-input>
-                                                                                                    <input type="text" maxlength="120" placeholder="Annotation text" data-annotation-text-field>
-                                                                                                    <div class="annotation-text-actions">
-                                                                                                              <button type="button" class="ghost-btn ghost-btn-sm" data-annotation-text-save>Save</button>
-                                                                                                              <button type="button" class="ghost-btn ghost-btn-sm" data-annotation-text-cancel>Cancel</button>
-                                                                                                    </div>
-                                                                                          </div>
-                                                                                </div>
-                                                                                <div class="video-timeline" data-video-timeline>
-                                                                                          <div class="video-timeline-track" data-video-timeline-track aria-hidden="true">
-                                                                                                    <div class="video-timeline-markers" data-video-timeline-markers></div>
-                                                                                                    <div class="video-timeline-playhead" data-video-timeline-playhead></div>
-                                                                                          </div>
-                                                                                </div>
-                                                                      <?php endif; ?>
-                                                            </div>
-                                                            <?php if ($ANNOTATIONS_ENABLED): ?>
-                                                                      <div class="annotation-toolbar" data-annotation-toolbar>
-                                                                                <div class="annotation-toolbar-row">
-                                                                                          <button type="button" class="toggle-btn annotation-visibility-btn is-active" data-annotation-visibility-toggle>Hide annotations</button>
-                                                                                          <button type="button" class="toggle-btn annotation-mode-btn" data-annotation-mode-toggle>Enable editing</button>
-                                                                                          <span class="annotation-status" data-annotation-status>Idle</span>
-                                                                                          <select class="input-pill input-pill-sm" data-annotation-target>
-                                                                                                    <option value="match_video:<?= (int)($match['video_id'] ?? 0) ?>">Match video</option>
-                                                                                                    <optgroup label="Clips" data-annotation-clip-group></optgroup>
-                                                                                          </select>
-                                                                                </div>
-                                                                                <div class="annotation-tool-row">
-                                                                                          <button type="button" class="toggle-btn annotation-tool-btn is-active" data-annotation-tool="pen">Pen</button>
-                                                                                          <button type="button" class="toggle-btn annotation-tool-btn" data-annotation-tool="arrow">Arrow</button>
-                                                                                          <button type="button" class="toggle-btn annotation-tool-btn" data-annotation-tool="line">Line</button>
-                                                                                          <button type="button" class="toggle-btn annotation-tool-btn" data-annotation-tool="rectangle">Rect</button>
-                                                                                          <button type="button" class="toggle-btn annotation-tool-btn" data-annotation-tool="circle">Circle</button>
-                                                                                          <button type="button" class="toggle-btn annotation-tool-btn" data-annotation-tool="text">Text</button>
-                                                                                          <button type="button" class="toggle-btn annotation-tool-btn" data-annotation-tool="select">Select</button>
-                                                                                </div>
-                                                                                <div class="annotation-style-row">
-                                                                                          <label class="annotation-style-item">
-                                                                                                    Colour
-                                                                                                    <input type="color" value="#facc15" data-annotation-color>
-                                                                                          </label>
-                                                                                          <label class="annotation-style-item">
-                                                                                                    Stroke width
-                                                                                                    <input type="range" min="1" max="16" value="4" data-annotation-stroke>
-                                                                                          </label>
-                                                                                          <button type="button" class="ghost-btn ghost-btn-sm annotation-delete-btn" data-annotation-delete disabled>Delete</button>
-                                                                                </div>
-                                                                      </div>
-                                                            <?php endif; ?>
+                                                                      <div class="video-frame">
+                                                                        <div class="video-transform-layer">
+                                                                                  <video
+                                                                                            id="deskVideoPlayer"
+                                                                                            class="video-player<?= $videoReady ? '' : ' d-none' ?>"
+                                                                                            preload="metadata"
+                                                                                            <?= $videoReady ? 'src="' . htmlspecialchars($videoSrc) . '"' : '' ?>>
+                                                                                  </video>
+                                                                                  <?php if ($ANNOTATIONS_ENABLED): ?>
+                                                                                            <div class="annotation-overlay" data-annotation-overlay>
+                                                                                                      <canvas id="deskAnnotationCanvas" data-annotation-canvas></canvas>
+                                                                                                      <div class="annotation-text-input" data-annotation-text-input>
+                                                                                                                <input type="text" maxlength="120" placeholder="Annotation text" data-annotation-text-field>
+                                                                                                                <div class="annotation-text-actions">
+                                                                                                                          <button type="button" class="ghost-btn ghost-btn-sm" data-annotation-text-save>Save</button>
+                                                                                                                          <button type="button" class="ghost-btn ghost-btn-sm" data-annotation-text-cancel>Cancel</button>
+                                                                                                                </div>
+                                                                                                      </div>
+                                                                                            </div>
+                                                                                  <?php endif; ?>
+                                                                        </div>
+                                                                        <?php if ($ANNOTATIONS_ENABLED): ?>
+                                                                                  <div class="annotation-toolbar-shell">
+                                                                                            <div class="annotation-toolbar" data-annotation-toolbar>
+                                                                                                      <div class="annotation-toolbar-row annotation-toolbar-row--top">
+                                                                                                                <button type="button" class="toggle-btn annotation-visibility-btn is-active" data-annotation-visibility-toggle>Hide annotations</button>
+                                                                                                                <button type="button" class="toggle-btn annotation-mode-btn" data-annotation-mode-toggle>Enable editing</button>
+                                                                                                                <span class="annotation-status" data-annotation-status>Idle</span>
+                                                                                                      </div>
+                                                                                                      <div class="annotation-toolbar-row annotation-toolbar-row--target">
+                                                                                                                <select class="input-pill input-pill-sm" data-annotation-target>
+                                                                                                                          <option value="match_video:<?= (int)($match['video_id'] ?? 0) ?>">Match video</option>
+                                                                                                                          <optgroup label="Clips" data-annotation-clip-group></optgroup>
+                                                                                                                </select>
+                                                                                                      </div>
+                                                                                                      <div class="annotation-tool-grid">
+                                                                                                                <button type="button" class="toggle-btn annotation-tool-btn" data-annotation-tool="select">Select</button>
+                                                                                                                <button type="button" class="toggle-btn annotation-tool-btn is-active" data-annotation-tool="pen">Pen</button>
+                                                                                                                <button type="button" class="toggle-btn annotation-tool-btn" data-annotation-tool="line">Line</button>
+                                                                                                                <button type="button" class="toggle-btn annotation-tool-btn" data-annotation-tool="arrow">Arrow</button>
+                                                                                                                <button type="button" class="toggle-btn annotation-tool-btn" data-annotation-tool="rectangle">Rect</button>
+                                                                                                                <button type="button" class="toggle-btn annotation-tool-btn" data-annotation-tool="circle">Circle</button>
+                                                                                                                <button type="button" class="toggle-btn annotation-tool-btn" data-annotation-tool="text">Text</button>
+                                                                                                                <button type="button" class="toggle-btn annotation-tool-btn" data-annotation-tool="eraser">Eraser</button>
+                                                                                                      </div>
+                                                                                                      <div class="annotation-style-row">
+                                                                                                                <label class="annotation-style-item">
+                                                                                                                          Colour
+                                                                                                                          <input type="color" value="#facc15" data-annotation-color>
+                                                                                                                </label>
+                                                                                                                <label class="annotation-style-item">
+                                                                                                                          Stroke width
+                                                                                                                          <input type="range" min="1" max="16" value="4" data-annotation-stroke>
+                                                                                                                </label>
+                                                                                                                <label class="annotation-style-item">
+                                                                                                                          Opacity
+                                                                                                                          <input type="range" min="20" max="100" value="85" data-annotation-opacity>
+                                                                                                                </label>
+                                                                                                      </div>
+                                                                                                      <div class="annotation-toolbar-row annotation-toolbar-row--actions">
+                                                                                                                <button type="button" class="ghost-btn ghost-btn-sm annotation-edit-btn" data-annotation-edit>Edit</button>
+                                                                                                                <button type="button" class="ghost-btn ghost-btn-sm annotation-delete-btn" data-annotation-delete disabled>Delete</button>
+                                                                                                                <button type="button" class="ghost-btn ghost-btn-sm annotation-clear-btn" data-annotation-clear>Clear all</button>
+                                                                                                      </div>
+                                                                                            </div>
+                                                                                  </div>
+                                                                        <?php endif; ?>
+                                                                        <div class="custom-video-controls" id="deskControls">
+                                                                                  <div class="desk-control-group">
+                                                                                            <div class="desk-control-primary">
+                                                                                                      <button id="deskPlayPause" class="control-btn" data-tooltip="Play/Pause" aria-label="Play or pause">
+                                                                                                                <i class="fa-solid fa-play" aria-hidden="true"></i>
+                                                                                                      </button>
+                                                                                                      <button id="deskRewind" class="control-btn" data-tooltip="Back 5s" aria-label="Back 5 seconds">
+                                                                                                                <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>
+                                                                                                      </button>
+                                                                                                      <button id="deskForward" class="control-btn" data-tooltip="Forward 5s" aria-label="Forward 5 seconds">
+                                                                                                                <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
+                                                                                                      </button>
+                                                                                            </div>
+                                                                                            <div class="desk-control-secondary">
+                                                                                                      <div class="speed-selector">
+                                                                                                                <button id="deskSpeedToggle" class="control-btn" aria-label="Playback speed">
+                                                                                                                          <i class="fa-solid fa-gauge-simple" aria-hidden="true"></i>
+                                                                                                                          <span class="speed-label">1×</span>
+                                                                                                                </button>
+                                                                                                                <ul id="deskSpeedOptions" class="speed-options" role="menu"></ul>
+                                                                                                      </div>
+                                                                                                      <button id="deskMuteToggle" class="control-btn" data-tooltip="Mute" aria-label="Toggle mute">
+                                                                                                                <i class="fa-solid fa-volume-high" aria-hidden="true"></i>
+                                                                                                      </button>
+                                                                                                      <button id="deskFullscreen" class="control-btn" data-tooltip="Fullscreen" aria-label="Toggle fullscreen">
+                                                                                                                <i class="fa-solid fa-expand" aria-hidden="true"></i>
+                                                                                                      </button>
+                                                                                                      <button id="deskInteractiveToggle" class="control-btn" data-tooltip="Interactive mode" aria-label="Toggle interactive mode" aria-pressed="false">
+                                                                                                                🎯
+                                                                                                      </button>
+                                                                                            </div>
+                                                                                  </div>
+                                                                        </div>
+                                                                        <?php if ($ANNOTATIONS_ENABLED): ?>
+                                                                                  <div class="video-timeline" data-video-timeline>
+                                                                                            <div class="video-timeline-track" data-video-timeline-track aria-hidden="true">
+                                                                                                      <div class="video-timeline-markers" data-video-timeline-markers></div>
+                                                                                                      <div class="video-timeline-playhead" data-video-timeline-playhead></div>
+                                                                                            </div>
+                                                                                  </div>
+                                                                        <?php endif; ?>
+                                                          </div>
                                                             <div id="deskVideoPlaceholder" class="text-center text-muted mb-3<?= $videoReady ? ' d-none' : '' ?>">
                                                                       <?= htmlspecialchars($placeholderMessage) ?>
                                                             </div>
@@ -529,9 +580,21 @@ ob_start();
                                         <button id="playlistPrevBtn" type="button" class="ghost-btn ghost-btn-sm" disabled>Previous clip</button>
                                         <button id="playlistNextBtn" type="button" class="ghost-btn ghost-btn-sm" disabled>Next clip</button>
                               </div>
-                              <div id="playlistClips" class="playlist-clips text-sm text-muted-alt">No playlist selected.</div>
-                    </div>
+                    <div id="playlistClips" class="playlist-clips text-sm text-muted-alt">No playlist selected.</div>
+                  </div>
           </div>
+          <?php if ($ANNOTATIONS_ENABLED): ?>
+                    <div class="drawings-playlist">
+                              <div class="drawings-playlist-header">
+                                        <div>
+                                                  <div class="text-sm text-subtle">Drawings</div>
+                                                  <div class="text-xs text-muted-alt">Auto-collected sketches</div>
+                                        </div>
+                                        <span class="chip chip-muted">Auto</span>
+                              </div>
+                              <div id="drawingsPlaylistList" class="drawings-playlist-list text-sm text-muted-alt">No drawings yet.</div>
+                    </div>
+          <?php endif; ?>
     </div>
 </div>
 
