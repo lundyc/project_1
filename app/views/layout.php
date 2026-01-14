@@ -18,14 +18,21 @@ auth_boot();
           <?= $headExtras ?? '' ?>
 </head>
 
-<body class="bg-dark text-light">
+<?php
+$bodyClasses = ['bg-dark', 'text-light'];
+if (is_logged_in()) {
+          $bodyClasses[] = 'has-top-nav';
+}
+$bodyClassAttr = implode(' ', $bodyClasses);
+?>
+<body class="<?= htmlspecialchars($bodyClassAttr) ?>">
 
-          <div class="d-flex w-100">
-                    <?php if (is_logged_in()): ?>
-                              <?php require __DIR__ . '/partials/nav.php'; ?>
-                    <?php endif; ?>
+          <?php if (is_logged_in()): ?>
+                    <?php require __DIR__ . '/partials/nav.php'; ?>
+          <?php endif; ?>
 
-                    <main class="flex-fill p-4 main-area bg-surface">
+          <div class="app-shell">
+                    <main class="app-main flex-fill p-4 bg-surface">
                               <?= $content ?>
                     </main>
           </div>

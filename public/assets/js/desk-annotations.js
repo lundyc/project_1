@@ -1,1981 +1,1292 @@
 (function () {
-
-          if (!window.ANNOTATIONS_ENABLED) {
-                    return;
-          }
-
-          const cfg = window.DeskConfig;
-          if (!cfg || !cfg.matchId) {
-                    return;
-          }
-
-          const endpoints = cfg.endpoints || {};
-          const annotationsListUrl = endpoints.annotationsList;
-          const drawingsCreateUrl = endpoints.drawingsCreate || endpoints.annotationsCreate;
-          const drawingsUpdateUrl = endpoints.drawingsUpdate || endpoints.annotationsUpdate;
-          const drawingsDeleteUrl = endpoints.drawingsDelete || endpoints.annotationsDelete;
-
-          if (!annotationsListUrl || !drawingsCreateUrl || !drawingsUpdateUrl || !drawingsDeleteUrl) {
-                    return;
-          }
-
-          const videoEl = document.getElementById('deskVideoPlayer');
-          const canvasEl = document.querySelector('[data-annotation-canvas]');
-          const overlayEl = document.querySelector('[data-annotation-overlay]');
-          const toolbarEl = document.querySelector('[data-annotation-toolbar]');
-
-          if (!videoEl || !canvasEl || !overlayEl || !toolbarEl) {
-                    return;
-          }
-
-          const modeToggle = toolbarEl.querySelector('[data-annotation-mode-toggle]');
-          const statusEl = toolbarEl.querySelector('[data-annotation-status]');
-          const targetSelect = toolbarEl.querySelector('[data-annotation-target]');
-          const clipGroup = toolbarEl.querySelector('[data-annotation-clip-group]');
-          const toolButtons = Array.from(toolbarEl.querySelectorAll('[data-annotation-tool]'));
-          const colorInput = toolbarEl.querySelector('[data-annotation-color]');
-          const strokeInput = toolbarEl.querySelector('[data-annotation-stroke]');
-          const opacityInput = toolbarEl.querySelector('[data-annotation-opacity]');
-          const deleteButton = toolbarEl.querySelector('[data-annotation-delete]');
-          const clearButton = toolbarEl.querySelector('[data-annotation-clear]');
-          const editButton = toolbarEl.querySelector('[data-annotation-edit]');
-          const visibilityToggle = toolbarEl.querySelector('[data-annotation-visibility-toggle]');
-          const textInputWrapper = overlayEl.querySelector('[data-annotation-text-input]');
-          const textInputField = overlayEl.querySelector('[data-annotation-text-field]');
-          const textSaveBtn = overlayEl.querySelector('[data-annotation-text-save]');
-          const textCancelBtn = overlayEl.querySelector('[data-annotation-text-cancel]');
-
-          const zone14Toolbar = document.getElementById('zone14Toolbar');
-          const zone14ColourButton = document.getElementById('toolColour');
-          const zone14ColourPalette = document.getElementById('zone14ColourPalette');
-          const zone14ColourSwatch = zone14ColourButton?.querySelector('[data-zone14-colour-swatch]');
-          const zone14PaletteOptions = zone14ColourPalette
-                    ? Array.from(zone14ColourPalette.querySelectorAll('[data-zone14-colour]'))
-                    : [];
-          const zone14ToolElements = {
-                    move: zone14Toolbar?.querySelector('[data-zone14-tool="move"]'),
-                    arrow: zone14Toolbar?.querySelector('[data-zone14-tool="arrow"]'),
-                    text: zone14Toolbar?.querySelector('[data-zone14-tool="text"]'),
-          };
-          // Zone14 toolbar is FINAL; do NOT mutate or re-render this section via legacy annotation builders.
-
-          const drawingEditModal = document.querySelector('[data-drawing-edit-modal]');
-          const drawingEditBeforeValue = drawingEditModal?.querySelector('[data-drawing-edit-before-value]');
-          const drawingEditAfterValue = drawingEditModal?.querySelector('[data-drawing-edit-after-value]');
-          const drawingEditToolLabel = drawingEditModal?.querySelector('[data-drawing-edit-tool]');
-          const drawingEditTimestampLabel = drawingEditModal?.querySelector('[data-drawing-edit-timestamp]');
-          const drawingEditNotes = drawingEditModal?.querySelector('[data-drawing-edit-notes]');
-          const drawingEditSaveBtn = drawingEditModal?.querySelector('[data-drawing-edit-save]');
-          const drawingEditDeleteBtn = drawingEditModal?.querySelector('[data-drawing-edit-delete]');
-          const drawingEditCancelBtn = drawingEditModal?.querySelector('[data-drawing-edit-cancel]');
-          const drawingEditCloseBtn = drawingEditModal?.querySelector('[data-drawing-edit-close]');
-          const drawingEditDurationButtons = drawingEditModal
-                    ? Array.from(drawingEditModal.querySelectorAll('[data-drawing-edit-duration]'))
-                    : [];
-
-          const drawingsPlaylistList = document.getElementById('drawingsPlaylistList');
-          if (!modeToggle || !visibilityToggle || !targetSelect || !colorInput || !strokeInput || !deleteButton) {
-                    return;
-          }
-
-          const matchId = cfg.matchId;
-          const matchVideoId = cfg.annotations && cfg.annotations.matchVideoId ? cfg.annotations.matchVideoId : (cfg.video && cfg.video.match_video_id ? cfg.video.match_video_id : null);
-
-          const ZONE14_TO_ANNOTATION_TOOL = {
-                    move: 'select',
-                    arrow: 'arrow',
-                    text: 'text',
-          };
-          const ANNOTATION_TOOL_TO_ZONE14 = {
-                    select: 'move',
-                    arrow: 'arrow',
-                    text: 'text',
-          };
-          let zone14PaletteOpen = false;
-          const DEFAULT_VISIBILITY_WINDOW_SECONDS = 5;
-          const RESIZE_HANDLE_THRESHOLD = 0.04;
-
-          const state = {
-                    editing: false,
-                    targetType: matchVideoId ? 'match_video' : null,
-                    targetId: matchVideoId || null,
-                    tool: 'select',
-                    annotationsVisible: true,
-                    interactiveBlocked: false,
-                    color: colorInput.value || '#facc15',
-                    strokeWidth: Number(strokeInput.value) || 4,
-                    opacity: opacityInput ? Math.min(1, Math.max(0, (Number(opacityInput.value) || 100) / 100)) : 1,
-                    annotations: new Map(),
-                    pendingFetches: new Map(),
-                    visibleAnnotations: [],
-                    selectedId: null,
-                    isDrawing: false,
-                    draft: null,
-                    pointerId: null,
-                    dragging: null,
-                    textAnchor: null,
-                    textEditingAnnotationId: null,
-                    isDeleting: false,
-          };
-          const drawingEditState = {
-                    annotationId: null,
-                    beforeSeconds: DEFAULT_VISIBILITY_WINDOW_SECONDS,
-                    afterSeconds: DEFAULT_VISIBILITY_WINDOW_SECONDS,
-                    toolLabel: null,
-                    timestamp: null,
-          };
-          const annotationVisibilityState = { visible: state.annotationsVisible };
-          window.DeskAnnotationVisibilityState = annotationVisibilityState;
-
-          function parseTargetKey(key) {
-                    if (!key || typeof key !== 'string') {
-                              return null;
-                    }
-                    const parts = key.split(':');
-                    if (parts.length < 2) {
-                              return null;
-                    }
-                    const id = Number(parts[1]);
-                    if (!Number.isFinite(id)) {
-                              return null;
-                    }
-                    return { type: parts[0], id };
-          }
-
-          function findAnnotationById(annotationId) {
-                    const normalizedId = Number(annotationId);
-                    if (!Number.isFinite(normalizedId) || normalizedId <= 0) {
-                              return null;
-                    }
-                    for (const entry of state.annotations.values()) {
-                              if (!entry || !Array.isArray(entry.annotations)) {
-                                        continue;
-                              }
-                              const match = entry.annotations.find((annotation) => Number(annotation.id) === normalizedId);
-                              if (match) {
-                                        return match;
-                              }
-                    }
-                    return null;
-          }
-
-          const timelineBridge = (() => {
-                   const subscribers = new Set();
-
-                    function cloneAnnotations(annotations) {
-                              return Array.isArray(annotations) ? annotations.slice() : [];
-                    }
-
-                    function emit(type, id, annotations) {
-                              if (!type || !Number.isFinite(Number(id))) {
-                                        return;
-                              }
-                              const payload = {
-                                        type,
-                                        id: Number(id),
-                                        annotations: cloneAnnotations(annotations),
-                              };
-                              subscribers.forEach((cb) => {
-                                        try {
-                                                  cb(payload);
-                                        } catch (error) {
-                                                  console.error('DeskAnnotationTimelineBridge subscriber failure', error);
-                                        }
-                              });
-                    }
-
-                    return {
-                              subscribe(cb) {
-                                        if (typeof cb !== 'function') {
-                                                  return () => {};
-                                        }
-                                        subscribers.add(cb);
-                                        state.annotations.forEach((entry, key) => {
-                                                  const parsed = parseTargetKey(key);
-                                                  if (!parsed) {
-                                                            return;
-                                                  }
-                                                  emit(parsed.type, parsed.id, entry.annotations);
-                                        });
-                                        return () => subscribers.delete(cb);
-                              },
-                              notify(type, id, annotations) {
-                                        emit(type, id, annotations);
-                              },
-                             highlightAnnotation(annotationId) {
-                                        const normalizedId = Number(annotationId);
-                                        if (!Number.isFinite(normalizedId) || normalizedId <= 0) {
-                                                  return false;
-                                        }
-                                        const annotation = findAnnotationById(normalizedId);
-                                        if (annotation) {
-                                                  handleSelection(annotation);
-                                        } else {
-                                                  handleSelection({ id: normalizedId });
-                                        }
-                                        return true;
-                              },
-                   };
-         })();
-
-          function updateCanvasSize() {
-                    const rect = videoEl.getBoundingClientRect();
-                    const width = Math.max(2, Math.round(rect.width));
-                    const height = Math.max(2, Math.round(rect.height));
-                    canvasEl.width = width;
-                    canvasEl.height = height;
-                    render();
-          }
-
-          function clamp(value, min, max) {
-                    return Math.max(min, Math.min(max, value));
-          }
-
-          /**
-           * Normalizes a pointer coordinate into [0,1] space relative to the overlay so geometry is stored independently of the actual canvas size.
-           */
-          function normalizePoint(clientX, clientY) {
-                    const rect = overlayEl.getBoundingClientRect();
-                    if (!rect.width || !rect.height) {
-                              return { x: 0.5, y: 0.5 };
-                    }
-                    const x = clamp((clientX - rect.left) / rect.width, 0, 1);
-                    const y = clamp((clientY - rect.top) / rect.height, 0, 1);
-                    return { x, y };
-          }
-
-          function clampNormalizedPoint(point) {
-                    if (!point || typeof point !== 'object') {
-                              return { x: 0, y: 0 };
-                    }
-                    return {
-                              x: clamp(typeof point.x === 'number' ? point.x : 0, 0, 1),
-                              y: clamp(typeof point.y === 'number' ? point.y : 0, 0, 1),
-                    };
-          }
-
-          function resolveAnnotationWindow(annotation) {
-                    const timestamp = Number(annotation?.timestamp_second) || 0;
-                    let beforeSeconds = Number(annotation?.show_before_seconds);
-                    let afterSeconds = Number(annotation?.show_after_seconds);
-                    if (!Number.isFinite(beforeSeconds) || beforeSeconds < 0) {
-                              const derivedShowFrom = Number(annotation?.show_from_second);
-                              if (Number.isFinite(derivedShowFrom)) {
-                                        beforeSeconds = Math.max(0, timestamp - derivedShowFrom);
-                              } else {
-                                        beforeSeconds = null;
-                              }
-                    }
-                    if (!Number.isFinite(afterSeconds) || afterSeconds < 0) {
-                              const derivedShowTo = Number(annotation?.show_to_second);
-                              if (Number.isFinite(derivedShowTo)) {
-                                        afterSeconds = Math.max(0, derivedShowTo - timestamp);
-                              } else {
-                                        afterSeconds = null;
-                              }
-                    }
-                    const safeBefore = Number.isFinite(beforeSeconds) ? Math.max(0, beforeSeconds) : DEFAULT_VISIBILITY_WINDOW_SECONDS;
-                    const safeAfter = Number.isFinite(afterSeconds) ? Math.max(0, afterSeconds) : DEFAULT_VISIBILITY_WINDOW_SECONDS;
-                    return { start: Math.max(0, timestamp - safeBefore), end: timestamp + safeAfter };
-          }
-
-          function formatTimestampLabel(seconds) {
-                    const safeSeconds = Math.max(0, Math.round(seconds || 0));
-                    const minutes = Math.floor(safeSeconds / 60);
-                    const remainder = safeSeconds % 60;
-                    return `${minutes}:${String(remainder).padStart(2, '0')}`;
-          }
-
-          function getAnnotationTime(annotation) {
-                    if (!annotation) {
-                              return null;
-                    }
-                    const raw = annotation.timestamp_second ?? annotation.time ?? null;
-                    if (raw === null || raw === undefined) {
-                              return null;
-                    }
-                    const parsed = Number(raw);
-                    if (!Number.isFinite(parsed) || parsed < 0) {
-                              return null;
-                    }
-                    return parsed;
-          }
-
-          function buildTargetKey(type, id) {
-                    return `${type}:${id}`;
-          }
-
-          function describeTarget(type, id) {
-                    if (type === 'match_video') {
-                              return 'match video';
-                    }
-                    if (type === 'clip') {
-                              return `clip #${id || 'unknown'}`;
-                    }
-                    return 'target';
-          }
-
-          function updateStatus(message) {
-                    if (statusEl) {
-                              statusEl.textContent = message;
-                    }
-          }
-
-          function refreshZone14ColourSwatch() {
-                    if (!zone14ColourSwatch) {
-                              return;
-                    }
-                    zone14ColourSwatch.style.backgroundColor = state.color;
-          }
-
-          function setZone14PaletteOpen(open) {
-                    zone14PaletteOpen = Boolean(open) && Boolean(zone14ColourPalette);
-                    if (zone14ColourPalette) {
-                              zone14ColourPalette.classList.toggle('is-open', zone14PaletteOpen);
-                              zone14ColourPalette.setAttribute('aria-hidden', zone14PaletteOpen ? 'false' : 'true');
-                    }
-                    if (zone14ColourButton) {
-                              zone14ColourButton.classList.toggle('is-open', zone14PaletteOpen);
-                    }
-          }
-
-          function applyZone14Colour(colour) {
-                    if (!colour) {
-                              return;
-                    }
-                    state.color = colour;
-                    if (colorInput) {
-                              colorInput.value = colour;
-                              colorInput.dispatchEvent(new Event('change', { bubbles: true }));
-                              return;
-                    }
-                    state.color = colour;
-                    refreshZone14ColourSwatch();
-          }
-
-          function updateVisibilityState(visible) {
-                    state.annotationsVisible = Boolean(visible);
-                    visibilityToggle.classList.toggle('is-active', state.annotationsVisible);
-                    visibilityToggle.textContent = state.annotationsVisible ? 'Hide annotations' : 'Show annotations';
-                    overlayEl.style.opacity = state.annotationsVisible ? '1' : '0';
-                    overlayEl.style.visibility = state.annotationsVisible ? 'visible' : 'hidden';
-                    if (!state.annotationsVisible) {
-                              overlayEl.style.pointerEvents = 'none';
-                              canvasEl.style.pointerEvents = 'none';
-                              state.draft = null;
-                              hideTextInput();
-                    }
-                    annotationVisibilityState.visible = state.annotationsVisible;
-                    window.dispatchEvent(
-                              new CustomEvent('DeskAnnotationVisibilityChanged', {
-                                        detail: { visible: state.annotationsVisible },
-                              })
-                    );
-                    updateModeState(state.editing);
-                    render();
-          }
-
-          function updateModeState(enabled) {
-                    state.editing = Boolean(enabled);
-                    modeToggle.classList.toggle('is-active', state.editing);
-                    modeToggle.textContent = state.editing ? 'Disable editing' : 'Enable editing';
-                    if (!state.annotationsVisible) {
-                              overlayEl.style.pointerEvents = 'none';
-                              canvasEl.style.pointerEvents = 'none';
-                              updateDeleteState();
-                              return;
-                    }
-                    const pointerState = state.editing && !state.interactiveBlocked ? 'auto' : 'none';
-                    overlayEl.style.pointerEvents = pointerState;
-                    canvasEl.style.pointerEvents = pointerState;
-                    updateDeleteState();
-                    window.dispatchEvent(
-                              new CustomEvent('DeskDrawingModeChanged', {
-                                        detail: { editing: state.editing },
-                              })
-                    );
-          }
-
-          function updateZone14Toolbar(toolName) {
-                    const zone14Key = ANNOTATION_TOOL_TO_ZONE14[toolName] || null;
-                    Object.entries(zone14ToolElements).forEach(([name, button]) => {
-                              if (!button) {
-                                        return;
-                              }
-                              button.classList.toggle('is-active', name === zone14Key);
-                    });
-          }
-
-          function selectTool(toolName) {
-                    state.tool = toolName;
-                    toolButtons.forEach((btn) => {
-                              btn.classList.toggle('is-active', btn.dataset.annotationTool === toolName);
-                    });
-                    updateZone14Toolbar(toolName);
-          }
-
-          function targetHasId() {
-                    return state.targetType && state.targetId && state.targetId > 0;
-          }
-
-          function updateDeleteState() {
-                    const canDelete = state.editing && state.selectedId && !state.isDeleting;
-                    deleteButton.disabled = !canDelete;
-                    updateEditButtonState();
-          }
-
-          function updateEditButtonState() {
-                    if (!editButton) {
-                              return;
-                    }
-                    const canEdit = Boolean(state.editing && state.selectedId);
-                    editButton.disabled = !canEdit;
-          }
-
-          function removeAnnotationFromUnsaved(annotationId) {
-                    if (!annotationId) {
-                              return;
-                    }
-                    const normalizedId = Number(annotationId);
-                    if (!Number.isFinite(normalizedId) || normalizedId <= 0) {
-                              return;
-                    }
-                    const unsaved = state.unsaved;
-                    if (!unsaved) {
-                              return;
-                    }
-                    if (typeof unsaved.delete === 'function') {
-                              unsaved.delete(normalizedId);
-                              return;
-                    }
-                    if (Array.isArray(unsaved)) {
-                              state.unsaved = unsaved.filter((entry) => Number(entry?.id) !== normalizedId);
-                              return;
-                    }
-                    if (Object.prototype.hasOwnProperty.call(unsaved, normalizedId)) {
-                              delete unsaved[normalizedId];
-                    }
-                    if (Object.prototype.hasOwnProperty.call(unsaved, String(normalizedId))) {
-                              delete unsaved[String(normalizedId)];
-                    }
-          }
-
-          function registerTargetSelection() {
-                    if (targetSelect) {
-                              targetSelect.value = state.targetType && state.targetId ? `${state.targetType}:${state.targetId}` : `match_video:${matchVideoId || 0}`;
-                    }
-          }
-
-          function getAnnotationCache(key) {
-                    return state.annotations.get(key) || null;
-          }
-
-          function setAnnotationCache(key, annotations) {
-                    const normalized = Array.isArray(annotations) ? annotations.map(normalizeAnnotation) : [];
-                    state.annotations.set(key, { annotations: normalized, timestamp: Date.now() });
-                    const parsed = parseTargetKey(key);
-                    const matchesCurrentTarget =
-                              parsed &&
-                              parsed.type === state.targetType &&
-                              Number(parsed.id) === Number(state.targetId);
-                    if (matchesCurrentTarget) {
-                              renderDrawingsPlaylist(normalized);
-                    }
-                    if (parsed) {
-                              timelineBridge.notify(parsed.type, parsed.id, normalized);
-                    }
-                    return normalized;
-          }
-
-          function renderDrawingsPlaylist(annotations) {
-                    if (!drawingsPlaylistList) {
-                              return;
-                    }
-                    const safeAnnotations = Array.isArray(annotations) ? annotations.slice() : [];
-                    safeAnnotations.sort((a, b) => {
-                              const aTime = Number(a.timestamp_second) || 0;
-                              const bTime = Number(b.timestamp_second) || 0;
-                              if (aTime !== bTime) {
-                                        return aTime - bTime;
-                              }
-                              return Number(a.id) - Number(b.id);
-                    });
-                    if (!safeAnnotations.length) {
-                              drawingsPlaylistList.innerHTML = '<div class="text-muted-alt text-sm">No drawings yet.</div>';
-                              clearButton && (clearButton.disabled = true);
-                              return;
-                    }
-                    const html = safeAnnotations
-                              .map((annotation) => {
-                                        const seconds = Number(annotation.timestamp_second);
-                                        const timeLabel = Number.isFinite(seconds) ? formatTimestampLabel(seconds) : '00:00';
-                                        const toolLabel = (annotation.tool_type || annotation.drawing_data?.tool || 'drawing').toString();
-                                        const normalizedTool = String(toolLabel).replace(/_/g, ' ').trim();
-                                        const labelText = normalizedTool
-                                                  ? normalizedTool.charAt(0).toUpperCase() + normalizedTool.slice(1)
-                                                  : 'Drawing';
-                                        const color = annotation.drawing_data?.color || '#facc15';
-                                        const opacity = annotation.drawing_data?.opacity ?? 1;
-                                        return `<button type="button" class="drawings-playlist-item" data-drawing-id="${annotation.id}" data-timestamp="${seconds}" title="${labelText} · ${timeLabel}">
-                                                          <span class="drawings-playlist-color" style="background:${color}; opacity:${opacity};"></span>
-                                                          <span class="drawings-playlist-info">
-                                                                    <span class="drawings-playlist-tool">${labelText}</span>
-                                                                    <span class="drawings-playlist-time">${timeLabel}</span>
-                                                          </span>
-                                                  </button>`;
-                              })
-                              .join('');
-                    drawingsPlaylistList.innerHTML = html;
-                    clearButton && (clearButton.disabled = false);
-                    updateDrawingPlaylistSelection();
-          }
-
-          function updateDrawingPlaylistSelection() {
-                    if (!drawingsPlaylistList) {
-                              return;
-                    }
-                    const selectedIdValue = Number(state.selectedId);
-                    drawingsPlaylistList.querySelectorAll('[data-drawing-id]').forEach((button) => {
-                              const drawingId = Number(button.dataset.drawingId);
-                              button.classList.toggle('is-active', drawingId === selectedIdValue);
-                    });
-          }
-
-          function handleDrawingPlaylistClick(event) {
-                    if (!drawingsPlaylistList) {
-                              return;
-                    }
-                    const entry = event.target.closest('[data-drawing-id]');
-                    if (!entry) {
-                              return;
-                    }
-                    const drawingId = Number(entry.dataset.drawingId);
-                    if (!Number.isFinite(drawingId)) {
-                              return;
-                    }
-                    const annotation = findAnnotationById(drawingId);
-                    if (!annotation) {
-                              return;
-                    }
-                    const seconds = Number(annotation.timestamp_second);
-                    if (videoEl && Number.isFinite(seconds)) {
-                              videoEl.currentTime = Math.max(0, seconds);
-                    }
-                    handleSelection(annotation);
-                    event.preventDefault();
-          }
-
-          function handleInteractiveModeChange(event) {
-                    const enabled = Boolean(event?.detail?.enabled);
-                    state.interactiveBlocked = enabled;
-                    if (enabled) {
-                              updateModeState(false);
-                              return;
-                    }
-                    updateModeState(state.editing);
-          }
-
-          function handleDrawingTimestampUpdate(event) {
-                    const drawingId = Number(event?.detail?.drawingId);
-                    const rawTimestamp = Number(event?.detail?.timestamp);
-                    if (!Number.isFinite(drawingId) || !Number.isFinite(rawTimestamp) || rawTimestamp < 0) {
-                              return;
-                    }
-                    const key = buildTargetKey(state.targetType, state.targetId);
-                    if (!key) {
-                              return;
-                    }
-                    const cached = getAnnotationCache(key);
-                    if (!cached) {
-                              return;
-                    }
-                    const updated = cached.annotations.map((annotation) => {
-                              if (Number(annotation.id) === drawingId) {
-                                        return {
-                                                  ...annotation,
-                                                  timestamp_second: Math.max(0, rawTimestamp),
-                                        };
-                              }
-                              return annotation;
-                    });
-                    updated.sort((a, b) => {
-                              const aTime = Number(a.timestamp_second) || 0;
-                              const bTime = Number(b.timestamp_second) || 0;
-                              if (aTime !== bTime) {
-                                        return aTime - bTime;
-                              }
-                              return Number(a.id) - Number(b.id);
-                    });
-                    const normalized = setAnnotationCache(key, updated);
-                    state.visibleAnnotations = normalized;
-                    const selected = findAnnotationById(drawingId);
-                    if (selected) {
-                              handleSelection(selected);
-                    }
-                    const timestamp = Math.max(0, rawTimestamp);
-                    if (videoEl && Number.isFinite(timestamp)) {
-                              videoEl.currentTime = timestamp;
-                    }
-                    updateStatus('Drawing time updated');
-                    render();
-          }
-
-          async function fetchAnnotations(type, id) {
-                    const key = buildTargetKey(type, id);
-                    if (state.pendingFetches.has(key)) {
-                              return state.pendingFetches.get(key);
-                    }
-                    const url = new URL(annotationsListUrl, window.location.origin);
-                    url.searchParams.set('match_id', matchId);
-                    url.searchParams.set('target_type', type);
-                    url.searchParams.set('target_id', String(id));
-                    const request = fetch(url.toString(), {
-                              credentials: 'same-origin',
-                    })
-                              .then((response) => response.json())
-                              .then((payload) => {
-                                        state.pendingFetches.delete(key);
-                                        if (!payload || payload.ok !== true) {
-                                                  throw new Error(payload?.error || 'annotations_fetch_failed');
-                                        }
-                                        return Array.isArray(payload.annotations) ? payload.annotations : [];
-                              })
-                              .catch((error) => {
-                                        state.pendingFetches.delete(key);
-                                        throw error;
-                              });
-                    state.pendingFetches.set(key, request);
-                    return request;
-          }
-
-          async function ensureAnnotations(type, id) {
-                    if (!type || !id) {
-                              return;
-                    }
-                    const key = buildTargetKey(type, id);
-                    const cached = getAnnotationCache(key);
-                    if (cached) {
-                              state.visibleAnnotations = cached.annotations;
-                              render();
-                              return;
-                    }
-                    try {
-                             updateStatus('Loading annotations…');
-                             const annotations = await fetchAnnotations(type, id);
-                              const normalized = setAnnotationCache(key, annotations);
-                              state.visibleAnnotations = normalized;
-                             updateStatus(`Annotations ready (${annotations.length})`);
-                             render();
-                    } catch (error) {
-                              console.error('Failed to load annotations', error);
-                              updateStatus('Unable to load annotations');
-                    }
-          }
-
-          function toAbsolute(point) {
-                    return {
-                              x: (point.x || 0) * canvasEl.width,
-                              y: (point.y || 0) * canvasEl.height,
-                    };
-          }
-
-          function actualStrokeWidth(normalized) {
-                    const sizeRef = Math.max(canvasEl.width, canvasEl.height, 1);
-                    const value = normalized && normalized > 0 ? normalized : 0.01;
-                    return Math.max(1, value * sizeRef);
-          }
-
-          function drawArrowHead(ctx, from, to, width) {
-                    const angle = Math.atan2(to.y - from.y, to.x - from.x);
-                    const headLength = Math.max(16, width * 3);
-                    const br = Math.PI / 6;
-                    ctx.beginPath();
-                    ctx.moveTo(to.x, to.y);
-                    ctx.lineTo(to.x - headLength * Math.cos(angle - br), to.y - headLength * Math.sin(angle - br));
-                    ctx.lineTo(to.x - headLength * Math.cos(angle + br), to.y - headLength * Math.sin(angle + br));
-                    ctx.closePath();
-                    ctx.fill();
-          }
-
-          function renderAnnotation(ctx, annotation, options = {}) {
-                    if (!annotation || !annotation.drawing_data) {
-                              return;
-                    }
-                    const data = annotation.drawing_data;
-                    const color = data.color || '#facc15';
-                    const strokeWidth = actualStrokeWidth(data.strokeWidth);
-                    ctx.save();
-                    const alpha = Math.max(0.05, Math.min(1, typeof data.opacity === 'number' ? data.opacity : 1));
-                    ctx.globalAlpha = alpha;
-                    ctx.strokeStyle = color;
-                    ctx.fillStyle = color;
-                    ctx.lineWidth = strokeWidth;
-                    ctx.lineCap = 'round';
-                    ctx.lineJoin = 'round';
-
-                    const tool = data.tool || annotation.tool || 'line';
-                    const points = Array.isArray(data.points) ? data.points : [];
-                    const absolutePoints = points
-                              .map((point) => (point && typeof point === 'object' ? toAbsolute(point) : null))
-                              .filter(Boolean);
-                    const start = absolutePoints[0] || null;
-                    const end = absolutePoints[1] || null;
-
-                    const drawLineFn = () => {
-                              if (start && end) {
-                                        ctx.beginPath();
-                                        ctx.moveTo(start.x, start.y);
-                                        ctx.lineTo(end.x, end.y);
-                                        ctx.stroke();
-                              }
-                    };
-
-                    const drawPenPath = (opts = {}) => {
-                              if (absolutePoints.length >= 2) {
-                                        ctx.beginPath();
-                                        ctx.moveTo(absolutePoints[0].x, absolutePoints[0].y);
-                                        for (let i = 1; i < absolutePoints.length; i += 1) {
-                                                  ctx.lineTo(absolutePoints[i].x, absolutePoints[i].y);
-                                        }
-                                        ctx.stroke();
-                              } else if (absolutePoints[0]) {
-                                        ctx.beginPath();
-                                        ctx.arc(absolutePoints[0].x, absolutePoints[0].y, strokeWidth, 0, Math.PI * 2);
-                                        if (opts.fillDot) {
-                                                  ctx.fill();
-                                        } else {
-                                                  ctx.stroke();
-                                        }
-                              }
-                    };
-
-                    const drawRectangle = () => {
-                              if (start && end) {
-                                        const minX = Math.min(start.x, end.x);
-                                        const minY = Math.min(start.y, end.y);
-                                        const width = Math.abs(start.x - end.x);
-                                        const height = Math.abs(start.y - end.y);
-                                        ctx.strokeRect(minX, minY, width, height);
-                              }
-                    };
-
-                    const drawEllipse = () => {
-                              if (start && end) {
-                                        const centerX = (start.x + end.x) / 2;
-                                        const centerY = (start.y + end.y) / 2;
-                                        const radiusX = Math.abs(start.x - end.x) / 2;
-                                        const radiusY = Math.abs(start.y - end.y) / 2;
-                                        if (!radiusX && !radiusY) {
-                                                  return;
-                                        }
-                                        ctx.beginPath();
-                                        if (typeof ctx.ellipse === 'function') {
-                                                  ctx.ellipse(centerX, centerY, Math.max(radiusX, 0.5), Math.max(radiusY, 0.5), 0, 0, Math.PI * 2);
-                                                  ctx.stroke();
-                                                  return;
-                                        }
-                                        ctx.save();
-                                        ctx.translate(centerX, centerY);
-                                        const scaledRadiusY = Math.max(radiusY, 0.5);
-                                        const scaleX = radiusX === 0 ? 1 : radiusX / scaledRadiusY;
-                                        ctx.scale(scaleX, 1);
-                                        ctx.arc(0, 0, scaledRadiusY, 0, Math.PI * 2);
-                                        ctx.restore();
-                                        ctx.stroke();
-                              }
-                    };
-
-                    const drawArrow = () => {
-                              drawLineFn();
-                              if (start && end) {
-                                        ctx.fillStyle = color;
-                                        drawArrowHead(ctx, start, end, strokeWidth);
-                              }
-                    };
-
-                    const drawText = (opts = {}) => {
-                              const pos = data.position || points[0] || { x: 0.5, y: 0.5 };
-                              const absolute = toAbsolute(pos);
-                              const fontSize = Math.max(12, ((data.fontSize || 0.045) * canvasEl.height));
-                              ctx.font = `${fontSize}px system-ui, sans-serif`;
-                              ctx.textBaseline = 'middle';
-                              if (opts.highlight) {
-                                        ctx.strokeText(String(data.text || 'Annotation'), absolute.x, absolute.y);
-                              } else {
-                                        ctx.fillText(String(data.text || 'Annotation'), absolute.x, absolute.y);
-                              }
-                    };
-
-                    const drawTool = (useHighlight = false) => {
-                              switch (tool) {
-                              case 'rectangle':
-                                        drawRectangle();
-                                        break;
-                              case 'ellipse':
-                              case 'circle':
-                                        drawEllipse();
-                                        break;
-                                        case 'arrow':
-                                                  drawArrow();
-                                                  break;
-                                        case 'line':
-                                                  drawLineFn();
-                                                  break;
-                                        case 'text':
-                                                  drawText({ highlight: useHighlight });
-                                                  break;
-                                        case 'pen':
-                                                  drawPenPath({ fillDot: !useHighlight });
-                                                  break;
-                                        default:
-                                                  drawLineFn();
-                              }
-                    };
-
-                    drawTool(false);
-
-                    if (options.highlight) {
-                              ctx.save();
-                              ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
-                              ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-                              ctx.lineWidth = strokeWidth + 2;
-                              ctx.setLineDash([6, 4]);
-                              drawTool(true);
-                              ctx.setLineDash([]);
-                              ctx.restore();
-                    }
-
-                    ctx.restore();
-          }
-
-          function render() {
-                    const ctx = canvasEl.getContext('2d');
-                    if (!ctx) {
-                              return;
-                    }
-                    ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
-                    if (!state.annotationsVisible) {
-                              return;
-                    }
-                    const current = Math.max(0, Number(videoEl.currentTime) || 0);
-                    const key = state.targetType && state.targetId ? buildTargetKey(state.targetType, state.targetId) : null;
-                    const cached = key ? getAnnotationCache(key) : null;
-                    const candidates = cached ? cached.annotations : [];
-                    state.visibleAnnotations = candidates.filter((annotation) => {
-                              if (!annotation) {
-                                        return false;
-                              }
-                              const timestamp = getAnnotationTime(annotation);
-                              return Number.isFinite(timestamp) && current >= timestamp;
-                    });
-                    state.visibleAnnotations.forEach((annotation) => {
-                              renderAnnotation(ctx, annotation, { highlight: annotation.id === state.selectedId });
-                    });
-                    if (state.draft) {
-                              renderAnnotation(ctx, state.draft, { highlight: false });
-                    }
-          }
-
-          function cloneDrawingData(original) {
-                    if (!original || typeof original !== 'object') {
-                              return null;
-                    }
-                    try {
-                              return JSON.parse(JSON.stringify(original));
-                    } catch (error) {
-                              console.error('Unable to clone annotation drawing data', error);
-                              return null;
-                    }
-          }
-
-          function prepareDrawingForServer(drawingData) {
-                    if (!drawingData || typeof drawingData !== 'object') {
-                              return drawingData;
-                    }
-                    const normalized = cloneDrawingData(drawingData);
-                    if (!normalized) {
-                              return drawingData;
-                    }
-                    const toolName = (normalized.tool || normalized.tool_type || '').toLowerCase();
-                    if (toolName === 'ellipse' || toolName === 'circle') {
-                              const points = Array.isArray(normalized.points) ? normalized.points : [];
-                              const start = points[0];
-                              const end = points[1];
-                              const width = start && end ? Math.abs(end.x - start.x) : normalized.width ?? 0;
-                              const height = start && end ? Math.abs(end.y - start.y) : normalized.height ?? 0;
-                              normalized.width = width;
-                              normalized.height = height;
-                    }
-                    return normalized;
-          }
-
-          function normalizeAnnotation(annotation) {
-                    if (!annotation || typeof annotation !== 'object') {
-                              return annotation;
-                    }
-                    const drawingData = annotation.drawing_data || {};
-                    const timestamp = getAnnotationTime(annotation);
-                    const tool = String((drawingData.tool || annotation.tool_type || 'drawing') || 'drawing');
-                    const geometry = Array.isArray(drawingData.points)
-                              ? drawingData.points.slice()
-                              : drawingData.position
-                                        ? { ...drawingData.position }
-                                        : null;
-                    return {
-                              ...annotation,
-                              time: Number.isFinite(timestamp) ? timestamp : 0,
-                              type: tool,
-                              geometry,
-                              color: drawingData.color || '#facc15',
-                              text: drawingData.text || '',
-                    };
-          }
-
-          function updateDrawingHandle(baseDrawing, handleIndex, normalizedPoint) {
-                    if (!baseDrawing || typeof handleIndex !== 'number') {
-                              return null;
-                    }
-                    const updated = cloneDrawingData(baseDrawing);
-                    if (!updated || !Array.isArray(updated.points)) {
-                              return updated;
-                    }
-                    const points = updated.points.slice();
-                    points[handleIndex] = clampNormalizedPoint(normalizedPoint);
-                    updated.points = points;
-                    return updated;
-          }
-
-          function detectResizeHandle(annotation, normalizedPoint) {
-                    if (!annotation || !annotation.drawing_data) {
-                              return null;
-                    }
-                    const data = annotation.drawing_data;
-                    const tool = ((data.tool || annotation.tool_type) || '').toLowerCase();
-                    const resizableTools = ['rectangle', 'line', 'ellipse', 'circle', 'arrow'];
-                    if (!resizableTools.includes(tool)) {
-                              return null;
-                    }
-                    const points = Array.isArray(data.points) ? data.points : [];
-                    for (let index = 0; index < 2; index += 1) {
-                              const point = points[index];
-                              if (!point || typeof point.x !== 'number' || typeof point.y !== 'number') {
-                                        continue;
-                              }
-                              const dx = normalizedPoint.x - point.x;
-                              const dy = normalizedPoint.y - point.y;
-                              if (Math.hypot(dx, dy) <= RESIZE_HANDLE_THRESHOLD) {
-                                        return index;
-                              }
-                    }
-                    return null;
-          }
-
-          function translateDrawingData(drawingData, delta) {
-                    const base = cloneDrawingData(drawingData);
-                    if (!base) {
-                              return drawingData;
-                    }
-                    const movePoint = (point) => {
-                              if (!point || typeof point.x !== 'number' || typeof point.y !== 'number') {
-                                        return point;
-                              }
-                              return clampNormalizedPoint({ x: point.x + delta.x, y: point.y + delta.y });
-                    };
-                    if (Array.isArray(base.points)) {
-                              base.points = base.points.map((point) => movePoint(point));
-                    }
-                    if (base.position) {
-                              base.position = movePoint(base.position);
-                    }
-                    return base;
-          }
-
-          function hitTestPoint(x, y, annotation) {
-                    if (!annotation || !annotation.drawing_data) {
-                              return false;
-                    }
-                    const px = x;
-                    const py = y;
-                    const data = annotation.drawing_data;
-                    const tolerance = actualStrokeWidth(data.strokeWidth || 0.01) + 4;
-                    const points = Array.isArray(data.points) ? data.points : [];
-                    const absolutePoints = points
-                              .map((point) => (point && typeof point === 'object' ? toAbsolute(point) : null))
-                              .filter(Boolean);
-                    const absStart = absolutePoints[0] || null;
-                    const absEnd = absolutePoints[1] || null;
-                    const tool = data.tool || annotation.tool || 'line';
-
-                    const distanceToSegment = (px, py, ax, ay, bx, by) => {
-                              const dx = bx - ax;
-                              const dy = by - ay;
-                              if (!dx && !dy) {
-                                        return Math.hypot(px - ax, py - ay);
-                              }
-                              const t = ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy);
-                              if (t < 0) {
-                                        return Math.hypot(px - ax, py - ay);
-                              }
-                              if (t > 1) {
-                                        return Math.hypot(px - bx, py - by);
-                              }
-                              const projX = ax + dx * t;
-                              const projY = ay + dy * t;
-                              return Math.hypot(px - projX, py - projY);
-                    };
-
-                    switch (tool) {
-                              case 'rectangle':
-                                        if (absStart && absEnd) {
-                                                  const minX = Math.min(absStart.x, absEnd.x);
-                                                  const minY = Math.min(absStart.y, absEnd.y);
-                                                  const maxX = Math.max(absStart.x, absEnd.x);
-                                                  const maxY = Math.max(absStart.y, absEnd.y);
-                                                  return px >= minX - tolerance && px <= maxX + tolerance && py >= minY - tolerance && py <= maxY + tolerance;
-                                        }
-                                        break;
-                              case 'ellipse':
-                              case 'circle':
-                                        if (absStart && absEnd) {
-                                                  const centerX = (absStart.x + absEnd.x) / 2;
-                                                  const centerY = (absStart.y + absEnd.y) / 2;
-                                                  const radiusX = Math.abs(absStart.x - absEnd.x) / 2;
-                                                  const radiusY = Math.abs(absStart.y - absEnd.y) / 2;
-                                                  const safeRadiusX = Math.max(radiusX, 0.0001);
-                                                  const safeRadiusY = Math.max(radiusY, 0.0001);
-                                                  const normalizedX = (px - centerX) / safeRadiusX;
-                                                  const normalizedY = (py - centerY) / safeRadiusY;
-                                                  const distance = Math.sqrt(normalizedX * normalizedX + normalizedY * normalizedY);
-                                                  const toleranceScale = Math.max(0.08, tolerance / Math.max(safeRadiusX, safeRadiusY));
-                                                  return Math.abs(distance - 1) <= toleranceScale;
-                                        }
-                                        break;
-                              case 'text':
-                                        {
-                                                  const anchor = data.position ? toAbsolute(data.position) : absStart;
-                                                  if (anchor) {
-                                                            const width = 150;
-                                                            const height = 24;
-                                                            return px >= anchor.x - tolerance && px <= anchor.x + width && py >= anchor.y - height && py <= anchor.y + height;
-                                                  }
-                                        }
-                                        break;
-                              case 'pen':
-                                        if (absolutePoints.length >= 2) {
-                                                  for (let i = 0; i < absolutePoints.length - 1; i += 1) {
-                                                            const origin = absolutePoints[i];
-                                                            const dest = absolutePoints[i + 1];
-                                                            if (!origin || !dest) {
-                                                                      continue;
-                                                            }
-                                                            const dist = distanceToSegment(px, py, origin.x, origin.y, dest.x, dest.y);
-                                                            if (dist <= tolerance) {
-                                                                      return true;
-                                                            }
-                                                  }
-                                        } else if (absolutePoints[0]) {
-                                                  const point = absolutePoints[0];
-                                                  return Math.hypot(px - point.x, py - point.y) <= tolerance;
-                                        }
-                                        break;
-                              default:
-                                        if (absStart && absEnd) {
-                                                  const dist = distanceToSegment(px, py, absStart.x, absStart.y, absEnd.x, absEnd.y);
-                                                  return dist <= tolerance;
-                                        }
-                    }
-                    return false;
-          }
-
-          function findAnnotationAt(x, y) {
-                    return state.visibleAnnotations.find((annotation) => hitTestPoint(x, y, annotation));
-          }
-
-          function handleSelection(annotation) {
-                    state.selectedId = annotation ? annotation.id : null;
-                    updateDeleteState();
-                    render();
-                    updateDrawingPlaylistSelection();
-          }
-
-          function handleEditButtonClick() {
-                    if (!state.selectedId) {
-                              return;
-                    }
-                    openDrawingEditModal(state.selectedId);
-          }
-
-          function createDraftDrawing(normalized) {
-                    // drawing_data stores normalized points and styling so annotations stay resolution-agnostic.
-                    const normalizedStroke = state.strokeWidth / Math.max(canvasEl.width, canvasEl.height, 1);
-                    const payload = {
-                              tool: state.tool,
-                              color: state.color,
-                              strokeWidth: normalizedStroke,
-                              opacity: state.opacity,
-                    };
-                    if (state.tool === 'pen') {
-                              return {
-                                        drawing_data: {
-                                                  ...payload,
-                                                  points: [normalized],
-                                        },
-                              };
-                    }
-                    return {
-                              drawing_data: {
-                                        ...payload,
-                                        points: [normalized, normalized],
-                              },
-                    };
-          }
-
-function startDrag(annotation, normalized, pointerId, options = {}) {
-          if (!annotation || !annotation.drawing_data) {
-                    return;
-          }
-          const baseDrawing = cloneDrawingData(annotation.drawing_data);
-          if (!baseDrawing) {
-                    return;
-          }
-          state.dragging = {
-                    pointerId,
-                    annotation,
-                    start: normalized,
-                    delta: { x: 0, y: 0 },
-                    baseDrawing,
-                    mode: options.mode === 'resize' ? 'resize' : 'move',
-                    handleIndex: typeof options.handleIndex === 'number' ? options.handleIndex : null,
-                    lastNormalized: normalized,
-          };
-          canvasEl.setPointerCapture(pointerId);
-}
-
-          function updateDragPoint(normalized) {
-                    if (!state.dragging) {
-                              return;
-                    }
-                    state.dragging.lastNormalized = normalized;
-                    if (state.dragging.mode === 'resize' && typeof state.dragging.handleIndex === 'number') {
-                              const updated = updateDrawingHandle(state.dragging.baseDrawing, state.dragging.handleIndex, normalized);
-                              state.draft = updated ? { drawing_data: updated } : null;
-                              render();
-                              return;
-                    }
-                    const deltaX = normalized.x - state.dragging.start.x;
-                    const deltaY = normalized.y - state.dragging.start.y;
-                    state.dragging.delta = { x: deltaX, y: deltaY };
-                    const translated = translateDrawingData(state.dragging.baseDrawing, state.dragging.delta);
-                    state.draft = translated ? { drawing_data: translated } : null;
-                    render();
-          }
-
-          function finalizeDrag(event) {
-                    if (!state.dragging || event.pointerId !== state.dragging.pointerId) {
-                              return;
-                    }
-                    canvasEl.releasePointerCapture(event.pointerId);
-                    const drag = state.dragging;
-                    state.dragging = null;
-                    state.draft = null;
-                    if (!drag) {
-                              return;
-                    }
-                    let updatedData = null;
-                    if (drag.mode === 'resize' && typeof drag.handleIndex === 'number' && drag.lastNormalized) {
-                              updatedData =
-                                        updateDrawingHandle(drag.baseDrawing, drag.handleIndex, drag.lastNormalized) ||
-                                        drag.baseDrawing;
-                    } else {
-                              updatedData = translateDrawingData(drag.baseDrawing, drag.delta);
-                    }
-                    const timestamp = Math.max(0, Number(drag.annotation.timestamp_second || 0));
-                    submitAnnotationUpdate(Number(drag.annotation.id), updatedData, timestamp);
-          }
-
-          function cancelDrag(event) {
-                    if (!state.dragging || event.pointerId !== state.dragging.pointerId) {
-                              return;
-                    }
-                    canvasEl.releasePointerCapture(event.pointerId);
-                    state.dragging = null;
-                    state.draft = null;
-                    render();
-          }
-
-          function handleCanvasPointerDown(event) {
-                    if (event.button !== 0 || !state.annotationsVisible) {
-                              return;
-                    }
-                    if (!targetHasId()) {
-                              updateStatus('Select a target before drawing');
-                              return;
-                    }
-                    const { x, y } = normalizePoint(event.clientX, event.clientY);
-                    const absX = x * canvasEl.width;
-                    const absY = y * canvasEl.height;
-
-          if (state.tool === 'select') {
-                    const hit = findAnnotationAt(absX, absY);
-                    handleSelection(hit);
-                    if (state.editing && hit) {
-                              const handleIndex = detectResizeHandle(hit, { x, y });
-                              if (typeof handleIndex === 'number') {
-                                        startDrag(hit, { x, y }, event.pointerId, { mode: 'resize', handleIndex });
-                              } else {
-                                        startDrag(hit, { x, y }, event.pointerId);
-                              }
-                    }
-                    event.preventDefault();
-                    return;
-          }
-
-                    if (state.tool === 'eraser') {
-                              const hit = findAnnotationAt(absX, absY);
-                              handleSelection(hit);
-                              if (hit && state.editing) {
-                                        handleDelete();
-                              } else if (hit) {
-                                        updateStatus('Enable editing to remove drawings');
-                              }
-                              event.preventDefault();
-                              return;
-                    }
-
-                    if (!state.editing) {
-                              return;
-                    }
-
-                    if (state.tool === 'text') {
-                              const hit = findAnnotationAt(absX, absY);
-                              if (hit && isTextAnnotation(hit) && openTextEditorForAnnotation(hit, event)) {
-                                        event.preventDefault();
-                                        return;
-                              }
-                              state.textEditingAnnotationId = null;
-                              openTextInput(event, { x, y });
-                              event.preventDefault();
-                              return;
-                    }
-
-                    if (!['pen', 'arrow', 'line', 'rectangle', 'circle', 'ellipse'].includes(state.tool)) {
-                              return;
-                    }
-
-                    state.isDrawing = true;
-                    state.pointerId = event.pointerId;
-                    canvasEl.setPointerCapture(event.pointerId);
-                    state.draft = createDraftDrawing({ x, y });
-                    event.preventDefault();
-                    render();
-          }
-
-          function handleCanvasPointerMove(event) {
-                    if (state.dragging && event.pointerId === state.dragging.pointerId) {
-                              const normalized = normalizePoint(event.clientX, event.clientY);
-                              updateDragPoint(normalized);
-                              event.preventDefault();
-                              return;
-                    }
-                    if (!state.isDrawing || event.pointerId !== state.pointerId || !state.draft) {
-                              return;
-                    }
-                    const { x, y } = normalizePoint(event.clientX, event.clientY);
-                    const points = state.draft.drawing_data.points;
-                    if (!Array.isArray(points)) {
-                              return;
-                    }
-                    if (state.tool === 'pen') {
-                              const last = points[points.length - 1];
-                              const distance = last ? Math.hypot(last.x - x, last.y - y) : 0;
-                              if (!last || distance >= 0.002) {
-                                        points.push({ x, y });
-                              }
-                    } else if (points.length >= 2) {
-                              points[1] = { x, y };
-                    }
-                    render();
-          }
-
-          function finalizeDrawing(event) {
-                    if (!state.isDrawing || event.pointerId !== state.pointerId) {
-                              return;
-                    }
-                    canvasEl.releasePointerCapture(event.pointerId);
-                    state.isDrawing = false;
-                    const draft = state.draft;
-                    state.draft = null;
-                    if (draft && draft.drawing_data) {
-                              createAnnotation(draft.drawing_data);
-                    }
-          }
-
-          function cancelDrawing(event) {
-                    if (!state.isDrawing || event.pointerId !== state.pointerId) {
-                              return;
-                    }
-                    canvasEl.releasePointerCapture(event.pointerId);
-                    state.isDrawing = false;
-                    state.draft = null;
-                    render();
-          }
-
-          function finalizePointerInteraction(event) {
-                    if (state.dragging) {
-                              finalizeDrag(event);
-                              return;
-                    }
-                    finalizeDrawing(event);
-          }
-
-          function cancelPointerInteraction(event) {
-                    if (state.dragging) {
-                              cancelDrag(event);
-                              return;
-                    }
-                    cancelDrawing(event);
-          }
-
-          function openTextInput(event, anchor, initialValue = '') {
-                    if (!textInputWrapper || !textInputField) {
-                              return;
-                    }
-                    const normalized = anchor || normalizePoint(event?.clientX || 0, event?.clientY || 0);
-                    state.textAnchor = normalized;
-                    const rect = overlayEl.getBoundingClientRect();
-                    const clientX = typeof event?.clientX === 'number' ? event.clientX : rect.left + rect.width / 2;
-                    const clientY = typeof event?.clientY === 'number' ? event.clientY : rect.top + rect.height / 2;
-                    const left = clamp((clientX - rect.left) / rect.width, 0, 1) * rect.width;
-                    const top = clamp((clientY - rect.top) / rect.height, 0, 1) * rect.height;
-                    textInputWrapper.style.left = `${left}px`;
-                    textInputWrapper.style.top = `${top}px`;
-                    textInputWrapper.classList.add('is-active');
-                    textInputField.value = initialValue;
-                    textInputField.focus();
-                    textInputField.select();
-          }
-
-          function hideTextInput() {
-                    if (!textInputWrapper) return;
-                    textInputWrapper.classList.remove('is-active');
-                    state.textAnchor = null;
-                    state.textEditingAnnotationId = null;
-                    textInputField && textInputField.blur();
-          }
-
-          function getAnnotationTextAnchor(annotation) {
-                    if (!annotation || !annotation.drawing_data) {
-                              return null;
-                    }
-                    const data = annotation.drawing_data;
-                    if (data.position && typeof data.position === 'object') {
-                              return clampNormalizedPoint(data.position);
-                    }
-                    const points = Array.isArray(data.points) ? data.points : [];
-                    if (points.length) {
-                              return clampNormalizedPoint(points[0]);
-                    }
-                    return null;
-          }
-
-          function isTextAnnotation(annotation) {
-                    if (!annotation || !annotation.drawing_data) {
-                              return false;
-                    }
-                    const tool = (annotation.drawing_data.tool || annotation.tool_type || '').toString().toLowerCase();
-                    return tool === 'text';
-          }
-
-          function openTextEditorForAnnotation(annotation, event) {
-                    if (!annotation) {
-                              return false;
-                    }
-                    const anchor = getAnnotationTextAnchor(annotation);
-                    if (!anchor) {
-                              return false;
-                    }
-                    state.textEditingAnnotationId = Number(annotation.id) || null;
-                    handleSelection(annotation);
-                    const textValue = annotation.drawing_data?.text || '';
-                    openTextInput(event, anchor, textValue);
-                    return true;
-          }
-
-          function createAnnotation(drawingData) {
-                    if (!targetHasId()) {
-                              return;
-                    }
-                    const preparedDrawing = prepareDrawingForServer(drawingData);
-                    const payload = {
-                              match_id: matchId,
-                              target_type: state.targetType,
-                              target_id: state.targetId,
-                              timestamp_second: Math.max(0, Math.round(videoEl.currentTime || 0)),
-                              drawing_data: preparedDrawing,
-                              before_seconds: DEFAULT_VISIBILITY_WINDOW_SECONDS,
-                              after_seconds: DEFAULT_VISIBILITY_WINDOW_SECONDS,
-                              show_before_seconds: DEFAULT_VISIBILITY_WINDOW_SECONDS,
-                              show_after_seconds: DEFAULT_VISIBILITY_WINDOW_SECONDS,
-                    };
-                    const csrfToken = cfg.csrfToken;
-                    updateStatus('Saving annotation…');
-                    fetch(drawingsCreateUrl, {
-                              method: 'POST',
-                              credentials: 'same-origin',
-                              headers: {
-                                        'Content-Type': 'application/json',
-                                        ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
-                              },
-                              body: JSON.stringify(payload),
-                    })
-                              .then((res) => res.json())
-                              .then((res) => {
-                                        if (!res || res.ok !== true || !res.annotation) {
-                                                  throw new Error(res?.error || 'annotation_create_failed');
-                                        }
-                                        const key = buildTargetKey(state.targetType, state.targetId);
-                                        const cached = getAnnotationCache(key);
-                                        const updated = cached ? [...cached.annotations, res.annotation] : [res.annotation];
-                                        const sorted = updated.slice().sort((a, b) => {
-                                                  const aTime = Number(a.timestamp_second) || 0;
-                                                  const bTime = Number(b.timestamp_second) || 0;
-                                                  if (aTime !== bTime) {
-                                                            return aTime - bTime;
-                                                  }
-                                                  return Number(a.id) - Number(b.id);
-                                        });
-                                        const normalized = setAnnotationCache(key, sorted);
-                                        state.visibleAnnotations = normalized;
-                                        updateStatus(`Annotation saved`);
-                                        handleSelection(res.annotation);
-                                        render();
-                              })
-                              .catch((error) => {
-                                        console.error('Annotation save failed', error);
-                                        updateStatus('Failed to save annotation');
-                              });
-          }
-
-          function submitAnnotationUpdate(annotationId, drawingData, timestamp, options = {}) {
-                    if (!targetHasId() || !drawingsUpdateUrl) {
-                              updateStatus('Unable to update annotation');
-                              return;
-                   }
-                   const payload = {
-                             match_id: matchId,
-                             target_type: state.targetType,
-                             target_id: state.targetId,
-                             annotation_id: annotationId,
-                             timestamp_second: Math.max(0, Math.round(timestamp || 0)),
-                              drawing_data: prepareDrawingForServer(drawingData),
-                   };
-                    if (options && typeof options.notes === 'string') {
-                              payload.notes = options.notes.trim();
-                    } else if (options && options.notes === null) {
-                              payload.notes = null;
-                    }
-                    if (options && typeof options.beforeSeconds === 'number') {
-                              const value = Math.max(0, Math.round(options.beforeSeconds));
-                              payload.before_seconds = value;
-                              payload.show_before_seconds = value;
-                    }
-                    if (options && typeof options.afterSeconds === 'number') {
-                              const value = Math.max(0, Math.round(options.afterSeconds));
-                              payload.after_seconds = value;
-                              payload.show_after_seconds = value;
-                    }
-                   const csrfToken = cfg.csrfToken;
-                   updateStatus('Saving annotation…');
-                    fetch(drawingsUpdateUrl, {
-                              method: 'POST',
-                              credentials: 'same-origin',
-                              headers: {
-                                        'Content-Type': 'application/json',
-                                        ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
-                              },
-                              body: JSON.stringify(payload),
-                    })
-                              .then((res) => res.json())
-                              .then((res) => {
-                                        if (!res || res.ok !== true || !res.annotation) {
-                                                  throw new Error(res?.error || 'annotation_update_failed');
-                                        }
-                                        const key = buildTargetKey(state.targetType, state.targetId);
-                                        const cached = getAnnotationCache(key);
-                                        const updatedList = cached
-                                                  ? cached.annotations.map((annotation) => (annotation.id === res.annotation.id ? res.annotation : annotation))
-                                                  : [res.annotation];
-                                        const sorted = updatedList.slice().sort((a, b) => {
-                                                  const aTime = Number(a.timestamp_second) || 0;
-                                                  const bTime = Number(b.timestamp_second) || 0;
-                                                  if (aTime !== bTime) {
-                                                            return aTime - bTime;
-                                                  }
-                                                  return Number(a.id) - Number(b.id);
-                                        });
-                                        const normalized = setAnnotationCache(key, sorted);
-                                        state.visibleAnnotations = normalized;
-                                        updateStatus('Annotation updated');
-                                        handleSelection(res.annotation);
-                                        render();
-                              })
-                              .catch((error) => {
-                                        console.error('Annotation update failed', error);
-                                        updateStatus('Failed to update annotation');
-                              });
-          }
-
-          function handleTextSave() {
-                    const anchor = state.textAnchor;
-                    if (!anchor) {
-                              hideTextInput();
-                              return;
-                    }
-                    const textValue = (textInputField.value || '').trim();
-                    const editingAnnotationId = state.textEditingAnnotationId;
-                    hideTextInput();
-                    if (!textValue) {
-                              return;
-                    }
-                    if (editingAnnotationId) {
-                              const annotation = findAnnotationById(editingAnnotationId);
-                              if (annotation) {
-                                        const updatedDrawing = {
-                                                  ...annotation.drawing_data,
-                                                  text: textValue,
-                                                  color: annotation.drawing_data?.color || state.color,
-                                                  position: anchor,
-                                                  strokeWidth:
-                                                            annotation.drawing_data?.strokeWidth ??
-                                                            state.strokeWidth / Math.max(canvasEl.width, canvasEl.height, 1),
-                                                  fontSize:
-                                                            annotation.drawing_data?.fontSize ??
-                                                            Math.max(0.02, state.strokeWidth / Math.max(canvasEl.height, 1)),
-                                        };
-                                        const timestamp = getAnnotationTime(annotation) ?? Math.max(0, Number(annotation.timestamp_second) || 0);
-                                        submitAnnotationUpdate(editingAnnotationId, updatedDrawing, timestamp);
-                              }
-                              return;
-                    }
-                                        const drawingData = {
-                                                  tool: 'text',
-                                                  color: state.color,
-                                                  strokeWidth: state.strokeWidth / Math.max(canvasEl.width, canvasEl.height, 1),
-                                                  fontSize: Math.max(0.02, state.strokeWidth / Math.max(canvasEl.height, 1)),
-                                                  position: anchor,
-                                                  text: textValue,
-                                        };
-                    createAnnotation(drawingData);
-          }
-
-          function handleTextCancel() {
-                    hideTextInput();
-          }
-
-          function updateDrawingModalValues() {
-                    if (!drawingEditModal) {
-                              return;
-                    }
-                    drawingEditBeforeValue && (drawingEditBeforeValue.textContent = String(drawingEditState.beforeSeconds));
-                    drawingEditAfterValue && (drawingEditAfterValue.textContent = String(drawingEditState.afterSeconds));
-                    if (drawingEditToolLabel) {
-                              const toolText = drawingEditState.toolLabel ? `Tool: ${drawingEditState.toolLabel}` : 'Tool: Drawing';
-                              drawingEditToolLabel.textContent = toolText;
-                    }
-                    if (drawingEditTimestampLabel) {
-                              const timeText =
-                                        drawingEditState.timestamp !== null
-                                                  ? `Time: ${formatTimestampLabel(drawingEditState.timestamp)}`
-                                                  : 'Time: 0:00';
-                              drawingEditTimestampLabel.textContent = timeText;
-                    }
-          }
-
-          function closeDrawingEditModal() {
-                    if (!drawingEditModal) {
-                              return;
-                    }
-                    drawingEditModal.classList.remove('is-active');
-                    drawingEditModal.setAttribute('aria-hidden', 'true');
-                    drawingEditState.annotationId = null;
-                    drawingEditState.beforeSeconds = DEFAULT_VISIBILITY_WINDOW_SECONDS;
-                    drawingEditState.afterSeconds = DEFAULT_VISIBILITY_WINDOW_SECONDS;
-                    drawingEditState.toolLabel = null;
-                    drawingEditState.timestamp = null;
-                    updateDrawingModalValues();
-          }
-
-          function openDrawingEditModal(annotationId) {
-                    if (!drawingEditModal) {
-                              return;
-                    }
-                    const annotation = findAnnotationById(annotationId);
-                    if (!annotation) {
-                              return;
-                    }
-                    const windowRange = resolveAnnotationWindow(annotation);
-                    const timestamp = Number(annotation.timestamp_second) || 0;
-                    drawingEditState.annotationId = Number(annotation.id) || null;
-                    drawingEditState.beforeSeconds = Math.max(0, timestamp - windowRange.start);
-                    drawingEditState.afterSeconds = Math.max(0, windowRange.end - timestamp);
-                    const rawTool = annotation.tool_type || annotation.drawing_data?.tool || 'drawing';
-                    const normalizedTool = String(rawTool || 'drawing').replace(/_/g, ' ').trim();
-                    const labelText = normalizedTool || 'drawing';
-                    drawingEditState.toolLabel = labelText.charAt(0).toUpperCase() + labelText.slice(1);
-                    drawingEditState.timestamp = timestamp;
-                    drawingEditModal.classList.add('is-active');
-                    drawingEditModal.setAttribute('aria-hidden', 'false');
-                    updateDrawingModalValues();
-                    if (drawingEditNotes) {
-                              drawingEditNotes.value = annotation.notes || '';
-                    }
-                    if (!state.editing) {
-                              updateModeState(true);
-                    }
-                    handleSelection(annotation);
-          }
-
-          function handleDrawingEditDurationClick(event) {
-                    const button = event.currentTarget;
-                    const mode = button?.dataset?.mode;
-                    const step = Number(button?.dataset?.step) || 0;
-                    if (!mode || !Number.isFinite(step)) {
-                              return;
-                    }
-                    const key = mode === 'before' ? 'beforeSeconds' : mode === 'after' ? 'afterSeconds' : null;
-                    if (!key) {
-                              return;
-                    }
-                    drawingEditState[key] = Math.max(0, drawingEditState[key] + step);
-                    updateDrawingModalValues();
-          }
-
-          function handleDrawingEditSave() {
-                    const annotationId = drawingEditState.annotationId;
-                    if (!annotationId) {
-                              return;
-                    }
-                    const annotation = findAnnotationById(annotationId);
-                    if (!annotation) {
-                              return;
-                    }
-                    const timestamp = Number(annotation.timestamp_second) || 0;
-                    const drawingData = annotation.drawing_data || null;
-                    const notesValue = drawingEditNotes ? (drawingEditNotes.value || '').trim() : null;
-                    closeDrawingEditModal();
-                    submitAnnotationUpdate(annotationId, drawingData, timestamp, {
-                              notes: notesValue,
-                              beforeSeconds: drawingEditState.beforeSeconds,
-                              afterSeconds: drawingEditState.afterSeconds,
-                    });
-          }
-
-          function handleDrawingEditDelete() {
-                    const annotationId = drawingEditState.annotationId;
-                    if (!annotationId) {
-                              return;
-                    }
-                    const annotation = findAnnotationById(annotationId);
-                    if (annotation) {
-                              handleSelection(annotation);
-                    }
-                    closeDrawingEditModal();
-                    handleDelete();
-          }
-
-          function handleDrawingEditCancel() {
-                    closeDrawingEditModal();
-          }
-
-          if (drawingEditModal) {
-                    drawingEditDurationButtons.forEach((btn) => {
-                              btn.addEventListener('click', handleDrawingEditDurationClick);
-                    });
-                    drawingEditSaveBtn && drawingEditSaveBtn.addEventListener('click', handleDrawingEditSave);
-                    drawingEditDeleteBtn && drawingEditDeleteBtn.addEventListener('click', handleDrawingEditDelete);
-                    drawingEditCancelBtn && drawingEditCancelBtn.addEventListener('click', handleDrawingEditCancel);
-                    drawingEditCloseBtn && drawingEditCloseBtn.addEventListener('click', handleDrawingEditCancel);
-                    drawingEditModal.addEventListener('click', (event) => {
-                              if (event.target === drawingEditModal) {
-                                        closeDrawingEditModal();
-                              }
-                    });
-                    window.addEventListener('keydown', (event) => {
-                              if (event.key === 'Escape') {
-                                        closeDrawingEditModal();
-                              }
-                    });
-          }
-
-          function clearAllDrawings() {
-                    if (!targetHasId()) {
-                              return;
-                    }
-                    const key = buildTargetKey(state.targetType, state.targetId);
-                    if (!key) {
-                              return;
-                    }
-                    setAnnotationCache(key, []);
-                    state.visibleAnnotations = [];
-                    handleSelection(null);
-                    hideTextInput();
-                    render();
-                    updateStatus('Cleared all drawings for this session');
-          }
-
-          function handleDelete() {
-                    if (!state.selectedId || !targetHasId() || state.isDeleting) {
-                              return;
-                    }
-                    const selectedId = state.selectedId;
-                    const payload = {
-                              match_id: matchId,
-                              annotation_id: selectedId,
-                    };
-                    const csrfToken = cfg.csrfToken;
-                    updateStatus('Removing drawing…');
-                    state.isDeleting = true;
-                    updateDeleteState();
-                    fetch(drawingsDeleteUrl, {
-                              method: 'POST',
-                              credentials: 'same-origin',
-                              headers: {
-                                        'Content-Type': 'application/json',
-                                        ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
-                              },
-                              body: JSON.stringify(payload),
-                    })
-                              .then((response) => response.json().then((payload) => ({ response, payload })))
-                              .then(({ response, payload }) => {
-                                        if (!payload || payload.ok !== true) {
-                                                  const failure = new Error(payload?.error || 'drawing_delete_failed');
-                                                  failure.payload = payload;
-                                                  failure.status = response?.status;
-                                                  throw failure;
-                                        }
-                                        const key = buildTargetKey(state.targetType, state.targetId);
-                                        const cached = getAnnotationCache(key);
-                                        const remaining = cached
-                                                  ? cached.annotations.filter((annotation) => Number(annotation.id) !== Number(selectedId))
-                                                  : [];
-                                        const normalizedRemaining = setAnnotationCache(key, remaining);
-                                        state.visibleAnnotations = normalizedRemaining;
-                                        removeAnnotationFromUnsaved(selectedId);
-                                        state.isDeleting = false;
-                                        handleSelection(null);
-                                        hideTextInput();
-                                        updateStatus('Drawing deleted');
-                              })
-                              .catch((error) => {
-                                        const errorPayload = error?.payload ?? null;
-                                        const reasonLabel = errorPayload?.error ? ` (${errorPayload.error})` : '';
-                                        console.error('Drawing delete failed', {
-                                                  status: error?.status ?? null,
-                                                  payload: errorPayload,
-                                                  message: error?.message ?? 'annotation_delete_failed',
-                                        });
-                                        state.isDeleting = false;
-                                        updateDeleteState();
-                                        updateStatus(`Failed to delete annotation${reasonLabel}`);
-                              });
-          }
-
-          function handleTargetChange() {
-                    const value = targetSelect.value;
-                    if (!value) {
-                              return;
-                    }
-                    const [type, id] = value.split(':');
-                    const targetId = Number(id) || 0;
-                    state.targetType = type || null;
-                    state.targetId = targetId > 0 ? targetId : null;
-                    state.selectedId = null;
-                    updateDeleteState();
-                    if (targetHasId()) {
-                              ensureAnnotations(state.targetType, state.targetId);
-                              updateStatus(`Target: ${describeTarget(state.targetType, state.targetId)}`);
-                    } else {
-                              updateStatus('Select a valid annotation target');
-                    }
-          }
-
-          function populateClipOptions() {
-                    if (!endpoints.events) {
-                              return;
-                    }
-                    const url = new URL(endpoints.events, window.location.origin);
-                    url.searchParams.set('match_id', matchId);
-                    fetch(url.toString(), { credentials: 'same-origin' })
-                              .then((res) => res.json())
-                              .then((payload) => {
-                                        if (!payload || payload.ok !== true || !Array.isArray(payload.events)) {
-                                                  return;
-                                        }
-                                        const clips = payload.events.filter((event) => event.clip_id);
-                                        if (!clipGroup) {
-                                                  return;
-                                        }
-                                        clipGroup.innerHTML = '';
-                                        clips.forEach((clip) => {
-                                                  const option = document.createElement('option');
-                                                  option.value = `clip:${clip.clip_id}`;
-                                                  const label = clip.clip_name || clip.event_type_label || 'Clip';
-                                                  const timeLabel = clip.clip_start_second ? ` @ ${Math.floor(clip.clip_start_second / 60)}:${String(clip.clip_start_second % 60).padStart(2, '0')}` : '';
-                                                  option.textContent = `Clip #${clip.clip_id} – ${label}${timeLabel}`;
-                                                  clipGroup.appendChild(option);
-                                        });
-                              })
-                              .catch(() => { /* ignore */ });
-          }
-
-          modeToggle.addEventListener('click', () => {
-                    if (!targetHasId()) {
-                              updateStatus('Pick a valid target first');
-                              return;
-                    }
-                    if (!state.annotationsVisible) {
-                              updateVisibilityState(true);
-                    }
-                    const nextEditing = !state.editing;
-                    updateModeState(nextEditing);
-                    updateStatus(nextEditing ? 'Annotation mode active' : 'Annotation mode disabled');
-          });
-
-          visibilityToggle.addEventListener('click', () => {
-                    const nextVisibility = !state.annotationsVisible;
-                    updateVisibilityState(nextVisibility);
-                    updateStatus(nextVisibility ? 'Annotations visible' : 'Annotations hidden');
-          });
-
-          toolButtons.forEach((btn) => {
-                    btn.addEventListener('click', () => {
-                              selectTool(btn.dataset.annotationTool);
-                    });
-          });
-
-          Object.entries(zone14ToolElements).forEach(([name, button]) => {
-                    if (!button) {
-                              return;
-                    }
-                    button.addEventListener('click', (event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                              const annotationTool = ZONE14_TO_ANNOTATION_TOOL[name];
-                              if (!annotationTool) {
-                                        return;
-                              }
-                              const targetButton = document.querySelector(`[data-annotation-tool="${annotationTool}"]`);
-                              if (targetButton) {
-                                        targetButton.click();
-                              }
-                    });
-          });
-
-          zone14ColourButton?.addEventListener('click', (event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    setZone14PaletteOpen(!zone14PaletteOpen);
-          });
-
-          zone14ColourPalette?.addEventListener('click', (event) => {
-                    event.stopPropagation();
-          });
-
-          zone14PaletteOptions.forEach((option) => {
-                    option.addEventListener('click', (event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                              applyZone14Colour(option.dataset.zone14Colour);
-                              setZone14PaletteOpen(false);
-                    });
-          });
-
-          document.addEventListener('click', () => {
-                    if (zone14PaletteOpen) {
-                              setZone14PaletteOpen(false);
-                    }
-          });
-
-          document.addEventListener('keydown', (event) => {
-                    if (event.key === 'Escape') {
-                              setZone14PaletteOpen(false);
-                    }
-          });
-
-          colorInput.addEventListener('change', () => {
-                    state.color = colorInput.value;
-                    refreshZone14ColourSwatch();
-          });
-
-          strokeInput.addEventListener('input', () => {
-                    state.strokeWidth = Number(strokeInput.value) || 4;
-          });
-          opacityInput && opacityInput.addEventListener('input', () => {
-                    const value = Number(opacityInput.value) || 0;
-                    state.opacity = Math.min(1, Math.max(0, value / 100));
-          });
-
-          deleteButton.addEventListener('click', handleDelete);
-          clearButton && clearButton.addEventListener('click', clearAllDrawings);
-          editButton && editButton.addEventListener('click', handleEditButtonClick);
-          targetSelect.addEventListener('change', handleTargetChange);
-          canvasEl.addEventListener('pointerdown', handleCanvasPointerDown);
-          canvasEl.addEventListener('pointermove', handleCanvasPointerMove);
-          canvasEl.addEventListener('pointerup', finalizePointerInteraction);
-          canvasEl.addEventListener('pointerleave', cancelPointerInteraction);
-          canvasEl.addEventListener('pointercancel', cancelPointerInteraction);
-          textSaveBtn && textSaveBtn.addEventListener('click', handleTextSave);
-          textCancelBtn && textCancelBtn.addEventListener('click', handleTextCancel);
-          drawingsPlaylistList && drawingsPlaylistList.addEventListener('click', handleDrawingPlaylistClick);
-
-          videoEl.addEventListener('pointerdown', (event) => {
-                    if (state.editing || !state.annotationsVisible) {
-                              return;
-                    }
-                    const { x, y } = normalizePoint(event.clientX, event.clientY);
-                    const absX = x * canvasEl.width;
-                    const absY = y * canvasEl.height;
-                    const hit = findAnnotationAt(absX, absY);
-                    handleSelection(hit);
-          });
-
-          videoEl.addEventListener('loadedmetadata', updateCanvasSize);
-          videoEl.addEventListener('resize', updateCanvasSize);
-          videoEl.addEventListener('timeupdate', render);
-          videoEl.addEventListener('seeked', render);
-          videoEl.addEventListener('play', render);
-          videoEl.addEventListener('pause', render);
-          window.addEventListener('resize', () => {
-                    updateCanvasSize();
-          });
-          window.addEventListener('DeskVideoTransformChanged', () => {
-                    render();
-          });
-
-          updateCanvasSize();
-          registerTargetSelection();
-          populateClipOptions();
-          if (targetHasId()) {
-                    ensureAnnotations(state.targetType, state.targetId);
-          } else {
-                    updateStatus('Annotations unavailable without a video target');
-          }
-          updateDeleteState();
-          updateVisibilityState(true);
-          updateModeState(false);
-          renderDrawingsPlaylist([]);
-          setZone14PaletteOpen(false);
-          refreshZone14ColourSwatch();
-          selectTool(state.tool);
-          window.DeskAnnotationTimelineBridge = timelineBridge;
-          window.addEventListener('DeskDrawingEditRequested', (event) => {
-                    const annotationId = Number(event?.detail?.annotationId);
-                    if (!Number.isFinite(annotationId) || annotationId <= 0) {
-                              return;
-                    }
-                    openDrawingEditModal(annotationId);
-          });
-          window.addEventListener('DeskInteractiveModeChanged', handleInteractiveModeChange);
-          window.addEventListener('DeskDrawingTimestampUpdate', handleDrawingTimestampUpdate);
-          window.dispatchEvent(new CustomEvent('DeskAnnotationTimelineReady'));
+  // Configuration
+  const DRAW_CONFIG = {
+    // Pencil defaults used for initial toolbar state
+    pencil: {
+      thickness: 4,
+      color: '#facc15',
+    },
+    spotlight: {
+      // Vertical beam gradient stops (bottom → top)
+      verticalGradientStops: [
+        { offset: 0, color: 'rgba(255,255,255,0.58)' },
+        { offset: 0.25, color: 'rgba(255,255,255,0.44)' },
+        { offset: 0.45, color: 'rgba(255,255,255,0.34)' },
+        { offset: 0.7, color: 'rgba(255,255,255,0.22)' },
+        { offset: 1, color: 'rgba(255,255,255,0)' },
+      ],
+      // Horizontal softness mask stops (left → right)
+      horizontalGradientStops: [
+        { offset: 0, color: 'rgba(255,255,255,0)' },
+        { offset: 0.25, color: 'rgba(255,255,255,0.25)' },
+        { offset: 0.5, color: 'rgba(255,255,255,0.45)' },
+        { offset: 0.75, color: 'rgba(255,255,255,0.25)' },
+        { offset: 1, color: 'rgba(255,255,255,0)' },
+      ],
+      // Ellipse glow radial gradient stops
+      ellipseGradientStops: [
+        { offset: 0, color: 'rgba(255,255,255,0.45)' },
+        { offset: 0.5, color: 'rgba(255,255,255,0.15)' },
+        { offset: 1, color: 'rgba(255,255,255,0)' },
+      ],
+      // Ellipse fade mask stops (bottom → top)
+      ellipseMaskStops: [
+        { offset: 1, color: 'rgba(255,255,255,1)' },
+        { offset: 0.5, color: 'rgba(255,255,255,0.5)' },
+        { offset: 0, color: 'rgba(255,255,255,0)' },
+      ],
+      minBeamWidth: 30,
+    },
+  };
+
+  const POLYGON_CLOSE_THRESHOLD = 10;
+  const POLYGON_CLOSE_THRESHOLD_SQ = POLYGON_CLOSE_THRESHOLD * POLYGON_CLOSE_THRESHOLD;
+  const TEXT_FONT_FAMILY = '"Inter", "Segoe UI", sans-serif';
+  const TEXT_FONT_WEIGHT = 500;
+  const TEXT_LINE_HEIGHT_RATIO = 1.35;
+  const TEXT_PADDING = 8;
+  const TEXT_COLOR = '#ffffff';
+  const TEXT_BACKGROUND = 'rgba(0,0,0,0.6)';
+
+  // DOM lookups
+  const overlay = document.querySelector('[data-annotation-overlay]');
+  const canvas = document.querySelector('[data-annotation-canvas]');
+  const toolbar = document.querySelector('[data-annotation-toolbar]');
+  const pencilButton = document.getElementById('deskPencilTool');
+  const circleButton = document.getElementById('deskCircleTool');
+  const spotlightButton = document.getElementById('deskSpotlightTool');
+
+  console.log('Drawing system restored');
+  console.log('Pencil exists:', !!pencilButton);
+  console.log('Circle exists:', !!circleButton);
+  console.log('Spotlight exists:', !!spotlightButton);
+
+  if (!overlay || !canvas || !toolbar || !pencilButton || !circleButton || !spotlightButton) {
+    return;
+  }
+
+  const thicknessButtons = Array.from(toolbar.querySelectorAll('[data-pencil-thickness]'));
+  const colourButtons = Array.from(toolbar.querySelectorAll('[data-pencil-color]'));
+  const circleModeButtons = Array.from(toolbar.querySelectorAll('[data-circle-mode]'));
+  const arrowButtons = Array.from(toolbar.querySelectorAll('[data-arrow-type]'));
+  const shapeButtons = Array.from(toolbar.querySelectorAll('[data-shape-type]'));
+  const menuButtons = Array.from(toolbar.querySelectorAll('[data-toolbar-button][data-menu-key]'));
+  const menuPanels = Array.from(toolbar.querySelectorAll('[data-toolbar-menu]'));
+  const menuPanelMap = menuPanels.reduce((acc, panel) => {
+    const key = panel.dataset.toolbarMenu;
+    if (key) {
+      acc[key] = panel;
+    }
+    return acc;
+  }, {});
+  const undoButton = toolbar.querySelector('[data-drawing-tool="undo"]');
+  const redoButton = toolbar.querySelector('[data-drawing-tool="redo"]');
+  const textButton = toolbar.querySelector('[data-drawing-tool="text"]');
+  const textFontSizeInput = toolbar.querySelector('[data-text-font-size]');
+  const textFontSizeOutput = toolbar.querySelector('[data-text-font-size-value]');
+  const ctx = canvas.getContext('2d');
+
+  if (!ctx) {
+    return;
+  }
+
+  const textEditor = document.createElement('div');
+  textEditor.className = 'annotation-text-editor';
+  textEditor.setAttribute('contenteditable', 'true');
+  textEditor.setAttribute('spellcheck', 'false');
+  textEditor.dataset.visible = 'false';
+  overlay.appendChild(textEditor);
+
+  // State
+  const state = {
+    activeTool: null,
+    pencilThickness: DRAW_CONFIG.pencil.thickness,
+    pencilColor: DRAW_CONFIG.pencil.color,
+    circleMode: 'solid',
+    arrowType: 'pass',
+    shapeType: 'ellipse',
+    drawHistory: [],
+    redoStack: [],
+    drawing: null,
+    currentAction: null,
+    polygonPreviewPoint: null,
+    textFontSize: 18,
+    textEditingIndex: null,
+  };
+
+  window.DeskDrawingState = state;
+
+  const isToolActive = (tool) => state.activeTool === tool;
+
+  const pointerState = { pointerId: null };
+
+  const menuKeys = Object.keys(menuPanelMap);
+  const hoverCounts = menuKeys.reduce((acc, key) => {
+    acc[key] = 0;
+    return acc;
+  }, {});
+  let hoverTool = null;
+  let pinnedTool = null;
+
+  const getActiveMenuKey = () => hoverTool || pinnedTool;
+
+  const handleMenuHoverEnter = (menuKey) => {
+    if (!menuKey || !(menuKey in hoverCounts)) {
+      return;
+    }
+    hoverCounts[menuKey] += 1;
+    hoverTool = menuKey;
+    updateMenuVisibility();
+  };
+
+  const handleMenuHoverLeave = (menuKey) => {
+    if (!menuKey || !(menuKey in hoverCounts)) {
+      return;
+    }
+    hoverCounts[menuKey] = Math.max(0, hoverCounts[menuKey] - 1);
+    if (hoverCounts[menuKey] === 0 && hoverTool === menuKey) {
+      hoverTool = null;
+    }
+    updateMenuVisibility();
+  };
+
+  const registerMenuHoverEvents = (target, menuKey) => {
+    if (!target || !menuKey || !(menuKey in hoverCounts)) {
+      return;
+    }
+    target.addEventListener('pointerenter', () => handleMenuHoverEnter(menuKey));
+    target.addEventListener('pointerleave', () => handleMenuHoverLeave(menuKey));
+  };
+
+  menuButtons.forEach((button) => {
+    const key = button.dataset.menuKey;
+    registerMenuHoverEvents(button, key);
+    const panel = menuPanelMap[key];
+    if (panel) {
+      registerMenuHoverEvents(panel, key);
+    }
+  });
+
+  const updateMenuVisibility = () => {
+    const activeMenu = getActiveMenuKey();
+    menuPanels.forEach((panel) => {
+      const key = panel.dataset.toolbarMenu;
+      const isVisible = key && activeMenu === key;
+      panel.classList.toggle('is-visible', isVisible);
+      panel.setAttribute('aria-hidden', isVisible ? 'false' : 'true');
+      if (isVisible) {
+        panel.removeAttribute('inert');
+      } else {
+        panel.setAttribute('inert', '');
+      }
+    });
+    menuButtons.forEach((button) => {
+      const key = button.dataset.menuKey;
+      const isPinned = key && pinnedTool === key;
+      const isOpen = key && activeMenu === key;
+      button.classList.toggle('is-active', isPinned);
+      button.classList.toggle('is-open', isOpen);
+      if (typeof button.getAttribute('aria-pressed') === 'string') {
+        button.setAttribute('aria-pressed', isPinned ? 'true' : 'false');
+      }
+    });
+    // Keep the toolbar open when a menu is active/pinned
+    if (toolbar) {
+      toolbar.classList.toggle('is-open', !!activeMenu);
+    }
+  };
+
+  const togglePinnedTool = (menuKey) => {
+    if (!menuKey || !(menuKey in hoverCounts)) {
+      return;
+    }
+    const alreadyPinned = pinnedTool === menuKey;
+    if (alreadyPinned) {
+      pinnedTool = null;
+      hoverCounts[menuKey] = 0;
+      hoverTool = null;
+    } else {
+      pinnedTool = menuKey;
+    }
+    updateMenuVisibility();
+  };
+
+  const closeMenus = () => {
+    hoverTool = null;
+    pinnedTool = null;
+    Object.keys(hoverCounts).forEach((key) => {
+      hoverCounts[key] = 0;
+    });
+    updateMenuVisibility();
+  };
+
+  // Canvas helpers
+  const updateCanvasSize = () => {
+    const rect = overlay.getBoundingClientRect();
+    if (!rect.width || !rect.height) {
+      return;
+    }
+    const ratio = window.devicePixelRatio || 1;
+    canvas.width = rect.width * ratio;
+    canvas.height = rect.height * ratio;
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    render();
+  };
+
+  const hexToRgb = (value) => {
+    const cleaned = (value || '').replace('#', '').trim();
+    const expanded = cleaned.length === 3
+      ? cleaned.split('').map((char) => char + char).join('')
+      : cleaned;
+    if (!/^[0-9a-fA-F]{6}$/.test(expanded)) {
+      return { r: 0, g: 0, b: 0 };
+    }
+    const numeric = parseInt(expanded, 16);
+    return {
+      r: (numeric >> 16) & 0xff,
+      g: (numeric >> 8) & 0xff,
+      b: numeric & 0xff,
+    };
+  };
+
+  const rgba = (hex, alpha) => {
+    const { r, g, b } = hexToRgb(hex);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
+
+  // Drawing routines
+  const drawStroke = (action) => {
+    if (!action.points || !action.points.length) {
+      return;
+    }
+    ctx.save();
+    ctx.lineWidth = action.thickness;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = action.color;
+    if (action.points.length === 1) {
+      const point = action.points[0];
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, action.thickness / 2, 0, Math.PI * 2);
+      ctx.fillStyle = action.color;
+      ctx.fill();
+      ctx.restore();
+      return;
+    }
+    ctx.beginPath();
+    ctx.moveTo(action.points[0].x, action.points[0].y);
+    for (let i = 1; i < action.points.length; i += 1) {
+      ctx.lineTo(action.points[i].x, action.points[i].y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  };
+
+  const drawEllipse = (action) => {
+    if (!action || action.width <= 0 || action.height <= 0) {
+      return;
+    }
+    ctx.save();
+    const centerX = action.x + action.width / 2;
+    const centerY = action.y + action.height / 2;
+    if (action.mode === 'solid') {
+      ctx.beginPath();
+      ctx.ellipse(centerX, centerY, action.width / 2, action.height / 2, 0, 0, Math.PI * 2);
+      ctx.fillStyle = rgba(action.color, 0.6);
+      ctx.fill();
+    } else if (action.mode === 'hollow') {
+      const beamWidth = Math.max(action.width, 1);
+      const beamHeight = Math.max(action.height, 1);
+      const beamLeft = action.x;
+      const beamTop = 0;
+      const beamBottom = beamTop + beamHeight;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(beamLeft, beamTop, beamWidth, beamHeight);
+      ctx.clip();
+
+      const beamGradient = ctx.createLinearGradient(0, beamBottom, 0, beamTop);
+      DRAW_CONFIG.spotlight.verticalGradientStops.forEach(({ offset, color }) => {
+        beamGradient.addColorStop(offset, color);
+      });
+
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = beamGradient;
+      ctx.fillRect(beamLeft, beamTop, beamWidth, beamHeight);
+
+      ctx.globalCompositeOperation = 'destination-in';
+      const horizontalGradient = ctx.createLinearGradient(beamLeft, 0, beamLeft + beamWidth, 0);
+      DRAW_CONFIG.spotlight.horizontalGradientStops.forEach(({ offset, color }) => {
+        horizontalGradient.addColorStop(offset, color);
+      });
+      ctx.fillStyle = horizontalGradient;
+      ctx.fillRect(beamLeft, beamTop, beamWidth, beamHeight);
+
+      ctx.restore();
+
+      // ✅ existing bottom ellipse (unchanged)
+      const ellipseCenterX = beamLeft + beamWidth / 2;
+      const ellipseCenterY = beamBottom;
+      const ellipseRadiusX = Math.max(beamWidth * 0.9, 30);
+      const ellipseRadiusY = Math.max(beamWidth * 0.25, 12);
+
+      const ellipseGradient = ctx.createRadialGradient(
+        ellipseCenterX,
+        ellipseCenterY,
+        0,
+        ellipseCenterX,
+        ellipseCenterY,
+        ellipseRadiusX
+      );
+
+      DRAW_CONFIG.spotlight.ellipseGradientStops.forEach(({ offset, color }) => {
+        ellipseGradient.addColorStop(offset, color);
+      });
+
+      ctx.beginPath();
+      ctx.ellipse(
+        ellipseCenterX,
+        ellipseCenterY,
+        ellipseRadiusX,
+        ellipseRadiusY,
+        0,
+        0,
+        Math.PI * 2
+      );
+      ctx.fillStyle = ellipseGradient;
+      ctx.fill();
+      const ellipseMaskGradient = ctx.createLinearGradient(
+        ellipseCenterX,
+        ellipseCenterY,
+        ellipseCenterX,
+        ellipseCenterY - ellipseRadiusY,
+      );
+      DRAW_CONFIG.spotlight.ellipseMaskStops.forEach(({ offset, color }) => {
+        ellipseMaskGradient.addColorStop(offset, color);
+      });
+      ctx.save();
+      ctx.globalCompositeOperation = 'destination-in';
+      ctx.fillStyle = ellipseMaskGradient;
+      ctx.fillRect(
+        ellipseCenterX - ellipseRadiusX,
+        ellipseCenterY - ellipseRadiusY,
+        ellipseRadiusX * 2,
+        ellipseRadiusY,
+      );
+      ctx.restore();
+
+
+    } else {
+      const radiusX = action.width / 2;
+      const radiusY = action.height / 2;
+      const top = centerY - radiusY;
+      const bottom = centerY + radiusY;
+      ctx.save();
+      ctx.beginPath();
+      ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, Math.PI * 2);
+      ctx.clip();
+
+      const radial = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, Math.max(radiusX, radiusY));
+      radial.addColorStop(0, 'rgba(255,255,255,0.32)');
+      radial.addColorStop(0.6, 'rgba(255,255,255,0.12)');
+      radial.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = radial;
+      ctx.fillRect(centerX - radiusX, top, radiusX * 2, radiusY * 2);
+
+      const vertical = ctx.createLinearGradient(centerX, top, centerX, bottom);
+      vertical.addColorStop(0, 'rgba(255,255,255,0)');
+      vertical.addColorStop(0.35, 'rgba(255,255,255,0.18)');
+      vertical.addColorStop(0.5, 'rgba(255,255,255,0.35)');
+      vertical.addColorStop(0.65, 'rgba(255,255,255,0.18)');
+      vertical.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.globalCompositeOperation = 'destination-in';
+      ctx.fillStyle = vertical;
+      ctx.fillRect(centerX - radiusX, top, radiusX * 2, radiusY * 2);
+
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.restore();
+
+      ctx.beginPath();
+      ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, Math.PI * 2);
+      ctx.lineWidth = Math.max(1, (action.thickness || 3) * 0.4);
+      ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+      ctx.stroke();
+    }
+    ctx.restore();
+  };
+
+  const drawLine = (action) => {
+    if (!action) {
+      return;
+    }
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(action.startX, action.startY);
+    ctx.lineTo(action.endX, action.endY);
+    ctx.strokeStyle = action.color;
+    ctx.lineWidth = action.thickness;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+    ctx.restore();
+  };
+
+  const drawRectangle = (action) => {
+    if (!action || typeof action.width !== 'number' || typeof action.height !== 'number') {
+      return;
+    }
+    const width = action.width;
+    const height = action.height;
+    if (width === 0 && height === 0) {
+      return;
+    }
+    const x = width >= 0 ? action.startX : action.startX + width;
+    const y = height >= 0 ? action.startY : action.startY + height;
+    ctx.save();
+    ctx.strokeStyle = action.color;
+    ctx.lineWidth = action.thickness;
+    ctx.lineCap = 'round';
+    ctx.strokeRect(x, y, Math.abs(width), Math.abs(height));
+    ctx.restore();
+  };
+
+  const drawPolygon = (action, previewPoint = null) => {
+    if (!action || !Array.isArray(action.points) || action.points.length === 0) {
+      return;
+    }
+    const points = action.points;
+    ctx.save();
+    ctx.lineWidth = action.thickness;
+    ctx.strokeStyle = action.color;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i += 1) {
+      ctx.lineTo(points[i].x, points[i].y);
+    }
+    const shouldPreviewLine = previewPoint && !action.isClosed;
+    if (shouldPreviewLine) {
+      ctx.lineTo(previewPoint.x, previewPoint.y);
+    }
+    if (action.isClosed) {
+      ctx.closePath();
+      ctx.fillStyle = rgba(action.color, 0.3);
+      ctx.fill();
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    ctx.fillStyle = action.color;
+    points.forEach((pt) => {
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 3, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    if (shouldPreviewLine) {
+      ctx.beginPath();
+      ctx.arc(previewPoint.x, previewPoint.y, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  };
+
+  const drawSpotlight = (action) => {
+    if (!action || !action.width || typeof action.groundY !== 'number' || action.groundY <= 0) {
+      return;
+    }
+    const beamWidth = Math.max(action.width, 1);
+    const beamHeight = Math.max(1, Math.min(action.groundY, canvas.height));
+    const beamLeft = action.centerX - beamWidth / 2;
+    const beamTop = 0;
+    const beamColor = action.color || '#ffffff';
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(beamLeft, beamTop, beamWidth, beamHeight);
+    ctx.clip();
+
+    const verticalGradient = ctx.createLinearGradient(0, beamHeight, 0, beamTop);
+    verticalGradient.addColorStop(0, rgba(beamColor, 0.5));
+    verticalGradient.addColorStop(1, rgba(beamColor, 0));
+    ctx.fillStyle = verticalGradient;
+    ctx.fillRect(beamLeft, beamTop, beamWidth, beamHeight);
+
+    ctx.globalCompositeOperation = 'destination-in';
+    const horizontalGradient = ctx.createLinearGradient(beamLeft, 0, beamLeft + beamWidth, 0);
+    horizontalGradient.addColorStop(0, 'transparent');
+    horizontalGradient.addColorStop(0.5, rgba(beamColor, 0.9));
+    horizontalGradient.addColorStop(1, 'transparent');
+    ctx.fillStyle = horizontalGradient;
+    ctx.fillRect(beamLeft, beamTop, beamWidth, beamHeight);
+    ctx.restore();
+
+    const ellipseWidth = beamWidth * 1.2;
+    const ellipseHeight = beamWidth * 0.4;
+    const ellipseCenterX = action.centerX;
+    const ellipseCenterY = beamHeight;
+    const radiusX = ellipseWidth / 2;
+    const radiusY = ellipseHeight / 2;
+
+    const ellipseGradient = ctx.createRadialGradient(
+      ellipseCenterX,
+      ellipseCenterY,
+      0,
+      ellipseCenterX,
+      ellipseCenterY,
+      Math.max(radiusX, radiusY)
+    );
+    ellipseGradient.addColorStop(0, rgba(beamColor, 0.6));
+    ellipseGradient.addColorStop(1, rgba(beamColor, 0));
+
+    ctx.save();
+    ctx.fillStyle = ellipseGradient;
+    ctx.beginPath();
+    ctx.ellipse(ellipseCenterX, ellipseCenterY, radiusX, radiusY, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  };
+
+  const updateTextMetrics = (action) => {
+    if (!action) {
+      return action;
+    }
+    const rawText = typeof action.text === 'string' ? action.text : '';
+    const lines = rawText.length === 0 ? [''] : rawText.split('\n');
+    ctx.save();
+    ctx.font = `${action.fontWeight || TEXT_FONT_WEIGHT} ${action.fontSize}px ${TEXT_FONT_FAMILY}`;
+    let maxWidth = 0;
+    lines.forEach((line) => {
+      const measurement = ctx.measureText(line || ' ');
+      maxWidth = Math.max(maxWidth, measurement.width);
+    });
+    ctx.restore();
+    const lineHeight = action.fontSize * TEXT_LINE_HEIGHT_RATIO;
+    action.lines = lines;
+    action.lineHeight = lineHeight;
+    action.width = maxWidth + TEXT_PADDING * 2;
+    action.height = lineHeight * lines.length + TEXT_PADDING * 2;
+    action.padding = TEXT_PADDING;
+    action.color = action.color || TEXT_COLOR;
+    action.background = action.background || TEXT_BACKGROUND;
+    action.fontWeight = action.fontWeight || TEXT_FONT_WEIGHT;
+    return action;
+  };
+
+  const drawText = (action) => {
+    if (!action || typeof action.x !== 'number' || typeof action.y !== 'number') {
+      return;
+    }
+    if (!action.lines || !action.lines.length) {
+      return;
+    }
+    const padding = action.padding ?? TEXT_PADDING;
+    const width = action.width || 0;
+    const height = action.height || 0;
+    if (!width || !height) {
+      return;
+    }
+    ctx.save();
+    ctx.font = `${action.fontWeight || TEXT_FONT_WEIGHT} ${action.fontSize}px ${TEXT_FONT_FAMILY}`;
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = action.background || TEXT_BACKGROUND;
+    ctx.fillRect(action.x - padding, action.y - padding, width, height);
+    ctx.fillStyle = action.color || TEXT_COLOR;
+    const lineHeight = action.lineHeight || action.fontSize * TEXT_LINE_HEIGHT_RATIO;
+    action.lines.forEach((line, idx) => {
+      ctx.fillText(line, action.x, action.y + idx * lineHeight);
+    });
+    ctx.restore();
+  };
+
+  // Rendering
+  const render = () => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    state.drawHistory.forEach((action, index) => {
+      if (action.type === 'text' && state.textEditingIndex === index) {
+        return;
+      }
+      if (action.type === 'stroke') {
+        drawStroke(action);
+      } else if (action.type === 'ellipse') {
+        drawEllipse(action);
+      } else if (action.type === 'spotlight') {
+        drawSpotlight(action);
+      } else if (action.type === 'line') {
+        drawLine(action);
+      } else if (action.type === 'rectangle') {
+        drawRectangle(action);
+      } else if (action.type === 'polygon') {
+        drawPolygon(action);
+      } else if (action.type === 'text') {
+        drawText(action);
+      }
+    });
+    if (state.currentAction) {
+      if (state.currentAction.type === 'stroke') {
+        drawStroke(state.currentAction);
+      } else if (state.currentAction.type === 'ellipse') {
+        drawEllipse(state.currentAction);
+      } else if (state.currentAction.type === 'spotlight') {
+        drawSpotlight(state.currentAction);
+      } else if (state.currentAction.type === 'line') {
+        drawLine(state.currentAction);
+      } else if (state.currentAction.type === 'rectangle') {
+        drawRectangle(state.currentAction);
+      } else if (state.currentAction.type === 'polygon') {
+        drawPolygon(state.currentAction, state.polygonPreviewPoint);
+      } else if (state.currentAction.type === 'text') {
+        drawText(state.currentAction);
+      }
+    }
+  };
+
+  const isTextEditorVisible = () => textEditor.dataset.visible === 'true';
+
+  const focusTextEditorCaret = () => {
+    textEditor.focus();
+    const selection = window.getSelection();
+    if (!selection) {
+      return;
+    }
+    const range = document.createRange();
+    range.selectNodeContents(textEditor);
+    range.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  };
+
+  const repositionTextEditor = () => {
+    if (!state.currentAction || state.currentAction.type !== 'text') {
+      return;
+    }
+    const action = state.currentAction;
+    const left = Math.max(0, action.x - TEXT_PADDING);
+    const top = Math.max(0, action.y - TEXT_PADDING);
+    textEditor.style.left = `${left}px`;
+    textEditor.style.top = `${top}px`;
+    textEditor.style.width = `${Math.max(120, action.width)}px`;
+    textEditor.style.height = `${Math.max(24, action.height)}px`;
+    textEditor.style.fontSize = `${action.fontSize}px`;
+    textEditor.style.lineHeight = `${(action.lineHeight / action.fontSize).toFixed(2)}`;
+  };
+
+  const hideTextEditor = () => {
+    textEditor.dataset.visible = 'false';
+    textEditor.style.display = 'none';
+  };
+
+  const showTextEditor = (action, editIndex = null) => {
+    const prepared = updateTextMetrics({
+      ...action,
+      fontSize: action.fontSize || state.textFontSize,
+      fontWeight: action.fontWeight || TEXT_FONT_WEIGHT,
+      color: action.color || TEXT_COLOR,
+      background: action.background || TEXT_BACKGROUND,
+      text: action.text || '',
+    });
+    state.currentAction = prepared;
+    state.drawing = 'text';
+    state.textEditingIndex = typeof editIndex === 'number' ? editIndex : null;
+    state.textFontSize = prepared.fontSize;
+    updateTextSizeDisplay();
+    textEditor.innerText = prepared.text;
+    textEditor.dataset.visible = 'true';
+    textEditor.style.display = 'block';
+    repositionTextEditor();
+    focusTextEditorCaret();
+    render();
+  };
+
+  const updateTextSizeDisplay = () => {
+    if (textFontSizeInput) {
+      textFontSizeInput.value = state.textFontSize;
+    }
+    if (textFontSizeOutput) {
+      textFontSizeOutput.textContent = `${state.textFontSize}px`;
+    }
+  };
+
+  const commitPendingText = () => {
+    if (!isTextEditorVisible()) {
+      return false;
+    }
+    const committed = commitCurrentAction();
+    hideTextEditor();
+    return committed;
+  };
+
+  const cancelTextEditing = () => {
+    hideTextEditor();
+    state.currentAction = null;
+    state.drawing = null;
+    state.textEditingIndex = null;
+    render();
+  };
+
+  const syncTextEditorContent = () => {
+    if (!state.currentAction || state.currentAction.type !== 'text') {
+      return;
+    }
+    state.currentAction.text = textEditor.innerText || '';
+    updateTextMetrics(state.currentAction);
+    repositionTextEditor();
+    render();
+  };
+
+  const getTextActionAtPoint = (point) => {
+    for (let i = state.drawHistory.length - 1; i >= 0; i -= 1) {
+      const action = state.drawHistory[i];
+      if (action.type !== 'text') {
+        continue;
+      }
+      const padding = action.padding ?? TEXT_PADDING;
+      const left = action.x - padding;
+      const top = action.y - padding;
+      const width = action.width || 0;
+      const height = action.height || 0;
+      if (width > 0 && height > 0
+        && point.x >= left
+        && point.x <= left + width
+        && point.y >= top
+        && point.y <= top + height) {
+        return { action, index: i };
+      }
+    }
+    return null;
+  };
+
+  textEditor.addEventListener('input', syncTextEditorContent);
+  textEditor.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      commitPendingText();
+      return;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      cancelTextEditing();
+    }
+  });
+  textEditor.addEventListener('pointerdown', (event) => event.stopPropagation());
+  textEditor.addEventListener('click', (event) => event.stopPropagation());
+
+  if (textFontSizeInput) {
+    textFontSizeInput.addEventListener('input', () => {
+      const parsed = Math.round(Number(textFontSizeInput.value)) || state.textFontSize;
+      state.textFontSize = Math.min(48, Math.max(12, parsed));
+      updateTextSizeDisplay();
+      if (state.currentAction && state.currentAction.type === 'text') {
+        state.currentAction.fontSize = state.textFontSize;
+        updateTextMetrics(state.currentAction);
+        repositionTextEditor();
+        render();
+      }
+    });
+  }
+
+  // Toolbar logic
+  const updateToolbarVisuals = () => {
+    if (pencilButton) {
+      const pencilActive = isToolActive('pencil');
+      pencilButton.classList.toggle('is-active', pencilActive);
+      pencilButton.setAttribute('aria-pressed', pencilActive ? 'true' : 'false');
+    }
+    if (circleButton) {
+      const circleActive = isToolActive('circle');
+      circleButton.classList.toggle('is-active', circleActive);
+      circleButton.setAttribute('aria-pressed', circleActive ? 'true' : 'false');
+    }
+    if (spotlightButton) {
+      const spotlightActive = isToolActive('spotlight');
+      spotlightButton.classList.toggle('is-active', spotlightActive);
+      spotlightButton.setAttribute('aria-pressed', spotlightActive ? 'true' : 'false');
+    }
+    thicknessButtons.forEach((button) => {
+      const thickness = Number(button.dataset.pencilThickness);
+      button.classList.toggle('is-selected', thickness === state.pencilThickness);
+    });
+    colourButtons.forEach((button) => {
+      button.classList.toggle('is-selected', button.dataset.pencilColor === state.pencilColor);
+    });
+    circleModeButtons.forEach((button) => {
+      button.classList.toggle('is-selected', button.dataset.circleMode === state.circleMode);
+    });
+    arrowButtons.forEach((button) => {
+      button.classList.toggle('is-selected', button.dataset.arrowType === state.arrowType);
+    });
+    shapeButtons.forEach((button) => {
+      button.classList.toggle('is-selected', button.dataset.shapeType === state.shapeType);
+    });
+    if (textButton) {
+      const textActive = isToolActive('text');
+      textButton.classList.toggle('is-active', textActive);
+      textButton.setAttribute('aria-pressed', textActive ? 'true' : 'false');
+    }
+    if (undoButton) {
+      undoButton.disabled = state.drawHistory.length === 0;
+    }
+    if (redoButton) {
+      redoButton.disabled = state.redoStack.length === 0;
+    }
+    updateTextSizeDisplay();
+  };
+
+  const commitCurrentAction = () => {
+    if (!state.currentAction) {
+      state.drawing = null;
+      updateToolbarVisuals();
+      return false;
+    }
+    if (state.currentAction.type === 'ellipse' && (state.currentAction.width < 4 || state.currentAction.height < 4)) {
+      state.currentAction = null;
+      state.drawing = null;
+      updateToolbarVisuals();
+      render();
+      return false;
+    }
+    if (state.currentAction.type === 'polygon' && !state.currentAction.isClosed) {
+      state.polygonPreviewPoint = null;
+      state.drawing = null;
+      updateToolbarVisuals();
+      render();
+      return false;
+    }
+    let actionToStore = state.currentAction;
+    if (state.currentAction.type === 'ellipse') {
+      const { startX, startY, ...persisted } = state.currentAction;
+      actionToStore = persisted;
+    } else if (state.currentAction.type === 'spotlight') {
+      const { startX, startY, ...persisted } = state.currentAction;
+      actionToStore = persisted;
+    } else if (state.currentAction.type === 'line') {
+      actionToStore = state.currentAction;
+    } else if (state.currentAction.type === 'rectangle') {
+      const width = Math.abs(state.currentAction.width || 0);
+      const height = Math.abs(state.currentAction.height || 0);
+      if (width === 0 && height === 0) {
+        state.currentAction = null;
+        state.drawing = null;
+        updateToolbarVisuals();
+        render();
+        return false;
+      }
+      actionToStore = state.currentAction;
+    } else if (state.currentAction.type === 'polygon') {
+      actionToStore = state.currentAction;
+    } else if (state.currentAction.type === 'text') {
+      const trimmedText = (state.currentAction.text || '').trim();
+      if (!trimmedText) {
+        state.currentAction = null;
+        state.drawing = null;
+        state.textEditingIndex = null;
+        updateToolbarVisuals();
+        render();
+        return false;
+      }
+      actionToStore = { ...state.currentAction };
+      if (typeof state.textEditingIndex === 'number') {
+        state.drawHistory[state.textEditingIndex] = actionToStore;
+      } else {
+        state.drawHistory.push(actionToStore);
+      }
+      state.textEditingIndex = null;
+      state.currentAction = null;
+      state.drawing = null;
+      state.redoStack = [];
+      updateToolbarVisuals();
+      render();
+      return true;
+    }
+    state.currentAction = null;
+    state.polygonPreviewPoint = null;
+    state.drawing = null;
+    state.redoStack = [];
+    state.drawHistory.push(actionToStore);
+    updateToolbarVisuals();
+    render();
+    return true;
+  };
+
+  const handleUndo = () => {
+    if (!state.drawHistory.length) {
+      return;
+    }
+    const action = state.drawHistory.pop();
+    state.redoStack.push(action);
+    render();
+    updateToolbarVisuals();
+  };
+
+  const handleRedo = () => {
+    if (!state.redoStack.length) {
+      return;
+    }
+    const action = state.redoStack.pop();
+    state.drawHistory.push(action);
+    render();
+    updateToolbarVisuals();
+  };
+
+  const setActiveTool = (tool) => {
+    const validTools = ['pencil', 'circle', 'spotlight', 'line', 'polygon', 'text', null];
+    if (!validTools.includes(tool)) {
+      return;
+    }
+    const wasTextActive = state.activeTool === 'text';
+    const nextTool = tool === state.activeTool ? null : tool;
+    state.activeTool = nextTool;
+    if (wasTextActive && nextTool !== 'text') {
+      commitPendingText();
+    }
+    if (nextTool !== 'text') {
+      hideTextEditor();
+      state.textEditingIndex = null;
+    }
+    state.drawing = null;
+    state.currentAction = null;
+    state.polygonPreviewPoint = null;
+    console.log('Active tool:', state.activeTool);
+  };
+
+  const handleToolbarClick = (event) => {
+    const insideTextPanel = !!event.target.closest('[data-toolbar-menu=\"text\"]');
+    if (!insideTextPanel && !textEditor.contains(event.target)) {
+      commitPendingText();
+    }
+    const menuToggleButton = event.target.closest('[data-toolbar-button][data-menu-key]');
+    const menuKey = menuToggleButton?.dataset?.menuKey;
+    if (menuToggleButton) {
+      togglePinnedTool(menuKey);
+    }
+    const toolElement = event.target.closest('[data-drawing-tool]');
+    if (toolElement) {
+      const toolName = toolElement.dataset.drawingTool;
+      if (toolName === 'undo') {
+        handleUndo();
+        return;
+      }
+      if (toolName === 'redo') {
+        handleRedo();
+        return;
+      }
+      if (toolName === 'pencil' || toolName === 'circle') {
+        setActiveTool(toolName);
+        updateToolbarVisuals();
+        if (!menuKey) {
+          closeMenus();
+        }
+        return;
+      }
+      if (toolName === 'spotlight') {
+        setActiveTool('spotlight');
+        updateToolbarVisuals();
+        if (!menuKey) {
+          closeMenus();
+        }
+        return;
+      }
+      if (toolName === 'text') {
+        setActiveTool('text');
+        updateToolbarVisuals();
+        return;
+      }
+      if (toolName === 'delete') {
+        closeMenus();
+        return;
+      }
+      return;
+    }
+    const thicknessTarget = event.target.closest('[data-pencil-thickness]');
+    if (thicknessTarget) {
+      const thicknessValue = Number(thicknessTarget.dataset.pencilThickness) || state.pencilThickness;
+      state.pencilThickness = thicknessValue;
+      updateToolbarVisuals();
+      return;
+    }
+    const colourTarget = event.target.closest('[data-pencil-color]');
+    if (colourTarget) {
+      state.pencilColor = colourTarget.dataset.pencilColor || state.pencilColor;
+      updateToolbarVisuals();
+      return;
+    }
+    const arrowTarget = event.target.closest('[data-arrow-type]');
+    if (arrowTarget) {
+      const arrowValue = arrowTarget.dataset.arrowType;
+      if (arrowValue) {
+        state.arrowType = arrowValue;
+        updateToolbarVisuals();
+      }
+      return;
+    }
+    const shapeTarget = event.target.closest('[data-shape-type]');
+    if (shapeTarget) {
+      const shapeValue = shapeTarget.dataset.shapeType;
+      if (shapeValue) {
+        if (shapeValue === 'line') {
+          setActiveTool('line');
+          state.drawing = null;
+          state.currentAction = null;
+          closeMenus();
+        } else if (shapeValue === 'polygon') {
+          setActiveTool('polygon');
+          state.drawing = null;
+          state.currentAction = null;
+          state.polygonPreviewPoint = null;
+          closeMenus();
+        } else if (shapeValue === 'ellipse') {
+          setActiveTool('circle');
+        }
+        state.shapeType = shapeValue;
+        updateToolbarVisuals();
+      }
+    }
+    const circleModeTarget = event.target.closest('[data-circle-mode]');
+    if (circleModeTarget) {
+      const modeValue = circleModeTarget.dataset.circleMode;
+      if (modeValue === 'solid' || modeValue === 'hollow') {
+        state.circleMode = modeValue;
+        updateToolbarVisuals();
+      }
+    }
+  };
+
+  const handleDocumentClick = (event) => {
+    const clickedInTextPanel = !!event.target.closest('[data-toolbar-menu="text"]');
+    const clickedInEditor = textEditor.contains(event.target);
+    if (!clickedInEditor && !clickedInTextPanel) {
+      commitPendingText();
+    }
+    if (event.target.closest('[data-annotation-toolbar]')) {
+      return;
+    }
+    closeMenus();
+  };
+
+  // Pointer handling
+  const getCanvasPoint = (event) => {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+    };
+  };
+
+  const getDistanceSquared = (a, b) => {
+    if (!a || !b) {
+      return Infinity;
+    }
+    const dx = a.x - b.x;
+    const dy = a.y - b.y;
+    return dx * dx + dy * dy;
+  };
+
+  const handlePointerDown = (event) => {
+    const activeTool = state.activeTool;
+    if (!activeTool) {
+      return;
+    }
+    if (activeTool === 'text' && isTextEditorVisible()) {
+      commitPendingText();
+    }
+    if (event.button !== 0 || state.drawing) {
+      return;
+    }
+    const point = getCanvasPoint(event);
+    pointerState.pointerId = event.pointerId;
+    canvas.setPointerCapture?.(event.pointerId);
+    if (activeTool === 'text') {
+      const existing = getTextActionAtPoint(point);
+      if (existing) {
+        showTextEditor(existing.action, existing.index);
+      } else {
+        showTextEditor({
+          type: 'text',
+          text: '',
+          x: point.x,
+          y: point.y,
+          fontSize: state.textFontSize,
+          fontWeight: TEXT_FONT_WEIGHT,
+          color: TEXT_COLOR,
+          background: TEXT_BACKGROUND,
+        });
+      }
+      event.preventDefault();
+      return;
+    }
+    if (activeTool === 'pencil') {
+      state.drawing = 'pencil';
+      state.currentAction = {
+        type: 'stroke',
+        color: state.pencilColor,
+        thickness: state.pencilThickness,
+        points: [point],
+      };
+    } else if (activeTool === 'circle') {
+      state.drawing = 'circle';
+      state.currentAction = {
+        type: 'ellipse',
+        color: state.pencilColor,
+        mode: state.circleMode,
+        thickness: state.pencilThickness,
+        x: point.x,
+        y: point.y,
+        width: 0,
+        height: 0,
+        startX: point.x,
+        startY: point.y,
+      };
+    } else if (activeTool === 'spotlight') {
+      state.drawing = 'spotlight';
+      state.currentAction = {
+        type: 'spotlight',
+        color: '#ffffff',
+        centerX: point.x,
+        startX: point.x,
+        startY: point.y,
+        width: DRAW_CONFIG.spotlight.minBeamWidth,
+        groundY: point.y,
+      };
+    } else if (activeTool === 'line') {
+      state.drawing = 'line';
+      state.currentAction = {
+        type: 'line',
+        color: state.pencilColor,
+        thickness: 4,
+        startX: point.x,
+        startY: point.y,
+        endX: point.x,
+        endY: point.y,
+      };
+    } else if (activeTool === 'polygon') {
+      const polygonAction = state.currentAction;
+      const shouldClose = polygonAction
+        && polygonAction.type === 'polygon'
+        && !polygonAction.isClosed
+        && polygonAction.points.length >= 3
+        && getDistanceSquared(point, polygonAction.points[0]) <= POLYGON_CLOSE_THRESHOLD_SQ;
+      if (shouldClose) {
+        polygonAction.isClosed = true;
+        state.polygonPreviewPoint = null;
+        state.drawing = 'polygon';
+        commitCurrentAction();
+        event.preventDefault();
+        return;
+      }
+      state.polygonPreviewPoint = null;
+      if (!polygonAction || polygonAction.type !== 'polygon' || polygonAction.isClosed) {
+        state.currentAction = {
+          type: 'polygon',
+          color: state.pencilColor,
+          thickness: state.pencilThickness,
+          points: [point],
+          isClosed: false,
+        };
+      } else {
+        polygonAction.points.push(point);
+      }
+      state.drawing = 'polygon';
+    }
+    updateToolbarVisuals();
+    render();
+    event.preventDefault();
+  };
+
+  const handlePointerMove = (event) => {
+    if (event.pointerId !== pointerState.pointerId || !state.currentAction) {
+      return;
+    }
+    const point = getCanvasPoint(event);
+    if (state.currentAction.type === 'stroke') {
+      state.currentAction.points.push(point);
+    } else if (state.currentAction.type === 'ellipse') {
+      const startX = typeof state.currentAction.startX === 'number'
+        ? state.currentAction.startX
+        : state.currentAction.x;
+      if (state.currentAction.mode === 'hollow') {
+        const width = Math.max(1, Math.abs(point.x - startX));
+        const vertical = Math.max(1, Math.max(0, point.y));
+        state.currentAction.width = width;
+        state.currentAction.height = vertical;
+        state.currentAction.x = Math.min(point.x, startX);
+        state.currentAction.y = 0;
+      } else {
+        const startY = typeof state.currentAction.startY === 'number'
+          ? state.currentAction.startY
+          : state.currentAction.y;
+        const width = Math.abs(point.x - startX);
+        const height = Math.abs(point.y - startY);
+        state.currentAction.width = width;
+        state.currentAction.height = height;
+        state.currentAction.x = Math.min(point.x, startX);
+        state.currentAction.y = Math.min(point.y, startY);
+      }
+    } else if (state.currentAction.type === 'spotlight') {
+      const startX = typeof state.currentAction.startX === 'number'
+        ? state.currentAction.startX
+        : state.currentAction.centerX;
+      const minWidth = DRAW_CONFIG.spotlight.minBeamWidth;
+      const width = Math.max(minWidth, Math.abs(point.x - startX));
+      const groundY = Math.max(1, Math.min(point.y, canvas.height));
+      state.currentAction.width = width;
+      state.currentAction.groundY = groundY;
+      state.currentAction.centerX = startX;
+    } else if (state.currentAction.type === 'line') {
+      state.currentAction.endX = point.x;
+      state.currentAction.endY = point.y;
+    } else if (state.currentAction.type === 'polygon') {
+      if (!state.currentAction.isClosed) {
+        state.polygonPreviewPoint = point;
+      }
+    } else if (state.currentAction.type === 'rectangle') {
+      state.currentAction.width = point.x - state.currentAction.startX;
+      state.currentAction.height = point.y - state.currentAction.startY;
+    }
+    render();
+  };
+
+  const handlePointerUp = (event) => {
+    if (event.pointerId !== pointerState.pointerId) {
+      return;
+    }
+    pointerState.pointerId = null;
+    canvas.releasePointerCapture?.(event.pointerId);
+    commitCurrentAction();
+    event.preventDefault();
+  };
+
+  // Init / listeners
+  toolbar.addEventListener('click', handleToolbarClick);
+  document.addEventListener('click', handleDocumentClick);
+  canvas.addEventListener('pointerdown', handlePointerDown);
+  canvas.addEventListener('pointermove', handlePointerMove);
+  canvas.addEventListener('pointerup', handlePointerUp);
+  canvas.addEventListener('pointercancel', handlePointerUp);
+
+  updateToolbarVisuals();
+  // Force-close all menus on initial load to avoid any visible panels on page load
+  closeMenus();
+  menuPanels.forEach((panel) => {
+    panel.classList.remove('is-visible');
+    panel.setAttribute('aria-hidden', 'true');
+    panel.setAttribute('inert', '');
+  });
+  updateMenuVisibility();
+
+  window.addEventListener('resize', updateCanvasSize);
+  if (window.ResizeObserver) {
+    const observer = new ResizeObserver(updateCanvasSize);
+    observer.observe(overlay);
+  }
+  window.requestAnimationFrame(updateCanvasSize);
 })();
+
+/*
+DEBUG INFO:
+- pinned state variable: pinnedTool
+- default hidden via: .drawing-tool-panel { opacity: 0; visibility: hidden; }
+- outside click handler: document.addEventListener('click', handleDocumentClick)
+- tool selector: [data-drawing-tool]
+- visibility controlled by: JS + CSS classes
+*/

@@ -21,6 +21,136 @@
     const timelineProgress = document.getElementById('deskTimelineProgress');
     const timelineWrapper = document.getElementById('deskTimeline');
     const timeDisplay = document.getElementById('deskTimeDisplay');
+    const controls = document.getElementById('deskControls');
+    const drawingToolbarShell = document.querySelector('[data-drawing-toolbar]');
+    const videoTransformLayer = video ? video.closest('.video-transform-layer') : null;
+    const playPauseFeedback = document.querySelector('[data-video-play-overlay]');
+    const playPauseFeedbackIcon = playPauseFeedback ? playPauseFeedback.querySelector('i') : null;
+    const seekFeedback = document.querySelector('[data-video-seek-overlay]');
+    const getActiveTool = () => window.DeskDrawingState?.activeTool ?? null;
+
+    const IDLE_HIDE_DELAY = 2000;
+    let hideTimeoutId = null;
+
+    const setDrawingToolbarVisibility = (visible) => {
+      if (!drawingToolbarShell) {
+        return;
+      }
+      drawingToolbarShell.classList.toggle('is-hidden', !visible);
+    };
+
+    const showControls = () => {
+      if (!controls) {
+        return;
+      }
+      controls.classList.remove('is-hidden');
+      setDrawingToolbarVisibility(true);
+    };
+
+    const hideControls = () => {
+      if (!controls || video.paused) {
+        return;
+      }
+      controls.classList.add('is-hidden');
+      setDrawingToolbarVisibility(false);
+    };
+
+    const clearHideTimeout = () => {
+      if (!hideTimeoutId) {
+        return;
+      }
+      clearTimeout(hideTimeoutId);
+      hideTimeoutId = null;
+    };
+
+    const scheduleHide = () => {
+      clearHideTimeout();
+      if (video.paused) {
+        return;
+      }
+      hideTimeoutId = setTimeout(() => {
+        hideControls();
+        hideTimeoutId = null;
+      }, IDLE_HIDE_DELAY);
+    };
+
+    const handleInteraction = () => {
+      showControls();
+      scheduleHide();
+    };
+
+    const registerInteractionListeners = () => {
+      if (!videoFrame) {
+        return;
+      }
+      ['mousemove', 'mousedown', 'keydown', 'touchstart'].forEach((eventName) => {
+        videoFrame.addEventListener(eventName, handleInteraction, { passive: true });
+      });
+    };
+
+    const FEEDBACK_DURATION = 420;
+    let playPauseFeedbackTimer = null;
+    let seekFeedbackTimer = null;
+
+    const showPlayPauseFeedback = (state) => {
+      if (!playPauseFeedback || !playPauseFeedbackIcon) {
+        return;
+      }
+      playPauseFeedbackIcon.classList.remove('fa-play', 'fa-pause');
+      playPauseFeedbackIcon.classList.add(state === 'pause' ? 'fa-pause' : 'fa-play');
+      playPauseFeedback.classList.add('is-visible');
+      clearTimeout(playPauseFeedbackTimer);
+      playPauseFeedbackTimer = setTimeout(() => {
+        playPauseFeedback.classList.remove('is-visible');
+      }, FEEDBACK_DURATION);
+    };
+
+    const showSeekFeedback = (direction) => {
+      if (!seekFeedback) {
+        return;
+      }
+      seekFeedback.classList.remove('is-rewind', 'is-forward');
+      const directionClass = direction === 'forward' ? 'is-forward' : 'is-rewind';
+      seekFeedback.classList.add(directionClass, 'is-visible');
+      clearTimeout(seekFeedbackTimer);
+      seekFeedbackTimer = setTimeout(() => {
+        seekFeedback.classList.remove('is-visible', 'is-rewind', 'is-forward');
+      }, FEEDBACK_DURATION);
+    };
+
+    const handleVideoPlay = () => {
+      showControls();
+      scheduleHide();
+    };
+
+    const handleVideoPause = () => {
+      showControls();
+      clearHideTimeout();
+    };
+
+    const togglePlayback = () => {
+      if (!video) {
+        return null;
+      }
+      const shouldPlay = video.paused;
+      if (shouldPlay) {
+        video.play();
+      } else {
+        video.pause();
+      }
+      return shouldPlay ? 'pause' : 'play';
+    };
+
+    const handleVideoSurfaceToggle = (event) => {
+      if (!video || getActiveTool()) {
+        return;
+      }
+      const feedbackState = togglePlayback();
+      if (feedbackState) {
+        showPlayPauseFeedback(feedbackState);
+      }
+      event.preventDefault();
+    };
 
     if (
       !video ||
@@ -48,6 +178,7 @@
       playPauseIcon.classList.remove('fa-play', 'fa-pause');
       playPauseIcon.classList.add(video.paused ? 'fa-play' : 'fa-pause');
       playPauseBtn.setAttribute('aria-label', video.paused ? 'Play video' : 'Pause video');
+      playPauseBtn.setAttribute('aria-pressed', video.paused ? 'false' : 'true');
     };
 
     const updateMuteIcon = () => {
@@ -178,11 +309,7 @@
     renderSpeedOptions();
 
     playPauseBtn.addEventListener('click', () => {
-      if (video.paused) {
-        video.play();
-      } else {
-        video.pause();
-      }
+      togglePlayback();
     });
 
     video.addEventListener('play', updatePlayPauseIcon);
@@ -231,6 +358,14 @@
       event.stopPropagation();
     });
 
+    registerInteractionListeners();
+    if (videoTransformLayer) {
+      videoTransformLayer.addEventListener('pointerdown', handleVideoSurfaceToggle, { passive: false });
+    }
+    video.addEventListener('play', handleVideoPlay);
+    video.addEventListener('pause', handleVideoPause);
+    video.addEventListener('ended', handleVideoPause);
+
     document.addEventListener('click', (event) => {
       if (!speedSelector || speedSelector.contains(event.target)) {
         return;
@@ -247,6 +382,40 @@
         speedOptions.setAttribute('aria-hidden', 'true');
       }
     });
+
+    const isTypingTarget = (target) => {
+      if (!target || !(target instanceof Element)) {
+        return false;
+      }
+      if (target.isContentEditable) {
+        return true;
+      }
+      const tag = target.tagName?.toLowerCase();
+      if (tag && ['input', 'textarea', 'select'].includes(tag)) {
+        return true;
+      }
+      return !!target.closest('[contenteditable="true"], [contenteditable=""]');
+    };
+
+    const handleKeyboardSeek = (event) => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {
+        return;
+      }
+      if (isTypingTarget(event.target)) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation(); // Keep timeline listeners from reacting to the same arrow press.
+      if (event.key === 'ArrowLeft') {
+        skip(-5);
+        showSeekFeedback('rewind');
+      } else {
+        skip(5);
+        showSeekFeedback('forward');
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyboardSeek, true);
 
     if (timelineTrack) {
       timelineTrack.addEventListener('pointerdown', handleTimelinePointerDown);

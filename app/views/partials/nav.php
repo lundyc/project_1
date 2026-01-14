@@ -1,67 +1,116 @@
 <?php
 $base = base_path();
+$config = require __DIR__ . '/../../../config/config.php';
+$appName = $config['app']['name'] ?? 'Analytics Desk';
+
+$user = current_user() ?? [];
 $roles = $_SESSION['roles'] ?? [];
 $isPlatformAdmin = in_array('platform_admin', $roles, true);
 $isClubAdmin = in_array('club_admin', $roles, true);
 $canViewPlayers = $isPlatformAdmin || $isClubAdmin;
 $canAccessVideoLab = in_array('analyst', $roles, true) || $isClubAdmin || $isPlatformAdmin;
-$current = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?? '/';
-$videoLabActive = str_starts_with($current, $base . '/video-lab');
+
+$currentPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?? '/';
+$navBase = $base ?: '';
+$dashboardHref = $navBase . '/';
+$matchesHref = $navBase . '/matches';
+$playersHref = $navBase . '/admin/players';
+$videoLabHref = $navBase . '/video-lab';
+$adminHref = $navBase . '/admin';
+$settingsHref = $navBase . '/settings';
+$logoutHref = $navBase . '/logout';
+
+$dashboardActive = $currentPath === $dashboardHref || $currentPath === rtrim($navBase, '/');
+$matchesActive = str_starts_with($currentPath, $matchesHref);
+$playersActive = str_starts_with($currentPath, $playersHref);
+$videoLabActive = str_starts_with($currentPath, $videoLabHref);
+$adminActive = str_starts_with($currentPath, $adminHref) && !$playersActive;
+
+$displayName = trim($user['display_name'] ?? 'User');
+$displayEmail = $user['email'] ?? '';
+$nameParts = preg_split('/\s+/', $displayName, -1, PREG_SPLIT_NO_EMPTY);
+$initials = '';
+foreach ($nameParts as $part) {
+          $initials .= strtoupper(function_exists('mb_substr') ? mb_substr($part, 0, 1) : substr($part, 0, 1));
+          if (strlen($initials) >= 2) {
+                    break;
+          }
+}
+$initials = $initials ?: 'U';
+
+$navLinks = [
+          [
+                    'label' => 'Dashboard',
+                    'href' => $dashboardHref,
+                    'active' => $dashboardActive,
+          ],
+          [
+                    'label' => 'Matches',
+                    'href' => $matchesHref,
+                    'active' => $matchesActive,
+          ],
+];
+
+if ($canViewPlayers) {
+          $navLinks[] = [
+                    'label' => 'Players',
+                    'href' => $playersHref,
+                    'active' => $playersActive,
+          ];
+}
+
+if ($canAccessVideoLab) {
+          $navLinks[] = [
+                    'label' => 'Video Lab',
+                    'href' => $videoLabHref,
+                    'active' => $videoLabActive,
+          ];
+}
+
+if ($isPlatformAdmin) {
+          $navLinks[] = [
+                    'label' => 'Admin',
+                    'href' => $adminHref,
+                    'active' => $adminActive,
+          ];
+}
 ?>
 
-<nav class="sidebar-thin d-flex flex-column align-items-center">
-          <div class="nav-brand text-center mt-3 mb-4">
-                    <img src="<?= htmlspecialchars($base) ?>/assets/img/logo.png" alt="Logo" class="brand-logo mb-1" width="40" height="40">
+<nav class="top-nav" aria-label="Primary navigation">
+          <div class="top-nav__inner">
+                    <div class="top-nav__brand">
+                              <img src="<?= htmlspecialchars($base) ?>/assets/img/logo.png" alt="<?= htmlspecialchars($appName) ?> logo" class="top-nav__logo" width="36" height="36">
+                              <div class="top-nav__brand-text">
+                                        <span class="top-nav__brand-name"><?= htmlspecialchars($appName) ?></span>
+                                        <?php if (!empty($title)): ?>
+                                                  <span class="top-nav__section"><?= htmlspecialchars($title) ?></span>
+                                        <?php endif; ?>
+                              </div>
+                    </div>
+
+                    <div class="top-nav__links-wrapper">
+                              <div class="top-nav__links">
+                                        <?php foreach ($navLinks as $item): ?>
+                                                  <a href="<?= htmlspecialchars($item['href']) ?>" class="top-nav__link <?= $item['active'] ? 'is-active' : '' ?>">
+                                                            <?= htmlspecialchars($item['label']) ?>
+                                                  </a>
+                                        <?php endforeach; ?>
+                              </div>
+                    </div>
+
+                    <div class="top-nav__user">
+                              <span class="top-nav__avatar"><?= htmlspecialchars($initials) ?></span>
+                              <div class="top-nav__user-meta">
+                                        <span class="top-nav__user-name"><?= htmlspecialchars($displayName) ?></span>
+                                        <?php if ($displayEmail): ?>
+                                                  <span class="top-nav__user-email"><?= htmlspecialchars($displayEmail) ?></span>
+                                        <?php endif; ?>
+                              </div>
+                              <div class="top-nav__user-actions">
+                                        <a href="<?= htmlspecialchars($settingsHref) ?>" class="top-nav__user-link">Settings</a>
+                                        <span aria-hidden="true" class="top-nav__user-separator">·</span>
+                                        <a href="<?= htmlspecialchars($logoutHref) ?>" class="top-nav__user-link">Logout</a>
+                              </div>
+                    </div>
           </div>
-
-          <div class="nav-items d-flex flex-column gap-3">
-                    <a href="<?= htmlspecialchars($base) ?>/" class="nav-icon <?= $current === $base . '/' || $current === $base ? 'active' : '' ?>">
-                              <span class="icon-box">
-                                        <i class="fa-solid fa-house"></i>
-                              </span>
-                              <span class="icon-label">Dashboard</span>
-                    </a>
-                    <a href="<?= htmlspecialchars($base) ?>/matches" class="nav-icon <?= str_starts_with($current, $base . '/matches') ? 'active' : '' ?>">
-                              <span class="icon-box">
-                                        <i class="fa-solid fa-play-circle"></i>
-                              </span>
-                              <span class="icon-label">Matches</span>
-                    </a>
-                    <?php if ($canViewPlayers): ?>
-                              <a href="<?= htmlspecialchars($base) ?>/admin/players" class="nav-icon <?= str_starts_with($current, $base . '/admin/players') ? 'active' : '' ?>">
-                                        <span class="icon-box">
-                                                  <i class="fa-solid fa-shirt"></i>
-                                        </span>
-                                        <span class="icon-label">Players</span>
-                              </a>
-                    <?php endif; ?>
-                    <?php if ($canAccessVideoLab): ?>
-                              <a href="<?= htmlspecialchars($base) ?>/video-lab" class="nav-icon <?= $videoLabActive ? 'active' : '' ?>">
-                                        <span class="icon-box">
-                                                  <i class="fa-solid fa-film"></i>
-                                        </span>
-                                        <span class="icon-label">Video Lab</span>
-                              </a>
-                    <?php endif; ?>
-
-                    <?php if ($isPlatformAdmin): ?>
-                              <a href="<?= htmlspecialchars($base) ?>/admin" class="nav-icon <?= str_starts_with($current, $base . '/admin') ? 'active' : '' ?>">
-                                        <span class="icon-box">
-                                                  <i class="fa-solid fa-gear"></i>
-                                        </span>
-                                        <span class="icon-label">Admin</span>
-                              </a>
-                    <?php endif; ?>
-          </div>
-
-          <div class="nav-footer mt-auto mb-3">
-                    <a href="<?= htmlspecialchars($base) ?>/logout" class="nav-icon">
-                              <span class="icon-box">
-                                        <i class="fa-solid fa-right-from-bracket"></i>
-                              </span>
-                              <span class="icon-label">Logout</span>
-                    </a>
-          </div>
-
-          <?php /* Video Lab moved into main nav items above; experimental block removed */ ?>
 </nav>

@@ -52,12 +52,12 @@
       const $lockStatus = $('#lockStatusText');
       const $btnAcquire = $('#lockRetryBtn');
       const $deskError = $('#deskError');
-      const $jsBadge = $('#deskJsBadge');
 
       const $contextTabs = $('#contextTabs');
       const $teamToggle = $('#teamToggle');
       const $tagBoard = $('#quickTagBoard');
       const $tagToast = $('#tagToast');
+      const $jsBadge = $('#jsBadge');
       let $playlistPanel;
       let $playlistList;
       let $playlistCreateForm;
@@ -3843,7 +3843,11 @@
       }
 
       function init() {
-            if ($jsBadge.length) $jsBadge.text('JS');
+            if ($jsBadge.length) {
+                  $jsBadge.text('JS');
+            } else {
+                  console.warn('[desk-events] jsBadge not found — skipping badge logic');
+            }
             applyQuickTagReplacements();
             buildTypeMap();
             rebuildQuickTagBoard();
