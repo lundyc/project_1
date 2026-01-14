@@ -41,12 +41,6 @@
 
   const POLYGON_CLOSE_THRESHOLD = 10;
   const POLYGON_CLOSE_THRESHOLD_SQ = POLYGON_CLOSE_THRESHOLD * POLYGON_CLOSE_THRESHOLD;
-  const TEXT_FONT_FAMILY = '"Inter", "Segoe UI", sans-serif';
-  const TEXT_FONT_WEIGHT = 500;
-  const TEXT_LINE_HEIGHT_RATIO = 1.35;
-  const TEXT_PADDING = 8;
-  const TEXT_COLOR = '#ffffff';
-  const TEXT_BACKGROUND = 'rgba(0,0,0,0.6)';
 
   // DOM lookups
   const overlay = document.querySelector('[data-annotation-overlay]');
@@ -55,11 +49,6 @@
   const pencilButton = document.getElementById('deskPencilTool');
   const circleButton = document.getElementById('deskCircleTool');
   const spotlightButton = document.getElementById('deskSpotlightTool');
-
-  console.log('Drawing system restored');
-  console.log('Pencil exists:', !!pencilButton);
-  console.log('Circle exists:', !!circleButton);
-  console.log('Spotlight exists:', !!spotlightButton);
 
   if (!overlay || !canvas || !toolbar || !pencilButton || !circleButton || !spotlightButton) {
     return;
@@ -81,27 +70,21 @@
   }, {});
   const undoButton = toolbar.querySelector('[data-drawing-tool="undo"]');
   const redoButton = toolbar.querySelector('[data-drawing-tool="redo"]');
-  const textButton = toolbar.querySelector('[data-drawing-tool="text"]');
-  const textFontSizeInput = toolbar.querySelector('[data-text-font-size]');
-  const textFontSizeOutput = toolbar.querySelector('[data-text-font-size-value]');
   const ctx = canvas.getContext('2d');
 
   if (!ctx) {
     return;
   }
 
-  const textEditor = document.createElement('div');
-  textEditor.className = 'annotation-text-editor';
-  textEditor.setAttribute('contenteditable', 'true');
-  textEditor.setAttribute('spellcheck', 'false');
-  textEditor.dataset.visible = 'false';
-  overlay.appendChild(textEditor);
-
   // State
   const state = {
-    activeTool: null,
+    pencilActive: true,
     pencilThickness: DRAW_CONFIG.pencil.thickness,
     pencilColor: DRAW_CONFIG.pencil.color,
+    circleActive: false,
+    lineActive: false,
+    polygonActive: false,
+    spotlightActive: false,
     circleMode: 'solid',
     arrowType: 'pass',
     shapeType: 'ellipse',
@@ -110,13 +93,9 @@
     drawing: null,
     currentAction: null,
     polygonPreviewPoint: null,
-    textFontSize: 18,
-    textEditingIndex: null,
   };
 
   window.DeskDrawingState = state;
-
-  const isToolActive = (tool) => state.activeTool === tool;
 
   const pointerState = { pointerId: null };
 
@@ -548,65 +527,10 @@
     ctx.restore();
   };
 
-  const updateTextMetrics = (action) => {
-    if (!action) {
-      return action;
-    }
-    const rawText = typeof action.text === 'string' ? action.text : '';
-    const lines = rawText.length === 0 ? [''] : rawText.split('\n');
-    ctx.save();
-    ctx.font = `${action.fontWeight || TEXT_FONT_WEIGHT} ${action.fontSize}px ${TEXT_FONT_FAMILY}`;
-    let maxWidth = 0;
-    lines.forEach((line) => {
-      const measurement = ctx.measureText(line || ' ');
-      maxWidth = Math.max(maxWidth, measurement.width);
-    });
-    ctx.restore();
-    const lineHeight = action.fontSize * TEXT_LINE_HEIGHT_RATIO;
-    action.lines = lines;
-    action.lineHeight = lineHeight;
-    action.width = maxWidth + TEXT_PADDING * 2;
-    action.height = lineHeight * lines.length + TEXT_PADDING * 2;
-    action.padding = TEXT_PADDING;
-    action.color = action.color || TEXT_COLOR;
-    action.background = action.background || TEXT_BACKGROUND;
-    action.fontWeight = action.fontWeight || TEXT_FONT_WEIGHT;
-    return action;
-  };
-
-  const drawText = (action) => {
-    if (!action || typeof action.x !== 'number' || typeof action.y !== 'number') {
-      return;
-    }
-    if (!action.lines || !action.lines.length) {
-      return;
-    }
-    const padding = action.padding ?? TEXT_PADDING;
-    const width = action.width || 0;
-    const height = action.height || 0;
-    if (!width || !height) {
-      return;
-    }
-    ctx.save();
-    ctx.font = `${action.fontWeight || TEXT_FONT_WEIGHT} ${action.fontSize}px ${TEXT_FONT_FAMILY}`;
-    ctx.textBaseline = 'top';
-    ctx.fillStyle = action.background || TEXT_BACKGROUND;
-    ctx.fillRect(action.x - padding, action.y - padding, width, height);
-    ctx.fillStyle = action.color || TEXT_COLOR;
-    const lineHeight = action.lineHeight || action.fontSize * TEXT_LINE_HEIGHT_RATIO;
-    action.lines.forEach((line, idx) => {
-      ctx.fillText(line, action.x, action.y + idx * lineHeight);
-    });
-    ctx.restore();
-  };
-
   // Rendering
   const render = () => {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    state.drawHistory.forEach((action, index) => {
-      if (action.type === 'text' && state.textEditingIndex === index) {
-        return;
-      }
+    state.drawHistory.forEach((action) => {
       if (action.type === 'stroke') {
         drawStroke(action);
       } else if (action.type === 'ellipse') {
@@ -619,8 +543,6 @@
         drawRectangle(action);
       } else if (action.type === 'polygon') {
         drawPolygon(action);
-      } else if (action.type === 'text') {
-        drawText(action);
       }
     });
     if (state.currentAction) {
@@ -636,172 +558,23 @@
         drawRectangle(state.currentAction);
       } else if (state.currentAction.type === 'polygon') {
         drawPolygon(state.currentAction, state.polygonPreviewPoint);
-      } else if (state.currentAction.type === 'text') {
-        drawText(state.currentAction);
       }
     }
   };
-
-  const isTextEditorVisible = () => textEditor.dataset.visible === 'true';
-
-  const focusTextEditorCaret = () => {
-    textEditor.focus();
-    const selection = window.getSelection();
-    if (!selection) {
-      return;
-    }
-    const range = document.createRange();
-    range.selectNodeContents(textEditor);
-    range.collapse(false);
-    selection.removeAllRanges();
-    selection.addRange(range);
-  };
-
-  const repositionTextEditor = () => {
-    if (!state.currentAction || state.currentAction.type !== 'text') {
-      return;
-    }
-    const action = state.currentAction;
-    const left = Math.max(0, action.x - TEXT_PADDING);
-    const top = Math.max(0, action.y - TEXT_PADDING);
-    textEditor.style.left = `${left}px`;
-    textEditor.style.top = `${top}px`;
-    textEditor.style.width = `${Math.max(120, action.width)}px`;
-    textEditor.style.height = `${Math.max(24, action.height)}px`;
-    textEditor.style.fontSize = `${action.fontSize}px`;
-    textEditor.style.lineHeight = `${(action.lineHeight / action.fontSize).toFixed(2)}`;
-  };
-
-  const hideTextEditor = () => {
-    textEditor.dataset.visible = 'false';
-    textEditor.style.display = 'none';
-  };
-
-  const showTextEditor = (action, editIndex = null) => {
-    const prepared = updateTextMetrics({
-      ...action,
-      fontSize: action.fontSize || state.textFontSize,
-      fontWeight: action.fontWeight || TEXT_FONT_WEIGHT,
-      color: action.color || TEXT_COLOR,
-      background: action.background || TEXT_BACKGROUND,
-      text: action.text || '',
-    });
-    state.currentAction = prepared;
-    state.drawing = 'text';
-    state.textEditingIndex = typeof editIndex === 'number' ? editIndex : null;
-    state.textFontSize = prepared.fontSize;
-    updateTextSizeDisplay();
-    textEditor.innerText = prepared.text;
-    textEditor.dataset.visible = 'true';
-    textEditor.style.display = 'block';
-    repositionTextEditor();
-    focusTextEditorCaret();
-    render();
-  };
-
-  const updateTextSizeDisplay = () => {
-    if (textFontSizeInput) {
-      textFontSizeInput.value = state.textFontSize;
-    }
-    if (textFontSizeOutput) {
-      textFontSizeOutput.textContent = `${state.textFontSize}px`;
-    }
-  };
-
-  const commitPendingText = () => {
-    if (!isTextEditorVisible()) {
-      return false;
-    }
-    const committed = commitCurrentAction();
-    hideTextEditor();
-    return committed;
-  };
-
-  const cancelTextEditing = () => {
-    hideTextEditor();
-    state.currentAction = null;
-    state.drawing = null;
-    state.textEditingIndex = null;
-    render();
-  };
-
-  const syncTextEditorContent = () => {
-    if (!state.currentAction || state.currentAction.type !== 'text') {
-      return;
-    }
-    state.currentAction.text = textEditor.innerText || '';
-    updateTextMetrics(state.currentAction);
-    repositionTextEditor();
-    render();
-  };
-
-  const getTextActionAtPoint = (point) => {
-    for (let i = state.drawHistory.length - 1; i >= 0; i -= 1) {
-      const action = state.drawHistory[i];
-      if (action.type !== 'text') {
-        continue;
-      }
-      const padding = action.padding ?? TEXT_PADDING;
-      const left = action.x - padding;
-      const top = action.y - padding;
-      const width = action.width || 0;
-      const height = action.height || 0;
-      if (width > 0 && height > 0
-        && point.x >= left
-        && point.x <= left + width
-        && point.y >= top
-        && point.y <= top + height) {
-        return { action, index: i };
-      }
-    }
-    return null;
-  };
-
-  textEditor.addEventListener('input', syncTextEditorContent);
-  textEditor.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault();
-      commitPendingText();
-      return;
-    }
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      cancelTextEditing();
-    }
-  });
-  textEditor.addEventListener('pointerdown', (event) => event.stopPropagation());
-  textEditor.addEventListener('click', (event) => event.stopPropagation());
-
-  if (textFontSizeInput) {
-    textFontSizeInput.addEventListener('input', () => {
-      const parsed = Math.round(Number(textFontSizeInput.value)) || state.textFontSize;
-      state.textFontSize = Math.min(48, Math.max(12, parsed));
-      updateTextSizeDisplay();
-      if (state.currentAction && state.currentAction.type === 'text') {
-        state.currentAction.fontSize = state.textFontSize;
-        updateTextMetrics(state.currentAction);
-        repositionTextEditor();
-        render();
-      }
-    });
-  }
 
   // Toolbar logic
   const updateToolbarVisuals = () => {
     if (pencilButton) {
-      const pencilActive = isToolActive('pencil');
-      pencilButton.classList.toggle('is-active', pencilActive);
-      pencilButton.setAttribute('aria-pressed', pencilActive ? 'true' : 'false');
+      pencilButton.classList.toggle('is-active', state.pencilActive);
+      pencilButton.setAttribute('aria-pressed', state.pencilActive ? 'true' : 'false');
     }
     if (circleButton) {
-      const circleActive = isToolActive('circle');
-      circleButton.classList.toggle('is-active', circleActive);
-      circleButton.setAttribute('aria-pressed', circleActive ? 'true' : 'false');
+      circleButton.classList.toggle('is-active', state.circleActive);
+      circleButton.setAttribute('aria-pressed', state.circleActive ? 'true' : 'false');
     }
     if (spotlightButton) {
-      const spotlightActive = isToolActive('spotlight');
-      spotlightButton.classList.toggle('is-active', spotlightActive);
-      spotlightButton.setAttribute('aria-pressed', spotlightActive ? 'true' : 'false');
+      spotlightButton.classList.toggle('is-active', state.spotlightActive);
+      spotlightButton.setAttribute('aria-pressed', state.spotlightActive ? 'true' : 'false');
     }
     thicknessButtons.forEach((button) => {
       const thickness = Number(button.dataset.pencilThickness);
@@ -819,39 +592,33 @@
     shapeButtons.forEach((button) => {
       button.classList.toggle('is-selected', button.dataset.shapeType === state.shapeType);
     });
-    if (textButton) {
-      const textActive = isToolActive('text');
-      textButton.classList.toggle('is-active', textActive);
-      textButton.setAttribute('aria-pressed', textActive ? 'true' : 'false');
-    }
     if (undoButton) {
       undoButton.disabled = state.drawHistory.length === 0;
     }
     if (redoButton) {
       redoButton.disabled = state.redoStack.length === 0;
     }
-    updateTextSizeDisplay();
   };
 
   const commitCurrentAction = () => {
     if (!state.currentAction) {
       state.drawing = null;
       updateToolbarVisuals();
-      return false;
+      return;
     }
     if (state.currentAction.type === 'ellipse' && (state.currentAction.width < 4 || state.currentAction.height < 4)) {
       state.currentAction = null;
       state.drawing = null;
       updateToolbarVisuals();
       render();
-      return false;
+      return;
     }
     if (state.currentAction.type === 'polygon' && !state.currentAction.isClosed) {
       state.polygonPreviewPoint = null;
       state.drawing = null;
       updateToolbarVisuals();
       render();
-      return false;
+      return;
     }
     let actionToStore = state.currentAction;
     if (state.currentAction.type === 'ellipse') {
@@ -870,34 +637,11 @@
         state.drawing = null;
         updateToolbarVisuals();
         render();
-        return false;
+        return;
       }
       actionToStore = state.currentAction;
     } else if (state.currentAction.type === 'polygon') {
       actionToStore = state.currentAction;
-    } else if (state.currentAction.type === 'text') {
-      const trimmedText = (state.currentAction.text || '').trim();
-      if (!trimmedText) {
-        state.currentAction = null;
-        state.drawing = null;
-        state.textEditingIndex = null;
-        updateToolbarVisuals();
-        render();
-        return false;
-      }
-      actionToStore = { ...state.currentAction };
-      if (typeof state.textEditingIndex === 'number') {
-        state.drawHistory[state.textEditingIndex] = actionToStore;
-      } else {
-        state.drawHistory.push(actionToStore);
-      }
-      state.textEditingIndex = null;
-      state.currentAction = null;
-      state.drawing = null;
-      state.redoStack = [];
-      updateToolbarVisuals();
-      render();
-      return true;
     }
     state.currentAction = null;
     state.polygonPreviewPoint = null;
@@ -906,7 +650,6 @@
     state.drawHistory.push(actionToStore);
     updateToolbarVisuals();
     render();
-    return true;
   };
 
   const handleUndo = () => {
@@ -930,31 +673,18 @@
   };
 
   const setActiveTool = (tool) => {
-    const validTools = ['pencil', 'circle', 'spotlight', 'line', 'polygon', 'text', null];
-    if (!validTools.includes(tool)) {
+    if (!['pencil', 'circle', 'spotlight', 'line', 'polygon'].includes(tool)) {
       return;
     }
-    const wasTextActive = state.activeTool === 'text';
-    const nextTool = tool === state.activeTool ? null : tool;
-    state.activeTool = nextTool;
-    if (wasTextActive && nextTool !== 'text') {
-      commitPendingText();
-    }
-    if (nextTool !== 'text') {
-      hideTextEditor();
-      state.textEditingIndex = null;
-    }
-    state.drawing = null;
-    state.currentAction = null;
-    state.polygonPreviewPoint = null;
-    console.log('Active tool:', state.activeTool);
+    state.pencilActive = tool === 'pencil';
+    state.circleActive = tool === 'circle';
+    state.spotlightActive = tool === 'spotlight';
+    state.lineActive = tool === 'line';
+    state.polygonActive = tool === 'polygon';
+    console.log('Active tool:', tool);
   };
 
   const handleToolbarClick = (event) => {
-    const insideTextPanel = !!event.target.closest('[data-toolbar-menu=\"text\"]');
-    if (!insideTextPanel && !textEditor.contains(event.target)) {
-      commitPendingText();
-    }
     const menuToggleButton = event.target.closest('[data-toolbar-button][data-menu-key]');
     const menuKey = menuToggleButton?.dataset?.menuKey;
     if (menuToggleButton) {
@@ -972,7 +702,10 @@
         return;
       }
       if (toolName === 'pencil' || toolName === 'circle') {
-        setActiveTool(toolName);
+        const isAlreadyActive = toolName === 'pencil' ? state.pencilActive : state.circleActive;
+        if (!isAlreadyActive) {
+          setActiveTool(toolName);
+        }
         updateToolbarVisuals();
         if (!menuKey) {
           closeMenus();
@@ -980,19 +713,16 @@
         return;
       }
       if (toolName === 'spotlight') {
-        setActiveTool('spotlight');
+        if (!state.spotlightActive) {
+          setActiveTool('spotlight');
+        }
         updateToolbarVisuals();
         if (!menuKey) {
           closeMenus();
         }
         return;
       }
-      if (toolName === 'text') {
-        setActiveTool('text');
-        updateToolbarVisuals();
-        return;
-      }
-      if (toolName === 'delete') {
+      if (toolName === 'text' || toolName === 'delete') {
         closeMenus();
         return;
       }
@@ -1025,18 +755,24 @@
       const shapeValue = shapeTarget.dataset.shapeType;
       if (shapeValue) {
         if (shapeValue === 'line') {
-          setActiveTool('line');
+          if (!state.lineActive) {
+            setActiveTool('line');
+          }
           state.drawing = null;
           state.currentAction = null;
           closeMenus();
         } else if (shapeValue === 'polygon') {
-          setActiveTool('polygon');
+          if (!state.polygonActive) {
+            setActiveTool('polygon');
+          }
           state.drawing = null;
           state.currentAction = null;
           state.polygonPreviewPoint = null;
           closeMenus();
         } else if (shapeValue === 'ellipse') {
-          setActiveTool('circle');
+          if (!state.circleActive) {
+            setActiveTool('circle');
+          }
         }
         state.shapeType = shapeValue;
         updateToolbarVisuals();
@@ -1053,11 +789,6 @@
   };
 
   const handleDocumentClick = (event) => {
-    const clickedInTextPanel = !!event.target.closest('[data-toolbar-menu="text"]');
-    const clickedInEditor = textEditor.contains(event.target);
-    if (!clickedInEditor && !clickedInTextPanel) {
-      commitPendingText();
-    }
     if (event.target.closest('[data-annotation-toolbar]')) {
       return;
     }
@@ -1083,39 +814,13 @@
   };
 
   const handlePointerDown = (event) => {
-    const activeTool = state.activeTool;
-    if (!activeTool) {
-      return;
-    }
-    if (activeTool === 'text' && isTextEditorVisible()) {
-      commitPendingText();
-    }
     if (event.button !== 0 || state.drawing) {
       return;
     }
     const point = getCanvasPoint(event);
     pointerState.pointerId = event.pointerId;
     canvas.setPointerCapture?.(event.pointerId);
-    if (activeTool === 'text') {
-      const existing = getTextActionAtPoint(point);
-      if (existing) {
-        showTextEditor(existing.action, existing.index);
-      } else {
-        showTextEditor({
-          type: 'text',
-          text: '',
-          x: point.x,
-          y: point.y,
-          fontSize: state.textFontSize,
-          fontWeight: TEXT_FONT_WEIGHT,
-          color: TEXT_COLOR,
-          background: TEXT_BACKGROUND,
-        });
-      }
-      event.preventDefault();
-      return;
-    }
-    if (activeTool === 'pencil') {
+    if (state.pencilActive) {
       state.drawing = 'pencil';
       state.currentAction = {
         type: 'stroke',
@@ -1123,7 +828,7 @@
         thickness: state.pencilThickness,
         points: [point],
       };
-    } else if (activeTool === 'circle') {
+    } else if (state.circleActive) {
       state.drawing = 'circle';
       state.currentAction = {
         type: 'ellipse',
@@ -1137,7 +842,7 @@
         startX: point.x,
         startY: point.y,
       };
-    } else if (activeTool === 'spotlight') {
+    } else if (state.spotlightActive) {
       state.drawing = 'spotlight';
       state.currentAction = {
         type: 'spotlight',
@@ -1148,7 +853,7 @@
         width: DRAW_CONFIG.spotlight.minBeamWidth,
         groundY: point.y,
       };
-    } else if (activeTool === 'line') {
+    } else if (state.lineActive) {
       state.drawing = 'line';
       state.currentAction = {
         type: 'line',
@@ -1159,7 +864,7 @@
         endX: point.x,
         endY: point.y,
       };
-    } else if (activeTool === 'polygon') {
+    } else if (state.polygonActive) {
       const polygonAction = state.currentAction;
       const shouldClose = polygonAction
         && polygonAction.type === 'polygon'
