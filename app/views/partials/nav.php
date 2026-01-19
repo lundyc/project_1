@@ -8,14 +8,12 @@ $roles = $_SESSION['roles'] ?? [];
 $isPlatformAdmin = in_array('platform_admin', $roles, true);
 $isClubAdmin = in_array('club_admin', $roles, true);
 $canViewPlayers = $isPlatformAdmin || $isClubAdmin;
-$canAccessVideoLab = in_array('analyst', $roles, true) || $isClubAdmin || $isPlatformAdmin;
 
 $currentPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?? '/';
 $navBase = $base ?: '';
 $dashboardHref = $navBase . '/';
 $matchesHref = $navBase . '/matches';
 $playersHref = $navBase . '/admin/players';
-$videoLabHref = $navBase . '/video-lab';
 $adminHref = $navBase . '/admin';
 $settingsHref = $navBase . '/settings';
 $logoutHref = $navBase . '/logout';
@@ -23,7 +21,6 @@ $logoutHref = $navBase . '/logout';
 $dashboardActive = $currentPath === $dashboardHref || $currentPath === rtrim($navBase, '/');
 $matchesActive = str_starts_with($currentPath, $matchesHref);
 $playersActive = str_starts_with($currentPath, $playersHref);
-$videoLabActive = str_starts_with($currentPath, $videoLabHref);
 $adminActive = str_starts_with($currentPath, $adminHref) && !$playersActive;
 
 $displayName = trim($user['display_name'] ?? 'User');
@@ -56,14 +53,6 @@ if ($canViewPlayers) {
                     'label' => 'Players',
                     'href' => $playersHref,
                     'active' => $playersActive,
-          ];
-}
-
-if ($canAccessVideoLab) {
-          $navLinks[] = [
-                    'label' => 'Video Lab',
-                    'href' => $videoLabHref,
-                    'active' => $videoLabActive,
           ];
 }
 

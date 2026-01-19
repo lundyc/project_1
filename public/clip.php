@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../app/lib/auth.php';
 
-// Simple secured clip streamer for Video Lab mini player.
+// Simple secured clip streamer for clip playback.
 // Usage: /clip.php?match=1&event=188&clip=1
 
 auth_boot();

@@ -3,8 +3,8 @@
 ## Kill switch
 Phase 3 now honours a single flag: `PHASE_3_VIDEO_LAB_ENABLED=true`. If that environment variable is set to anything other than `0`, `false`, or `no`, Phase 3 stays live; otherwise the feature is frozen in read-only mode.
 
-- Clip generation, regeneration, and review routes all consult `phase3_is_enabled()` (`app/lib/phase3.php`), and the Video Lab match view (`app/views/pages/video_lab/match.php`) disables action buttons when the flag is off.
-- When disabled, the UI still loads, existing clips remain visible, and analysts continue tagging events or recomputing snapshots—no Phase 3 background work can touch the `clips`, `clip_reviews`, or `event_snapshots` tables.
+- Clip generation, regeneration, and review API endpoints all consult `phase3_is_enabled()` (`app/lib/phase3.php`).
+- When disabled, existing clips remain visible, and analysts continue tagging events or recomputing snapshots—no Phase 3 background work can touch the `clips`, `clip_reviews`, or `event_snapshots` tables.
 
 ## Hard data boundaries
 
@@ -36,7 +36,7 @@ These entries appear in `audit_log` with `entity_type='clip'`, the clip’s `id`
 
 ## Safe rollback procedure
 
-1. Set the flag to `false` so Video Lab runs read-only: export `PHASE_3_VIDEO_LAB_ENABLED=false` (or edit `config/config.php` and restart PHP-FPM/Apache).
+1. Set the flag to `false` to disable Phase 3 operations: export `PHASE_3_VIDEO_LAB_ENABLED=false` (or edit `config/config.php` and restart PHP-FPM/Apache).
 2. Optionally truncate downstream tables to remove Phase 3 artifacts while preserving all core analytics:
 
 ```bash
