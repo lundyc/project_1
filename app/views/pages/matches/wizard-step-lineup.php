@@ -1,42 +1,27 @@
-<?php
-$formationPositions = [
-          ['label' => 'GK', 'style' => 'left: 50%; bottom: 0%; transform: translate(-50%, 50%) rotate(0deg);'],
-          ['label' => 'LB', 'style' => 'left: 0%; bottom: 33.3333%; transform: translate(-50%, 50%) rotate(0deg);'],
-          ['label' => 'CB', 'style' => 'left: 33.3333%; bottom: 33.3333%; transform: translate(-50%, 50%) rotate(0deg);'],
-          ['label' => 'CB', 'style' => 'left: 66.6667%; bottom: 33.3333%; transform: translate(-50%, 50%) rotate(0deg);'],
-          ['label' => 'RB', 'style' => 'left: 100%; bottom: 33.3333%; transform: translate(-50%, 50%) rotate(0deg);'],
-          ['label' => 'LM', 'style' => 'left: 0%; bottom: 66.6667%; transform: translate(-50%, 50%) rotate(0deg);'],
-          ['label' => 'CM', 'style' => 'left: 33.3333%; bottom: 66.6667%; transform: translate(-50%, 50%) rotate(0deg);'],
-          ['label' => 'CM', 'style' => 'left: 66.6667%; bottom: 66.6667%; transform: translate(-50%, 50%) rotate(0deg);'],
-          ['label' => 'RM', 'style' => 'left: 100%; bottom: 66.6667%; transform: translate(-50%, 50%) rotate(0deg);'],
-          ['label' => 'ST', 'style' => 'left: 25%; bottom: 100%; transform: translate(-50%, 50%) rotate(0deg);'],
-          ['label' => 'ST', 'style' => 'left: 75%; bottom: 100%; transform: translate(-50%, 50%) rotate(0deg);'],
-];
-$positionOptions = array_values(array_unique(array_column($formationPositions, 'label')));
-?>
+<?php $formationLabels = [
+          'home' => $homeFormationLabel ?? 'Unset',
+          'away' => $awayFormationLabel ?? 'Unset',
+]; ?>
 <div class="panel p-3 rounded-md">
           <div class="panel-body">
-                    <div class="d-flex align-items-center justify-content-between mb-3">
-                              <div>
-                                        <div class="text-muted-alt text-sm">Step 4</div>
-                                        <div class="text-lg text-white fw-semibold">Player lineup</div>
-                              </div>
-                              <div class="d-flex gap-2 align-items-center">
-                                        <span id="lineupStatusBadge" class="wizard-status wizard-status-pending">Pending</span>
-                              </div>
-                    </div>
                     <div id="lineupFlash" class="alert d-none" role="alert"></div>
 
                     <div class="lineup-grid">
                               <?php foreach (['home' => 'lineupHomeLabel', 'away' => 'lineupAwayLabel'] as $side => $labelId): ?>
                                         <div class="lineup-card" data-lineup-side="<?= $side ?>">
-                                        <div class="lineup-card-header">
-                                                  <div>
-                                                            <div class="text-xs text-muted-alt"><?= ucfirst($side) ?></div>
-                                                            <div id="<?= $labelId ?>" class="lineup-card-title text-light"><?= ucfirst($side) ?> lineup</div>
-                                                            <div class="lineup-card-caption">Starting lineup · 4-4-2</div>
+                                                  <div class="lineup-card-header">
+                                                            <div>
+                                                                      <div class="text-xs text-muted-alt"><?= ucfirst($side) ?></div>
+                                                                      <div id="<?= $labelId ?>" class="lineup-card-title text-light"><?= ucfirst($side) ?> lineup</div>
+                                                            <div class="lineup-card-caption">
+                                                                      Starting lineup · <span data-lineup-formation-name><?= htmlspecialchars($formationLabels[$side] ?? 'Unset') ?></span>
+                                                            </div>
+                                                            </div>
+                                                            <div class="lineup-formation-selector text-end">
+                                                                      <label class="form-label text-xs text-muted-alt mb-1" for="lineupFormationSelect<?= ucfirst($side) ?>">Formation</label>
+                                                                      <select id="lineupFormationSelect<?= ucfirst($side) ?>" class="form-select form-select-sm select-dark" data-lineup-formation-select data-lineup-side="<?= $side ?>" data-formation-select="<?= $side ?>" aria-label="<?= ucfirst($side) ?> formation"></select>
+                                                            </div>
                                                   </div>
-                                        </div>
                                                   <div class="lineup-formation formation-pitch">
                                                             <div class="formation-pitch">
                                                                       <svg width="298" height="386" viewBox="0 0 298 386" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -49,25 +34,19 @@ $positionOptions = array_values(array_unique(array_column($formationPositions, '
                                                                       </svg>
                                                                       <div class="formation-pitch-content">
                                                                                 <div class="formation">
-                                                            <div class="formation-positions">
-                                                                      <?php foreach ($formationPositions as $position): ?>
-                                                        <div class="formation-position on-pitch" style="<?= htmlspecialchars($position['style']) ?>">
-                                                          <button class="formation-position-button player-select-button lineup-formation-slot" type="button" data-position-label="<?= htmlspecialchars($position['label']) ?>">
-                                                                    <span class="lineup-slot-indicator" aria-hidden="true"><i class="fa-solid fa-plus"></i></span>
-                                                                    <span class="lineup-slot-captain-badge" aria-hidden="true"></span>
-                                                          </button>
-                                                          <span class="position-label">
-                                                                    <span class="position-label-name" aria-hidden="true"></span>
-                                                                    <span class="position-label-role" data-default-label="<?= htmlspecialchars($position['label']) ?>"><?= htmlspecialchars($position['label']) ?></span>
-                                                          </span>
-                                                        </div>
-                                                                      <?php endforeach; ?>
-                                                            </div>
+                                                                                          <div class="formation-positions" data-lineup-formation-positions data-lineup-side="<?= $side ?>"></div>
                                                                                 </div>
                                                                       </div>
                                                             </div>
                                                   </div>
                                                   <div class="lineup-forms" data-lineup-side="<?= $side ?>"></div>
+                                                  <button
+                                                            type="button"
+                                                            class="lineup-make-sub-btn btn btn-primary-soft btn-sm w-100 mb-2"
+                                                            data-lineup-make-sub="<?= $side ?>">
+                                                            <i class="fa-solid fa-rotate"></i>
+                                                            Make substitution
+                                                  </button>
                                                   <div class="lineup-substitutes-column mt-3" data-lineup-substitutes-side="<?= $side ?>">
                                                             <div class="lineup-substitutes-header">
                                                                       <div>
@@ -82,13 +61,6 @@ $positionOptions = array_values(array_unique(array_column($formationPositions, '
                                                   </div>
                                         </div>
                               <?php endforeach; ?>
-                    </div>
-                    <div class="d-flex justify-content-between align-items-center gap-2 mt-3 flex-wrap">
-                              <button type="button" class="btn btn-secondary-soft" id="lineupBackBtn">Back to download</button>
-                              <div class="d-flex gap-2">
-                                        <a href="#" id="lineupOverviewBtn" class="btn btn-primary-soft disabled" aria-disabled="true">Match overview</a>
-                                        <a href="#" id="lineupDeskBtn" class="btn btn-secondary-soft disabled" aria-disabled="true">Analysis desk</a>
-                              </div>
                     </div>
           </div>
 </div>

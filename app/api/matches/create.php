@@ -7,17 +7,29 @@ require_once __DIR__ . '/../../lib/db.php';
 
 function match_wizard_log_path(): ?string
 {
-          static $path;
+          static $path = null;
           if ($path !== null) {
-                    return $path;
+                    return $path === false ? null : $path;
           }
           $root = realpath(__DIR__ . '/../../..');
           if ($root === false) {
+                    $path = false;
                     return null;
           }
           $logDir = $root . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'logs';
           @mkdir($logDir, 0777, true);
-          return $path = $logDir . DIRECTORY_SEPARATOR . 'match_wizard_debug.log';
+          if (!is_dir($logDir) || !is_writable($logDir)) {
+                    error_log('[match_wizard_log] Unable to write logs to ' . $logDir . ' (needs write permissions)');
+                    $path = false;
+                    return null;
+          }
+          $candidate = $logDir . DIRECTORY_SEPARATOR . 'match_wizard_debug.log';
+          if (file_exists($candidate) && !is_writable($candidate)) {
+                    error_log('[match_wizard_log] Log file exists but is not writable: ' . $candidate);
+                    $path = false;
+                    return null;
+          }
+          return $path = $candidate;
 }
 
 function log_match_wizard_event(?int $matchId, string $stage, string $message, array $context = []): void

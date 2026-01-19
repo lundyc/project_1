@@ -24,8 +24,12 @@ if (is_logged_in()) {
           $bodyClasses[] = 'has-top-nav';
 }
 $bodyClassAttr = implode(' ', $bodyClasses);
+$bodyExtraAttributes = '';
+if (!empty($bodyAttributes)) {
+          $bodyExtraAttributes = ' ' . trim($bodyAttributes);
+}
 ?>
-<body class="<?= htmlspecialchars($bodyClassAttr) ?>">
+<body class="<?= htmlspecialchars($bodyClassAttr) ?>"<?= $bodyExtraAttributes ?>>
 
           <?php if (is_logged_in()): ?>
                     <?php require __DIR__ . '/partials/nav.php'; ?>

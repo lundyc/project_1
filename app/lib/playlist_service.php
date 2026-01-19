@@ -98,14 +98,72 @@ function playlist_service_get_with_clips(int $playlistId, int $matchId): array
 
 /**
  * Add a clip to a playlist after ensuring the clip belongs to the same match.
+ * If the clip_id is actually an event_id (no explicit clip yet), create a clip record on-the-fly.
  */
 function playlist_service_add_clip(int $playlistId, int $matchId, int $clipId, ?int $sortOrder = null): array
 {
+          require_once __DIR__ . '/event_repository.php';
+          require_once __DIR__ . '/match_repository.php';
+          
           playlist_service_require_playlist_for_match($playlistId, $matchId);
 
           $clip = playlist_get_clip_for_match($clipId, $matchId);
+          
+          // If no clip exists, try to create one from the event (event_id == clip_id pattern)
           if (!$clip) {
-                    throw new RuntimeException('clip_not_found');
+                    $event = event_get_by_id($clipId);
+                    if (!$event || (int)$event['match_id'] !== $matchId) {
+                              throw new RuntimeException('clip_not_found');
+                    }
+                    
+                    // Build clip name from event details
+                    $clipName = generate_clip_name_from_event($event, $matchId);
+                    
+                    // Create a clip from the event: ±30 seconds around match_second
+                    $matchSecond = (int)($event['match_second'] ?? 0);
+                    $startSecond = max(0, $matchSecond - 30);
+                    $endSecond = $matchSecond + 30;
+                    $currentUser = current_user();
+                    $userId = (int)($currentUser['id'] ?? 0);
+                    
+                    $pdo = db();
+                    try {
+                              $stmt = $pdo->prepare(
+                                        'INSERT INTO clips (match_id, event_id, clip_name, start_second, end_second, created_by) 
+                         VALUES (:match_id, :event_id, :clip_name, :start_second, :end_second, :created_by)'
+                              );
+                              $stmt->execute([
+                                        'match_id' => $matchId,
+                                        'event_id' => $clipId,
+                                        'clip_name' => $clipName,
+                                        'start_second' => $startSecond,
+                                        'end_second' => $endSecond,
+                                        'created_by' => $userId,
+                              ]);
+                              $newClipId = (int)$pdo->lastInsertId();
+                              $clip = [
+                                        'id' => $newClipId,
+                                        'clip_id' => $newClipId,
+                                        'match_id' => $matchId,
+                                        'clip_name' => $clipName,
+                                        'start_second' => $startSecond,
+                                        'end_second' => $endSecond,
+                              ];
+                              // Update clipId to the newly created clip's actual ID
+                              $clipId = $newClipId;
+                    } catch (\PDOException $e) {
+                              // If insert fails (e.g., duplicate event_id), retrieve the existing clip
+                              if (($e->errorInfo[1] ?? null) === 1062) {
+                                        $clip = playlist_get_clip_for_match($clipId, $matchId);
+                                        if (!$clip) {
+                                                  throw new RuntimeException('clip_not_found');
+                                        }
+                                        // Use the actual clip ID for the playlist entry
+                                        $clipId = (int)$clip['id'];
+                              } else {
+                                        throw $e;
+                              }
+                    }
           }
 
           try {
@@ -211,4 +269,44 @@ function playlist_service_parse_order_input(array $orderInput): array
           }
 
           return $ordering;
+}
+
+/**
+ * Generate a meaningful clip name from event details.
+ * Format: EventType_PlayerName_TeamName_Date
+ * Example: Goal_John_Smith_Home_2026-01-18
+ */
+function generate_clip_name_from_event(array $event, int $matchId): string
+{
+          $parts = [];
+          
+          // Add event type label (Goal, Shot, Foul, etc.)
+          if (!empty($event['event_type_label'])) {
+                    $parts[] = str_replace(' ', '_', $event['event_type_label']);
+          }
+          
+          // Add player name if available
+          if (!empty($event['match_player_name'])) {
+                    // Remove extra spaces and replace with underscore
+                    $playerName = str_replace(' ', '_', trim($event['match_player_name']));
+                    $parts[] = $playerName;
+          }
+          
+          // Add team side (Home/Away)
+          if (!empty($event['match_player_team_side'])) {
+                    $parts[] = ucfirst($event['match_player_team_side']);
+          }
+          
+          // Add match date if available
+          if (!empty($event['match_id'])) {
+                    $match = get_match((int)$event['match_id']);
+                    if ($match && !empty($match['kickoff_at'])) {
+                              $date = date('Y-m-d', strtotime($match['kickoff_at']));
+                              $parts[] = $date;
+                    }
+          }
+          
+          // Join all parts with underscore; if empty, use generic name
+          $clipName = implode('_', array_filter($parts));
+          return !empty($clipName) ? $clipName : 'clip';
 }

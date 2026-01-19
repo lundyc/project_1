@@ -57,7 +57,7 @@ ob_start();
 
                     <div class="d-flex gap-2">
                               <a class="btn btn-secondary-soft" href="<?= htmlspecialchars($base) ?>/matches">Back to matches</a>
-                              <a class="btn btn-primary-soft" href="<?= htmlspecialchars($base) ?>/matches/<?= (int)($match['id'] ?? 0) ?>/summary">Match summary</a>
+                              <a class="btn btn-primary-soft" href="<?= htmlspecialchars($base) ?>/matches/<?= (int)($match['id'] ?? 0) ?>/stats">Match stats</a>
                     </div>
           </div>
 </div>
@@ -82,12 +82,14 @@ $footerScripts .= <<<HTML
           const formatGB = (bytes) => {
                     if (!bytes) return '0 GB';
                     const gb = bytes / (1024 ** 3);
-                    return gb >= 10 ? `${gb.toFixed(1)} GB` : `${gb.toFixed(2)} GB`;
+                    return gb >= 10 ? gb.toFixed(1) + ' GB' : gb.toFixed(2) + ' GB';
           };
 
           async function poll() {
                     try {
-                              const res = await fetch(`${cfg.basePath}/api/video_status?match_id=${cfg.matchId}`, { headers: { Accept: 'application/json' } });
+                              const url =
+                                        (cfg.basePath || '') + '/api/video_status?match_id=' + encodeURIComponent(String(cfg.matchId));
+                              const res = await fetch(url, { headers: { Accept: 'application/json' } });
                               const data = await res.json().catch(() => ({}));
                               if (!res.ok || !data.ok) throw new Error(data.error || 'Unable to read progress');
 
@@ -98,19 +100,19 @@ $footerScripts .= <<<HTML
                               const totalBytes = Number(data.total_bytes) || 0;
 
                               if (barEl) {
-                                        barEl.style.width = `${percent}%`;
+                                        barEl.style.width = percent + '%';
                                         barEl.setAttribute('aria-valuenow', percent.toString());
                               }
                               if (percentEl) {
-                                        percentEl.textContent = `${percent}%`;
+                                        percentEl.textContent = percent + '%';
                               }
                               if (statusEl) {
-                                        statusEl.textContent = `Status: ${message}`;
+                                        statusEl.textContent = 'Status: ' + message;
                               }
                               if (sizeEl) {
                                         const downloadedLabel = formatGB(downloadedBytes);
                                         const totalLabel = formatGB(totalBytes);
-                                        sizeEl.textContent = `${downloadedLabel} / ${totalLabel}`;
+                                        sizeEl.textContent = downloadedLabel + ' / ' + totalLabel;
                               }
 
                               if (status === 'completed' || status === 'failed') {

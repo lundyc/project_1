@@ -1,10 +1,12 @@
 (() => {
           const cfg = window.MatchWizardSetupConfig || {};
           console.debug('Match setup config', cfg);
-          if (!cfg.basePath || !cfg.clubId) {
-                    console.warn('Match setup config missing required context', cfg);
-                    return;
-          }
+          const hasBasePath = typeof cfg.basePath === 'string';
+          const hasClubId = cfg.clubId !== undefined && cfg.clubId !== null;
+          if (!hasBasePath || !hasClubId) {
+                   console.warn('Match setup config missing required context', cfg);
+                   return;
+         }
 
           document.addEventListener('DOMContentLoaded', () => {
                     const teamModal = document.getElementById('teamCreateModal');

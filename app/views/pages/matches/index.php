@@ -205,11 +205,22 @@ ob_start();
                                                  $durationSeconds = isset($match['video_duration_seconds']) ? (int)$match['video_duration_seconds'] : null;
                                                  $durationLabel = $formatDuration($durationSeconds);
                                                  $hasVideo = $downloadPath !== '';
-                                                 $thumbnailRelativePath = '/storage/matches/' . $matchId . '/thumbnail.jpg';
-                                                 $thumbnailFsPath = $_SERVER['DOCUMENT_ROOT'] . $thumbnailRelativePath;
-                                                 $hasThumbnail = is_file($thumbnailFsPath);
+                                                  $thumbnailRelativePath = '';
+                                                  $thumbnailFsPath = '';
+                                                  $hasThumbnail = false;
                                                   $downloadFilename = $hasVideo ? $buildDownloadFilename($title, $kickoffTs) : null;
-
+                                                  $dbThumbnail = trim((string)($match['video_thumbnail_path'] ?? ''));
+                                                  if ($dbThumbnail !== '') {
+                                                            $dbThumbnail = '/' . ltrim($dbThumbnail, '/');
+                                                            $thumbnailRelativePath = $dbThumbnail;
+                                                            $thumbnailFsPath = $_SERVER['DOCUMENT_ROOT'] . $thumbnailRelativePath;
+                                                            $hasThumbnail = is_file($thumbnailFsPath);
+                                                  }
+                                                  if (!$hasThumbnail) {
+                                                            $thumbnailRelativePath = '/storage/matches/' . $matchId . '/thumbnail.jpg';
+                                                            $thumbnailFsPath = $_SERVER['DOCUMENT_ROOT'] . $thumbnailRelativePath;
+                                                            $hasThumbnail = is_file($thumbnailFsPath);
+                                                  }
                                                   if (!$hasThumbnail) {
                                                             $altThumbnailRelative = '/videos/matches/match_' . $matchId . '/source/veo/standard/thumbnail.jpg';
                                                             $altThumbnailFs = $_SERVER['DOCUMENT_ROOT'] . $altThumbnailRelative;
@@ -284,7 +295,7 @@ ob_start();
                                                                                           </button>
                                                                                 </li>
                                                                                 <li>
-                                                                                          <form method="post" action="<?= htmlspecialchars($base . '/api/matches/delete') ?>" class="m-0" onsubmit="return confirm('Delete this match?');">
+                                                                                          <form method="post" action="<?= htmlspecialchars($base . '/api/matches/' . $matchId . '/delete') ?>" class="m-0" onsubmit="return confirm('Delete this match?');">
                                                                                                     <input type="hidden" name="match_id" value="<?= htmlspecialchars((string)$matchId) ?>">
                                                                                                     <button type="submit" class="dropdown-item dropdown-item-danger">
                                                                                                               <i class="fa-solid fa-trash"></i>

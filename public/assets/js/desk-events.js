@@ -33,6 +33,7 @@
             teamFilter: '',
             searchQuery: '',
       };
+      let missingClipToastShown = false;
       let playlistFilterPopoverOpen = false;
       const clipPlaybackState = {
             mode: 'match',
@@ -93,6 +94,49 @@
       const $teamSide = $('#team_side');
       const $periodId = $('#period_id');
       const $periodHelperText = $('#periodHelperText');
+      const $periodsModal = $('#periodsModal');
+      const $periodsModalToggle = $('.period-modal-toggle');
+      const periodsModalFocusableSelector =
+            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+      let periodModalLastFocused = null;
+      const currentPeriodStatusEl = document.getElementById('currentPeriodStatus');
+      const periodButtonNodes = Array.from(document.querySelectorAll('.period-btn'));
+      const PERIOD_SEQUENCE = ['first_half', 'second_half', 'extra_time_1', 'extra_time_2', 'penalties'];
+      const periodDefinitions = {};
+      periodButtonNodes.forEach((button) => {
+            const key = button.dataset.periodKey;
+            if (!key) return;
+            if (!periodDefinitions[key]) {
+                  periodDefinitions[key] = {
+                        key,
+                        label: button.dataset.periodLabel || '',
+                        startButton: null,
+                        endButton: null,
+                  };
+            }
+            const target = periodDefinitions[key];
+            if (button.dataset.periodAction === 'end' || button.classList.contains('period-end')) {
+                  target.endButton = button;
+            } else if (button.dataset.periodAction === 'start' || button.classList.contains('period-start')) {
+                  target.startButton = button;
+            }
+      });
+      PERIOD_SEQUENCE.forEach((key) => {
+            if (!periodDefinitions[key]) {
+                  periodDefinitions[key] = { key, label: '', startButton: null, endButton: null };
+            }
+      });
+      const periodLabelToKey = new Map();
+      Object.values(periodDefinitions).forEach((def) => {
+            const normalized = normalizePeriodLabel(def.label);
+            if (normalized) {
+                  periodLabelToKey.set(normalized, def.key);
+            }
+      });
+      let periodState = {};
+      let periodTimer = null;
+      let periodTimerKey = null;
+      let periodTimerStart = null;
       const $eventTypeId = $('#event_type_id');
       const $matchPlayerId = $('#match_player_id');
       const $importance = $('#importance');
@@ -152,6 +196,29 @@
       const DRAWING_WINDOW_FALLBACK_SECONDS = 5;
       const PERIOD_EVENT_KEYS = new Set(['period_start', 'period_end']);
       const isPeriodEvent = (ev) => !!ev && PERIOD_EVENT_KEYS.has(ev.event_type_key);
+      const getEventClipId = (ev) => {
+            if (!ev) return null;
+            const candidates = [
+                  ev.clip_id,
+                  ev.clipId,
+                  ev.clipid,
+                  ev.clip && ev.clip.id,
+                  ev.clip && ev.clip.clip_id,
+            ];
+            for (const c of candidates) {
+                  const n = Number(c);
+                  if (Number.isFinite(n) && n > 0) return n;
+            }
+            return null;
+      };
+
+      const getEventOrClipId = (ev) => {
+            const clipId = getEventClipId(ev);
+            if (clipId !== null) return clipId;
+            // Fallback: use event ID as clip ID when no explicit clip exists
+            const eventId = Number(ev && ev.id);
+            return Number.isFinite(eventId) && eventId > 0 ? eventId : null;
+      };
 
       let heartbeatTimer = null;
       let lockOwned = false;
@@ -161,7 +228,6 @@
       let clipState = { id: null, start: null, end: null };
       let draggingClipId = null;
       let dropTargetElement = null;
-      let suppressEditorOpen = false;
       let currentContext = 'all';
       let timelineMode = 'matrix';
       const storedTeam = window.localStorage ? window.localStorage.getItem('deskTeamSide') : null;
@@ -884,6 +950,106 @@
                   .join('');
       }
 
+      /**
+       * Build player selector HTML for event editor (team-first flow)
+       * Groups players by Starting XI and Substitutes in two columns
+       */
+      function buildEventEditorPlayerListHtml(teamSide) {
+            if (!teamSide || !['home', 'away'].includes(teamSide)) {
+                  return;
+            }
+
+            const teamPlayers = Array.isArray(players)
+                  ? players.filter((p) => (p.team_side || 'unknown') === teamSide)
+                  : [];
+
+            // Separate Starting XI and Substitutes (is_starting is 1 for starting, 0 for subs)
+            const startingXI = teamPlayers.filter((p) => p.is_starting === 1 || p.is_starting === true);
+            const substitutes = teamPlayers.filter((p) => p.is_starting !== 1 && p.is_starting !== true);
+
+            // Build Starting XI buttons
+            let startingHtml = '';
+            if (startingXI.length > 0) {
+                  startingXI.forEach((player) => {
+                        const shirt = player.shirt_number ? ` #${player.shirt_number}` : '';
+                        const playerId = String(player.id || '');
+                        const label = player.display_name || 'Player';
+                        startingHtml += `<button type="button" class="player-selector-btn desk-editable" data-player-id="${h(playerId)}">${h(label)}${shirt ? h(shirt) : ''}</button>`;
+                  });
+            }
+
+            // Build Substitutes buttons
+            let subsHtml = '';
+            if (substitutes.length > 0) {
+                  substitutes.forEach((player) => {
+                        const shirt = player.shirt_number ? ` #${player.shirt_number}` : '';
+                        const playerId = String(player.id || '');
+                        const label = player.display_name || 'Player';
+                        subsHtml += `<button type="button" class="player-selector-btn desk-editable" data-player-id="${h(playerId)}">${h(label)}${shirt ? h(shirt) : ''}</button>`;
+                  });
+            }
+
+            return { startingHtml, subsHtml };
+      }
+
+      /**
+       * Update event editor player list when team is selected
+       */
+      function updateEventEditorPlayerList(teamSide) {
+            const $playerContainer = $('#playerSelectorContainer');
+            const $playerStarting = $('#playerSelectorStarting');
+            const $playerSubs = $('#playerSelectorSubs');
+            const $playerInput = $('#match_player_id');
+
+            if (!$playerContainer.length || !$playerStarting.length || !$playerSubs.length) {
+                  return;
+            }
+
+            if (!teamSide || !['home', 'away'].includes(teamSide)) {
+                  $playerContainer.hide();
+                  $playerStarting.html('');
+                  $playerSubs.html('');
+                  $playerInput.val('');
+                  return;
+            }
+
+            // Show player container
+            $playerContainer.show();
+
+            // Build and render player lists
+            const playerLists = buildEventEditorPlayerListHtml(teamSide);
+            if (!playerLists || (!playerLists.startingHtml && !playerLists.subsHtml)) {
+                  $playerStarting.html('<div class="text-sm text-muted-alt">No players available</div>');
+                  $playerSubs.html('');
+                  return;
+            }
+
+            $playerStarting.html(playerLists.startingHtml || '<div class="text-sm text-muted-alt">None</div>');
+            $playerSubs.html(playerLists.subsHtml || '<div class="text-sm text-muted-alt">None</div>');
+
+            // Add event listeners to player buttons
+            $playerContainer.find('.player-selector-btn').on('click', function (e) {
+                  e.preventDefault();
+                  const playerId = $(this).data('player-id');
+
+                  // Remove selected class from all buttons
+                  $playerContainer.find('.player-selector-btn').removeClass('selected');
+
+                  // Add selected class to clicked button
+                  $(this).addClass('selected');
+
+                  // Update the hidden input
+                  $playerInput.val(playerId);
+                  editorDirty = true;
+            });
+
+            // Set selected state if player is already selected
+            const currentPlayerId = $playerInput.val();
+            if (currentPlayerId) {
+                  $playerContainer.find(`.player-selector-btn[data-player-id="${currentPlayerId}"]`).addClass('selected');
+            }
+      }
+
       function setContext(ctx) {
             currentContext = ctx;
             $contextTabs.find('.tab-btn').removeClass('is-active');
@@ -1452,6 +1618,7 @@
                         }
                         hideError();
                         events = applyEventLabelReplacements(res.events || []);
+                        refreshPeriodStateFromEvents();
                         syncUndoRedoFromMeta(res.meta);
                         renderTimeline();
                         if (selectedId) selectEvent(selectedId);
@@ -1640,12 +1807,12 @@
       function buildClipRanges(events) {
             const clipMap = new Map();
             (events || []).forEach((ev) => {
-                  const clipId = Number(ev.clip_id);
+                  const clipId = getEventClipId(ev);
                   if (!Number.isFinite(clipId) || clipId <= 0) {
                         return;
                   }
-                  const start = Number(ev.clip_start_second);
-                  const end = Number(ev.clip_end_second);
+                  const start = Number(ev.clip_start_second ?? (ev.clip && ev.clip.start_second));
+                  const end = Number(ev.clip_end_second ?? (ev.clip && ev.clip.end_second));
                   if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
                         return;
                   }
@@ -1799,8 +1966,9 @@
                         const emphasisHighlight =
                               importance >= 4 ? 'border: 1px solid var(--event-color-strong, rgba(148, 163, 184, 0.55));' : '';
                         const dotStyle = `${buildColorStyle(teamColor)}left:${position}px; ${emphasisHighlight}`;
-                        const eventClipId = Number.isFinite(Number(ev.clip_id)) ? String(Number(ev.clip_id)) : null;
-                        const clipAttributes = eventClipId ? ` data-clip-id="${eventClipId}" draggable="true"` : '';
+                        const clipNumeric = getEventOrClipId(ev);
+                        const eventClipId = Number.isFinite(clipNumeric) && clipNumeric > 0 ? String(clipNumeric) : null;
+                        const clipAttributes = ` draggable="true"${eventClipId ? ` data-clip-id="${eventClipId}"` : ''}`;
                         html += `<span class="matrix-dot"${clipAttributes} data-second="${ev.match_second}" data-event-id="${ev.id}" title="${matrixTimeLabel} - ${h(
                               labelText
                         )} (${h(ev.team_side || 'team')})" style="${dotStyle}"></span>`;
@@ -1889,6 +2057,18 @@
             html += '</div>';
 
             $timelineMatrix.html(html);
+            const debugCounts = {
+                  dots: $timelineMatrix.find('.matrix-dot').length,
+                  dotsWithClip: $timelineMatrix.find('.matrix-dot[data-clip-id]').length,
+                  dotsWithoutClip: $timelineMatrix.find('.matrix-dot:not([data-clip-id])').length,
+                  clips: $timelineMatrix.find('.matrix-clip').length,
+                  drawings: $timelineMatrix.find('.matrix-drawing').length,
+            };
+            // console.log('[Desk DnD] renderMatrix complete', ...);
+            if (debugCounts.dots > 0 && debugCounts.dotsWithClip === 0 && !missingClipToastShown) {
+                  missingClipToastShown = true;
+                  console.log('[Desk DnD] using event IDs as clip IDs (no explicit clips yet)');
+            }
             const $viewport = $timelineMatrix.find('.matrix-viewport');
             timelineMetrics.viewportWidth = $viewport.length ? $viewport[0].clientWidth : availableWidth + axisPad;
             timelineMetrics.totalWidth = timelineWidth + axisPad;
@@ -2008,18 +2188,18 @@
 
       function updateDrawingDragElement() {
             if (!drawingDragState || !drawingDragState.element) {
-                      return;
+                  return;
             }
             const timelineWidth = Math.max(
-                      0,
-                      timelineMetrics.duration * timelineZoom.pixelsPerSecond * timelineZoom.scale
+                  0,
+                  timelineMetrics.duration * timelineZoom.pixelsPerSecond * timelineZoom.scale
             );
             const position = timelineWidth > 0
-                      ? Math.min(
-                                timelineWidth,
-                                Math.max(0, drawingDragState.currentTime * timelineZoom.pixelsPerSecond * timelineZoom.scale)
-                      )
-                      : 0;
+                  ? Math.min(
+                        timelineWidth,
+                        Math.max(0, drawingDragState.currentTime * timelineZoom.pixelsPerSecond * timelineZoom.scale)
+                  )
+                  : 0;
             drawingDragState.element.style.left = `${position}px`;
             drawingDragState.element.dataset.second = String(drawingDragState.currentTime);
       }
@@ -2037,12 +2217,12 @@
             if (!Number.isFinite(drawingId)) return;
             const baseTime = Number(target.dataset.second) || 0;
             drawingDragState = {
-                      id: drawingId,
-                      pointerId: event.pointerId,
-                      startX: event.clientX,
-                      baseTime,
-                      currentTime: baseTime,
-                      element: target,
+                  id: drawingId,
+                  pointerId: event.pointerId,
+                  startX: event.clientX,
+                  baseTime,
+                  currentTime: baseTime,
+                  element: target,
             };
             drawingDragState.element.classList.add('is-dragging');
             document.addEventListener('pointermove', handleMatrixDrawingPointerMove);
@@ -2052,18 +2232,18 @@
 
       function handleMatrixDrawingPointerMove(event) {
             if (!drawingDragState || event.pointerId !== drawingDragState.pointerId) {
-                      return;
+                  return;
             }
             const scaleFactor = timelineZoom.pixelsPerSecond * timelineZoom.scale;
             if (!scaleFactor) {
-                      return;
+                  return;
             }
             const deltaX = event.clientX - drawingDragState.startX;
             const deltaSeconds = deltaX / scaleFactor;
             const duration = Math.max(0, timelineMetrics.duration);
             drawingDragState.currentTime = Math.min(
-                      duration,
-                      Math.max(0, drawingDragState.baseTime + deltaSeconds)
+                  duration,
+                  Math.max(0, drawingDragState.baseTime + deltaSeconds)
             );
             updateDrawingDragElement();
             event.preventDefault();
@@ -2071,7 +2251,7 @@
 
       function finalizeMatrixDrawingDrag(event) {
             if (!drawingDragState || event.pointerId !== drawingDragState.pointerId) {
-                      return;
+                  return;
             }
             const drawingId = drawingDragState.id;
             const timestamp = Math.max(0, drawingDragState.currentTime);
@@ -2079,16 +2259,16 @@
             cleanupDrawingDragListeners();
             drawingDragState = null;
             window.dispatchEvent(
-                      new CustomEvent('DeskDrawingTimestampUpdate', {
-                                detail: { drawingId, timestamp },
-                      })
+                  new CustomEvent('DeskDrawingTimestampUpdate', {
+                        detail: { drawingId, timestamp },
+                  })
             );
             scrollMatrixToSecond(timestamp);
       }
 
       function cancelMatrixDrawingDrag(event) {
             if (!drawingDragState || event.pointerId !== drawingDragState.pointerId) {
-                      return;
+                  return;
             }
             drawingDragState.element && drawingDragState.element.classList.remove('is-dragging');
             cleanupDrawingDragListeners();
@@ -2134,11 +2314,13 @@
 
       function setActiveEditorTab(panelName) {
             let target = panelName || 'details';
+
             if (target === 'outcome' && $editorTabOutcome.length && $editorTabOutcome.hasClass('is-hidden')) {
                   target = 'details';
             }
             activeEditorTab = target;
-            $editorTabs.each((_, tab) => {
+
+            $editorTabs.each((idx, tab) => {
                   const $tab = $(tab);
                   const panel = $tab.data('panel');
                   const isActive = panel === activeEditorTab;
@@ -2146,9 +2328,11 @@
                   $tab.attr('aria-selected', isActive ? 'true' : 'false');
                   $tab.attr('tabindex', isActive ? '0' : '-1');
             });
-            $editorTabPanels.each((_, panel) => {
+
+            $editorTabPanels.each((idx, panel) => {
                   const $panel = $(panel);
-                  const isActive = $panel.data('panel') === activeEditorTab;
+                  const panelData = $panel.data('panel');
+                  const isActive = panelData === activeEditorTab;
                   $panel.toggleClass('is-active', isActive);
             });
       }
@@ -2180,21 +2364,23 @@
                         selectedId = null;
                         $eventId.val('');
                         updateTimeFromSeconds(0);
-                        updateMinuteExtraFields(0);
-                        $teamSide.val('home');
-                        $periodId.val('');
+                        const teamSide = 'home';
+                        $teamSide.val(teamSide);
+                        $editorPanel.find('.team-selector-btn').removeClass('selected');
+                        $editorPanel.find(`.team-selector-btn[data-team="${teamSide}"]`).addClass('selected');
                         $eventTypeId.val('');
                         $matchPlayerId.val('');
                         $importance.val('3');
                         $phase.val('');
                         $outcome.val('');
+                        $editorPanel.find('.outcome-selector-btn').removeClass('selected');
                         $zone.val('');
                         $notes.val('');
                         $tagIds.val([]);
                         clipState = { id: null, start: null, end: null };
                         updateClipUi();
                         refreshOutcomeFieldForEvent(null);
-                        refreshPeriodHelperText();
+                        updateEventEditorPlayerList(teamSide);
                   });
                   editorDirty = false;
                   setEditorCollapsed(true, 'Click a timeline item to edit details', true);
@@ -2206,25 +2392,36 @@
                   $eventId.val(ev.id);
                   const seconds = Number.isFinite(Number(ev.match_second)) ? Number(ev.match_second) : 0;
                   updateTimeFromSeconds(seconds);
-                  updateMinuteExtraFields(ev.minute_extra);
-                  $teamSide.val(ev.team_side || 'unknown');
-                  $periodId.val(ev.period_id || '');
+                  const teamSide = ev.team_side || 'unknown';
+                  $teamSide.val(teamSide);
+                  $editorPanel.find('.team-selector-btn').removeClass('selected');
+                  $editorPanel.find(`.team-selector-btn[data-team="${teamSide}"]`).addClass('selected');
                   $eventTypeId.val(ev.event_type_id);
                   $matchPlayerId.val(ev.match_player_id);
                   $importance.val(ev.importance || 3);
                   $phase.val(ev.phase || '');
-                  $outcome.val(ev.outcome || '');
+                  const outcomeValue = ev.outcome || '';
+                  $outcome.val(outcomeValue);
+                  $editorPanel.find('.outcome-selector-btn').removeClass('selected');
+                  if (outcomeValue) {
+                        $editorPanel.find(`.outcome-selector-btn[data-outcome="${outcomeValue}"]`).addClass('selected');
+                  }
                   $zone.val(ev.zone || '');
                   $notes.val(ev.notes || '');
                   $tagIds.val(ev.tags ? ev.tags.map((t) => t.id) : []);
-                  if (ev.clip_id) {
-                        clipState = { id: ev.clip_id, start: ev.clip_start_second, end: ev.clip_end_second };
+                  const evClipId = getEventClipId(ev);
+                  if (evClipId) {
+                        clipState = {
+                              id: evClipId,
+                              start: ev.clip_start_second ?? (ev.clip && ev.clip.start_second) ?? null,
+                              end: ev.clip_end_second ?? (ev.clip && ev.clip.end_second) ?? null,
+                        };
                   } else {
                         clipState = { id: null, start: null, end: null };
                   }
                   updateClipUi();
                   refreshOutcomeFieldForEvent(ev);
-                  refreshPeriodHelperText();
+                  updateEventEditorPlayerList(teamSide);
             });
             editorDirty = false;
             const labelText = displayEventLabel(ev, ev.event_type_label || 'Event');
@@ -2317,32 +2514,27 @@
             const endpointKey = data.event_id ? 'eventUpdate' : 'eventCreate';
             const url = endpoint(endpointKey);
             if (!url) {
-                  showError('Save failed', 'Missing event endpoint');
+                  Toast.error('Save failed: Missing event endpoint');
                   return;
             }
             $.post(url, data)
                   .done((res) => {
                         if (!res.ok) {
-                              showError('Save failed', res.error || 'Unknown');
+                              Toast.error(res.error || 'Save failed');
                               return;
                         }
+                        Toast.success('Event saved successfully');
                         hideError();
                         syncUndoRedoFromMeta(res.meta);
-                        loadEvents();
-                        if (res.event) {
-                              if (!suppressEditorOpen) {
-                                    selectedId = res.event.id;
-                                    fillForm(res.event);
-                              } else {
-                                    selectedId = null;
-                              }
-                        }
                         setStatus('Saved');
-                        suppressEditorOpen = false;
+                        setEditorCollapsed(true, 'Click a timeline item to edit details', true);
+                        selectedId = null;
+                        loadEvents();
                   })
                   .fail((xhr, status, error) => {
-                        showError('Save failed', xhr.responseText || error || status);
-                        suppressEditorOpen = false;
+                        const errorMsg = xhr.responseText || error || status || 'Unknown error';
+                        Toast.error(errorMsg);
+                        showError('Save failed', errorMsg);
                   });
       }
 
@@ -2381,21 +2573,21 @@
             if (!lockOwned || !cfg.canEditRole || !$eventId.val()) return;
             deleteEventById($eventId.val(), false);
       }
-
       function deleteEventById(eventId, skipConfirm) {
             if (!lockOwned || !cfg.canEditRole || !eventId) return;
             if (!skipConfirm && !window.confirm('Delete this event?')) return;
             const url = endpoint('eventDelete');
             if (!url) {
-                  showError('Delete failed', 'Missing event delete endpoint');
+                  Toast.error('Delete failed: Missing endpoint');
                   return;
             }
             $.post(url, { match_id: cfg.matchId, event_id: eventId })
                   .done((res) => {
                         if (!res.ok) {
-                              showError('Delete failed', res.error || 'Unknown');
+                              Toast.error(res.error || 'Delete failed');
                               return;
                         }
+                        Toast.success('Event deleted successfully');
                         hideError();
                         syncUndoRedoFromMeta(res.meta);
                         if (String(selectedId) === String(eventId)) {
@@ -2403,9 +2595,13 @@
                               fillForm(null);
                         }
                         loadEvents();
+                        attemptCloseEditor();
                         setStatus('Deleted');
                   })
-                  .fail((xhr, status, error) => showError('Delete failed', xhr.responseText || error || status));
+                  .fail((xhr, status, error) => {
+                        const errorMsg = xhr.responseText || error || status || 'Unknown error';
+                        Toast.error(errorMsg);
+                  });
       }
 
       function deleteAllVisible() {
@@ -2415,7 +2611,7 @@
             if (!window.confirm(`Delete ${ids.length} events? This cannot be undone.`)) return;
             const url = endpoint('eventDelete');
             if (!url) {
-                  showError('Delete failed', 'Missing event delete endpoint');
+                  Toast.error('Delete failed: Missing endpoint');
                   return;
             }
             Promise.all(
@@ -2452,6 +2648,281 @@
             saveEvent();
       }
 
+      function normalizePeriodLabel(label) {
+            if (!label) return '';
+            return String(label).trim().toLowerCase();
+      }
+
+      function createBasePeriodState() {
+            const state = {};
+            PERIOD_SEQUENCE.forEach((key) => {
+                  const def = periodDefinitions[key];
+                  state[key] = {
+                        key,
+                        label: def ? def.label : '',
+                        started: false,
+                        ended: false,
+                        startTimestamp: null,
+                        startMatchSecond: null,
+                        endMatchSecond: null,
+                  };
+            });
+            return state;
+      }
+
+      function setPeriodState(nextState) {
+            periodState = nextState || createBasePeriodState();
+            updatePeriodControlsUI();
+      }
+
+      function refreshPeriodStateFromEvents() {
+            const nextState = createBasePeriodState();
+            const periodCandidates = (events || []).filter((ev) => PERIOD_EVENT_KEYS.has(ev.event_type_key));
+            const sorted = periodCandidates
+                  .map((ev) => ({ ev, timestamp: parseEventTimestamp(ev) }))
+                  .sort((a, b) => {
+                        const aTime = a.timestamp || 0;
+                        const bTime = b.timestamp || 0;
+                        if (aTime !== bTime) return aTime - bTime;
+                        const aId = Number(a.ev.id) || 0;
+                        const bId = Number(b.ev.id) || 0;
+                        return aId - bId;
+                  });
+            sorted.forEach(({ ev }) => {
+                  const labelKey = normalizePeriodLabel(ev.period_label || ev.notes);
+                  const key = labelKey ? periodLabelToKey.get(labelKey) : null;
+                  if (!key || !nextState[key]) return;
+                  const entry = nextState[key];
+                  const isStart = ev.event_type_key === 'period_start';
+                  const isEnd = ev.event_type_key === 'period_end';
+                  const timestamp = parseEventTimestamp(ev);
+                  if (isStart) {
+                        entry.started = true;
+                        entry.startTimestamp = timestamp || entry.startTimestamp || Date.now();
+                        entry.startMatchSecond = parseMatchSecond(ev.match_second);
+                  }
+                  if (isEnd) {
+                        entry.ended = true;
+                        entry.endMatchSecond = parseMatchSecond(ev.match_second);
+                  }
+            });
+            setPeriodState(nextState);
+      }
+
+      function updatePeriodControlsUI() {
+            updatePeriodButtons();
+            ensureActivePeriodTimer();
+            updatePeriodStatusLabel();
+      }
+
+      function updatePeriodButtons() {
+            const activeKey = getActivePeriodKey(periodState);
+            const matchStateKey = getMatchStateKey(periodState);
+            const terminalState = matchStateKey === 'match_complete';
+            PERIOD_SEQUENCE.forEach((key) => {
+                  const def = periodDefinitions[key];
+                  const entry = periodState[key];
+                  if (!def || !entry) return;
+                  const startBtn = def.startButton;
+                  const endBtn = def.endButton;
+                  const startDisabled = terminalState || computeStartDisabled(key);
+                  if (startBtn) {
+                        startBtn.disabled = startDisabled;
+                        startBtn.setAttribute('aria-disabled', startDisabled ? 'true' : 'false');
+                        startBtn.setAttribute('aria-pressed', activeKey === key ? 'true' : 'false');
+                        updateTerminalTooltip(startBtn, terminalState);
+                  }
+                  if (endBtn) {
+                        const endDisabled = !entry.started || entry.ended;
+                        endBtn.disabled = endDisabled;
+                        endBtn.setAttribute('aria-disabled', endDisabled ? 'true' : 'false');
+                        endBtn.setAttribute('aria-pressed', 'false');
+                  }
+            });
+      }
+
+      function computeStartDisabled(key) {
+            const entry = periodState[key];
+            if (!entry) return true;
+            if (entry.started) return true;
+            if (hasLaterPeriodStarted(key)) return true;
+            if (!isPreviousPeriodComplete(key)) return true;
+            return false;
+      }
+
+      function hasLaterPeriodStarted(key) {
+            const idx = PERIOD_SEQUENCE.indexOf(key);
+            if (idx < 0) return false;
+            return PERIOD_SEQUENCE.slice(idx + 1).some((later) => {
+                  const next = periodState[later];
+                  return next && next.started;
+            });
+      }
+
+      function isPreviousPeriodComplete(key) {
+            switch (key) {
+                  case 'first_half':
+                        return true;
+                  case 'second_half':
+                        return periodState.first_half && periodState.first_half.ended;
+                  case 'extra_time_1':
+                        return periodState.second_half && periodState.second_half.ended;
+                  case 'extra_time_2':
+                        return periodState.extra_time_1 && periodState.extra_time_1.ended;
+                  case 'penalties':
+                        if (!(periodState.second_half && periodState.second_half.ended)) return false;
+                        if (periodState.extra_time_1 && periodState.extra_time_1.started && !periodState.extra_time_1.ended) return false;
+                        if (periodState.extra_time_2 && periodState.extra_time_2.started && !periodState.extra_time_2.ended) return false;
+                        return true;
+                  default:
+                        return true;
+            }
+      }
+
+      function getActivePeriod(state) {
+            if (!state) return null;
+            return PERIOD_SEQUENCE.map((key) => state[key]).find((period) => period && period.started && !period.ended) || null;
+      }
+
+      function getActivePeriodKey(state) {
+            const active = getActivePeriod(state);
+            return active ? active.key : null;
+      }
+
+      function ensureActivePeriodTimer() {
+            const active = getActivePeriod(periodState);
+            if (!active || !active.startTimestamp) {
+                  stopPeriodTimer();
+                  periodTimerKey = null;
+                  periodTimerStart = null;
+                  return;
+            }
+            if (periodTimer && periodTimerKey === active.key && periodTimerStart === active.startTimestamp) {
+                  return;
+            }
+            stopPeriodTimer();
+            periodTimerKey = active.key;
+            periodTimerStart = active.startTimestamp;
+            periodTimer = setInterval(() => updatePeriodStatusLabel(), 1000);
+      }
+
+      function stopPeriodTimer() {
+            if (periodTimer) {
+                  clearInterval(periodTimer);
+                  periodTimer = null;
+            }
+      }
+
+      function updatePeriodStatusLabel() {
+            if (!currentPeriodStatusEl) return;
+            const label = deriveStatusLabel(periodState);
+            const active = getActivePeriod(periodState);
+            let text = `Current period: ${label}`;
+            if (active && active.startTimestamp) {
+                  const elapsedSeconds = Math.max(0, Math.floor((Date.now() - active.startTimestamp) / 1000));
+                  text += ` (${formatDuration(elapsedSeconds)})`;
+            }
+            currentPeriodStatusEl.textContent = text;
+      }
+
+      function deriveStatusLabel(state) {
+            const key = getMatchStateKey(state);
+            switch (key) {
+                  case 'first_half':
+                        return state.first_half?.label || 'First Half';
+                  case 'half_time':
+                        return 'Half Time';
+                  case 'second_half':
+                        return state.second_half?.label || 'Second Half';
+                  case 'full_time':
+                        return 'Full Time';
+                  case 'extra_time_1':
+                        return state.extra_time_1?.label || 'Extra Time 1';
+                  case 'extra_time_break':
+                        return 'Extra Time Break';
+                  case 'extra_time_2':
+                        return state.extra_time_2?.label || 'Extra Time 2';
+                  case 'penalties':
+                        return state.penalties?.label || 'Penalties';
+                  case 'match_complete':
+                        return 'Match Complete';
+                  case 'not_started':
+                        return 'Not started';
+                  default:
+                        return 'Match';
+            }
+      }
+
+      function getMatchStateKey(state) {
+            if (!state) return 'not_started';
+            const first = state.first_half;
+            const second = state.second_half;
+            const et1 = state.extra_time_1;
+            const et2 = state.extra_time_2;
+            const penalties = state.penalties;
+            if (first && first.started && !first.ended) return 'first_half';
+            if (first && first.ended && !(second && second.started)) return 'half_time';
+            if (second && second.started && !second.ended) return 'second_half';
+            if (second && second.ended && !et1?.started && !et2?.started && !penalties?.started) return 'full_time';
+            if (et1 && et1.started && !et1.ended) return 'extra_time_1';
+            if (et1 && et1.ended && !(et2 && et2.started)) return 'extra_time_break';
+            if (et2 && et2.started && !et2.ended) return 'extra_time_2';
+            if (penalties && penalties.started && !penalties.ended) return 'penalties';
+            if (penalties && penalties.ended) return 'match_complete';
+            if (!first || !first.started) return 'not_started';
+            return 'match';
+      }
+
+      function updateTerminalTooltip(button, terminal) {
+            if (!button) return;
+            if (terminal) {
+                  button.setAttribute('title', 'Match has finished');
+            } else {
+                  button.removeAttribute('title');
+            }
+      }
+
+      function formatDuration(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            const minutes = String(mins).padStart(2, '0');
+            const secondsStr = String(secs).padStart(2, '0');
+            return `${minutes}:${secondsStr}`;
+      }
+
+      function parseEventTimestamp(ev) {
+            if (!ev) return null;
+            if (ev.created_at) {
+                  const parsed = Date.parse(ev.created_at);
+                  if (!Number.isNaN(parsed)) {
+                        return parsed;
+                  }
+            }
+            if (ev.updated_at) {
+                  const parsed = Date.parse(ev.updated_at);
+                  if (!Number.isNaN(parsed)) {
+                        return parsed;
+                  }
+            }
+            const matchSeconds = parseMatchSecond(ev.match_second);
+            if (matchSeconds !== null) {
+                  return matchSeconds * 1000;
+            }
+            const id = Number(ev.id);
+            return Number.isFinite(id) ? id : null;
+      }
+
+      function parseMatchSecond(value) {
+            if (value === null || value === undefined) return null;
+            const numeric = Number(value);
+            if (!Number.isFinite(numeric)) {
+                  return null;
+            }
+            return Math.max(0, numeric);
+      }
+
+      setPeriodState(createBasePeriodState());
+
       function recordPeriodBoundary(action, periodKey, label) {
             if (!lockOwned || !cfg.canEditRole || !periodKey || !action) {
                   return;
@@ -2481,9 +2952,81 @@
       }
 
       function handlePeriodAction(typeKey, label, periodKey, action) {
-            suppressEditorOpen = true;
             recordPeriodBoundary(action, periodKey, label);
             addPeriodMarker(typeKey, label);
+      }
+
+      function getPeriodsModalFocusable() {
+            if (!$periodsModal.length) return [];
+            const nodes = $periodsModal[0].querySelectorAll(periodsModalFocusableSelector);
+            return Array.from(nodes).filter((el) => !el.disabled && el.offsetParent !== null);
+      }
+
+      function openPeriodsModal() {
+            if (!$periodsModal.length || $periodsModal.attr('aria-hidden') === 'false') {
+                  return;
+            }
+            periodModalLastFocused = document.activeElement;
+            $periodsModal.attr('aria-hidden', 'false').prop('hidden', false).addClass('is-open');
+            $periodsModalToggle.attr('aria-expanded', 'true');
+            $(document).on('keydown.periodsModal', handlePeriodsModalKeydown);
+            const focusable = getPeriodsModalFocusable();
+            if (focusable.length) {
+                  const preferred = focusable.find((el) => el.classList && el.classList.contains('period-btn'));
+                  (preferred || focusable[0]).focus();
+            } else if ($periodsModalToggle.length) {
+                  $periodsModalToggle.focus();
+            }
+      }
+
+      function closePeriodsModal(restoreFocus = true) {
+            if (!$periodsModal.length || $periodsModal.attr('aria-hidden') === 'true') {
+                  return;
+            }
+            $periodsModal.attr('aria-hidden', 'true').prop('hidden', true).removeClass('is-open');
+            $periodsModalToggle.attr('aria-expanded', 'false');
+            $(document).off('keydown.periodsModal', handlePeriodsModalKeydown);
+            if (restoreFocus) {
+                  const target =
+                        periodModalLastFocused && typeof periodModalLastFocused.focus === 'function'
+                              ? periodModalLastFocused
+                              : $periodsModalToggle[0];
+                  if (target && typeof target.focus === 'function') {
+                        target.focus();
+                  }
+            }
+            periodModalLastFocused = null;
+      }
+
+      function handlePeriodsModalKeydown(event) {
+            if (!$periodsModal.length || $periodsModal.attr('aria-hidden') === 'true') {
+                  return;
+            }
+            if (event.key === 'Escape') {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  closePeriodsModal();
+                  return;
+            }
+            if (event.key !== 'Tab') {
+                  return;
+            }
+            const focusable = getPeriodsModalFocusable();
+            if (!focusable.length) {
+                  event.preventDefault();
+                  return;
+            }
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey) {
+                  if (document.activeElement === first || !focusable.includes(document.activeElement)) {
+                        event.preventDefault();
+                        last.focus();
+                  }
+            } else if (document.activeElement === last || !focusable.includes(document.activeElement)) {
+                  event.preventDefault();
+                  first.focus();
+            }
       }
 
       function updateClipUi() {
@@ -2554,8 +3097,13 @@
 
       function initPlaylists() {
             if (!playlistEnabled()) {
+                  console.log('[Desk DnD] initPlaylists skipped: playlistEnabled=false', {
+                        playlistConfigHasList: !!playlistConfig.list,
+                        playlistPanel: !!($playlistPanel && $playlistPanel.length),
+                  });
                   return;
             }
+            // console.log('[Desk DnD] initPlaylists start');
             fetchPlaylists();
       }
 
@@ -2614,10 +3162,12 @@
 
       function renderPlaylistList() {
             if (!playlistEnabled()) {
+                  console.log('[Desk DnD] renderPlaylistList skipped: playlistEnabled=false');
                   return;
             }
             if (!playlistState.playlists.length) {
                   $playlistList.text('No playlists yet.');
+                  console.log('[Desk DnD] renderPlaylistList: no playlists');
                   return;
             }
             const filteredPlaylists = getFilteredPlaylists();
@@ -2625,6 +3175,7 @@
                   const hasFilters =
                         (playlistViewState.teamFilter || '') !== '' || (playlistViewState.searchQuery || '').trim() !== '';
                   $playlistList.text(hasFilters ? 'No playlists match the current filters.' : 'No playlists yet.');
+                  console.log('[Desk DnD] renderPlaylistList: no playlists after filters', { hasFilters });
                   return;
             }
             const html = filteredPlaylists
@@ -2675,6 +3226,7 @@
                   })
                   .join('');
             $playlistList.html(html);
+            // console.log('[Desk DnD] renderPlaylistList: rendered playlists', ...);
       }
 
       function handlePlaylistTitleClick(event) {
@@ -2933,6 +3485,10 @@
 
       function fetchPlaylists() {
             if (!playlistEnabled()) {
+                  console.log('[Desk DnD] fetchPlaylists skipped: playlistEnabled=false', {
+                        playlistConfigHasList: !!playlistConfig.list,
+                        playlistPanel: !!($playlistPanel && $playlistPanel.length),
+                  });
                   return;
             }
             $playlistList.text('Loading playlists…');
@@ -2944,6 +3500,7 @@
                               return;
                         }
                         playlistState.playlists = Array.isArray(res.playlists) ? res.playlists : [];
+                        // console.log('[Desk DnD] fetchPlaylists success', ...);
                         renderPlaylistList();
                         if (playlistState.activePlaylistId) {
                               const stillExists = playlistState.playlists.some((pl) => pl.id === playlistState.activePlaylistId);
@@ -2962,6 +3519,7 @@
                   .fail((xhr, status, error) => {
                         showError('Unable to load playlists', xhr.responseText || error || status);
                         $playlistList.text('Unable to load playlists');
+                        console.log('[Desk DnD] fetchPlaylists failed', { status, error, response: xhr && xhr.responseText });
                   });
       }
 
@@ -2987,8 +3545,8 @@
                               if (aOrder !== bOrder) {
                                     return aOrder - bOrder;
                               }
-                              const aId = Number.isFinite(Number(a && a.clip_id)) ? Number(a.clip_id) : 0;
-                              const bId = Number.isFinite(Number(b && b.clip_id)) ? Number(b.clip_id) : 0;
+                              const aId = Number.isFinite(Number(a && getEventClipId(a))) ? Number(getEventClipId(a)) : 0;
+                              const bId = Number.isFinite(Number(b && getEventClipId(b))) ? Number(getEventClipId(b)) : 0;
                               return aId - bId;
                         });
                         playlistState.activePlaylistId = res.playlist ? res.playlist.id : playlistId;
@@ -3070,15 +3628,19 @@
                         const clipLabel = clipIdAttr || (clip.id ? String(clip.id) : '—');
                         const startLabel = formatMatchSecondWithExtra(clip.start_second, 0);
                         const durationText = clip.duration_seconds ? `${clip.duration_seconds}s` : '—';
+                        const clipName = clip.clip_name || `Clip #${clipLabel}`;
                         return `<div class="playlist-clip${activeClass}" data-clip-id="${clipIdAttr}">
                                                   <span class="playlist-clip-icon" aria-hidden="true">
                                                             <i class="fa-solid fa-play"></i>
                                                   </span>
                                                   <div class="playlist-clip-body">
-                                                            <div class="playlist-clip-title">${h(clip.clip_name || 'Clip')}</div>
+                                                            <div class="playlist-clip-title">${h(clipName)}</div>
                                                             <div class="playlist-clip-subtext">${h(startLabel)} · ${h(durationText)}</div>
                                                             <div class="playlist-clip-meta">Clip #${h(clipLabel)}</div>
                                                   </div>
+                                                  <button type="button" class="playlist-clip-download" data-clip-id="${clipIdAttr}" aria-label="Download clip">
+                                                            <i class="fa-solid fa-download" aria-hidden="true"></i>
+                                                  </button>
                                                   <button type="button" class="playlist-clip-delete" data-clip-id="${clipIdAttr}" aria-label="Remove clip">
                                                             <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
                                                   </button>
@@ -3281,12 +3843,31 @@
       }
 
       function handleMatrixItemDragStart(event) {
-            const clipId = $(event.currentTarget).data('clipId');
-            if (!clipId) {
+            const $el = $(event.currentTarget);
+            const dataClipId = $el.data('clipId');
+            const attrClipId = $el.attr('data-clip-id');
+            const clipId = dataClipId !== undefined && dataClipId !== null ? dataClipId : attrClipId;
+            const hasClipId = clipId !== undefined && clipId !== null && `${clipId}` !== '';
+            if (!hasClipId) {
+                  console.log('[Desk DnD] dragstart ignored: no clipId on element', {
+                        hasDataTransfer: !!(event.originalEvent && event.originalEvent.dataTransfer),
+                        dataClipId,
+                        attrClipId,
+                        target: event.currentTarget && event.currentTarget.outerHTML ? event.currentTarget.outerHTML.slice(0, 200) : null,
+                  });
+                  showToast('This event has no clip yet. Set in/out and create a clip first.', true);
                   event.preventDefault();
                   return;
             }
             const clipIdString = String(clipId);
+            const clipNumeric = Number(clipIdString);
+            if (!Number.isFinite(clipNumeric) || clipNumeric <= 0) {
+                  console.log('[Desk DnD] dragstart ignored: non-positive clipId', { clipIdString, clipNumeric });
+                  showToast('This event has no clip yet. Set in/out and create a clip first.', true);
+                  event.preventDefault();
+                  return;
+            }
+            console.log('[Desk DnD] dragstart', { clipId: clipIdString, hasDataTransfer: !!(event.originalEvent && event.originalEvent.dataTransfer) });
             if (event.originalEvent && event.originalEvent.dataTransfer) {
                   event.originalEvent.dataTransfer.setData('text/plain', clipIdString);
                   event.originalEvent.dataTransfer.effectAllowed = 'copy';
@@ -3295,18 +3876,21 @@
       }
 
       function handleMatrixItemDragEnd() {
+            console.log('[Desk DnD] dragend', { draggingClipId });
             draggingClipId = null;
             clearPlaylistDropHighlight();
       }
 
       function handlePlaylistDragOver(event) {
             if (!draggingClipId) {
+                  console.log('[Desk DnD] dragover ignored: no draggingClipId');
                   return;
             }
             const $target = $(event.currentTarget);
             dropTargetElement = $target[0];
             $target.addClass('is-drop-target');
             event.preventDefault();
+            console.log('[Desk DnD] dragover', { playlistId: $target.data('playlistId'), draggingClipId });
             if (event.originalEvent && event.originalEvent.dataTransfer) {
                   event.originalEvent.dataTransfer.dropEffect = 'copy';
             }
@@ -3314,27 +3898,32 @@
 
       function handlePlaylistDragEnter(event) {
             if (!draggingClipId) {
+                  console.log('[Desk DnD] dragenter ignored: no draggingClipId');
                   return;
             }
             const $target = $(event.currentTarget);
             dropTargetElement = $target[0];
             $target.addClass('is-drop-target');
             event.preventDefault();
+            console.log('[Desk DnD] dragenter', { playlistId: $target.data('playlistId'), draggingClipId });
       }
 
       function handlePlaylistDragLeave(event) {
             if (!draggingClipId) {
+                  console.log('[Desk DnD] dragleave ignored: no draggingClipId');
                   return;
             }
             const $target = $(event.currentTarget);
             const related = event.originalEvent && event.originalEvent.relatedTarget;
             if (related && $target[0] && $target[0].contains(related)) {
+                  console.log('[Desk DnD] dragleave ignored: moving inside target', { playlistId: $target.data('playlistId') });
                   return;
             }
             if (dropTargetElement === $target[0]) {
                   dropTargetElement = null;
             }
             $target.removeClass('is-drop-target');
+            console.log('[Desk DnD] dragleave', { playlistId: $target.data('playlistId'), draggingClipId });
       }
 
       function handlePlaylistDrop(event) {
@@ -3346,13 +3935,18 @@
             const transfer = event.originalEvent && event.originalEvent.dataTransfer;
             const transferredClipId = transfer ? transfer.getData('text/plain') : null;
             const rawClipId = transferredClipId || draggingClipId;
-            const clipId = rawClipId ? String(rawClipId) : null;
+            const hasClipId = rawClipId !== undefined && rawClipId !== null && rawClipId !== '';
+            const clipId = hasClipId ? String(rawClipId) : null;
+            const clipNumeric = clipId !== null ? Number(clipId) : NaN;
+            console.log('[Desk DnD] drop', { playlistId, transferredClipId, draggingClipId, resolvedClipId: clipId });
             draggingClipId = null;
             clearPlaylistDropHighlight();
             if (!playlistId) {
+                  console.log('[Desk DnD] drop aborted: missing playlistId');
                   return;
             }
-            if (!clipId) {
+            if (!clipId || !Number.isFinite(clipNumeric) || clipNumeric <= 0) {
+                  console.log('[Desk DnD] drop aborted: missing clipId');
                   showToast('No clip available to add', true);
                   return;
             }
@@ -3365,6 +3959,37 @@
                   return;
             }
             $playlistList.find('.playlist-item.is-drop-target').removeClass('is-drop-target');
+      }
+
+      function handleDownloadClip(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (!playlistEnabled() || !playlistState.activePlaylistId) {
+                  return;
+            }
+            const clipId = $(this).data('clipId');
+            if (!clipId) {
+                  return;
+            }
+            downloadClipAsMP4(clipId);
+      }
+
+      function downloadClipAsMP4(clipId) {
+            if (!clipId) {
+                  return;
+            }
+            const matchId = parseInt(window.location.pathname.match(/\/matches\/(\d+)/)?.[1] || '0', 10);
+            if (!matchId) {
+                  showError('Unable to download clip', 'Match ID not found');
+                  return;
+            }
+            const downloadUrl = `/api/matches/${matchId}/clips/${clipId}/download`;
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = ''; // Browser will use filename from Content-Disposition header
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
       }
 
       function handleRemoveClip(event) {
@@ -3575,6 +4200,35 @@
       }
 
       function bindHandlers() {
+            // Handle desk mode buttons (Summary, Tag Live, Drawings)
+            $(document).on('click', '.desk-mode-button', function () {
+                  const $btn = $(this);
+                  const mode = $btn.data('mode');
+
+                  // Update button states
+                  $btn.closest('.desk-mode-bar').find('.desk-mode-button').each(function () {
+                        const isActive = $(this).data('mode') === mode;
+                        $(this).toggleClass('is-active', isActive);
+                        $(this).attr('aria-pressed', isActive ? 'true' : 'false');
+                  });
+
+                  // Show/hide content
+                  const $modeContainer = $btn.closest('.desk-side-shell');
+                  const $liveTagging = $modeContainer.find('[data-desk-live-tagging]');
+                  const $modePanels = $modeContainer.find('[data-mode-panels]');
+
+                  if (mode === 'tag-live') {
+                        $liveTagging.attr('aria-hidden', 'false');
+                        $modePanels.find('.desk-mode-panel').attr('aria-hidden', 'true');
+                  } else {
+                        $liveTagging.attr('aria-hidden', 'true');
+                        $modePanels.find('.desk-mode-panel').each(function () {
+                              const isPanelActive = $(this).data('panel') === mode;
+                              $(this).attr('aria-hidden', !isPanelActive);
+                        });
+                  }
+            });
+
             $(document).on('click', '#lockRetryBtn', (e) => {
                   e.preventDefault();
                   hideError();
@@ -3616,6 +4270,18 @@
                   event.preventDefault();
                   closeShotPlayerModal();
             });
+            $(document).on('click', '.period-modal-toggle', function (event) {
+                  event.preventDefault();
+                  if ($periodsModal.attr('aria-hidden') === 'false') {
+                        closePeriodsModal();
+                        return;
+                  }
+                  openPeriodsModal();
+            });
+            $(document).on('click', '[data-period-modal-close]', (event) => {
+                  event.preventDefault();
+                  closePeriodsModal();
+            });
 
             $(document).on('click', '#eventSaveBtn', saveEvent);
             $(document).on('click', '#eventNewBtn', () => {
@@ -3633,14 +4299,27 @@
             });
             refreshPeriodHelperText();
             $(document).on('click', '#eventDeleteBtn', deleteEvent);
-            $editorPanel.on('click', '.editor-tab', function () {
+
+            // Bind tab click handler - use document delegation for better reliability
+            $(document).on('click', '.editor-tab', function (e) {
+                  e.preventDefault();
+                  e.stopPropagation();
+
                   const $tab = $(this);
-                  if ($tab.hasClass('is-hidden')) return;
-                  const panel = $tab.data('panel');
-                  if (!panel) return;
-                  setActiveEditorTab(panel);
+                  const panelValue = $tab.data('panel');
+                  const isHidden = $tab.hasClass('is-hidden');
+
+                  if (isHidden) {
+                        return;
+                  }
+
+                  if (!panelValue) {
+                        return;
+                  }
+
+                  setActiveEditorTab(panelValue);
             });
-            $editorPanel.on('keydown', '.editor-tab', function (e) {
+            $(document).on('keydown', '.editor-tab', function (e) {
                   const key = e.key;
                   if (!key) return;
                   const visibleTabs = $editorTabs.filter(':not(.is-hidden)');
@@ -3669,6 +4348,35 @@
             $undoBtn.on('click', () => performActionStackRequest('undoEvent', 'Undo'));
             $redoBtn.on('click', () => performActionStackRequest('redoEvent', 'Redo'));
             $eventTypeId.on('change', () => refreshOutcomeField($eventTypeId.val(), $outcome.val()));
+            // Handle team selector button clicks for contextual player list
+            $editorPanel.on('click', '.team-selector-btn', function (e) {
+                  e.preventDefault();
+                  const selectedTeam = $(this).data('team');
+
+                  // Update all buttons
+                  $editorPanel.find('.team-selector-btn').removeClass('selected');
+                  $(this).addClass('selected');
+
+                  // Update the hidden field
+                  $teamSide.val(selectedTeam);
+                  updateEventEditorPlayerList(selectedTeam);
+                  markEditorDirty();
+            });
+
+            // Outcome selector buttons
+            $editorPanel.on('click', '.outcome-selector-btn', function (e) {
+                  e.preventDefault();
+                  const selectedOutcome = $(this).data('outcome');
+
+                  // Update all buttons
+                  $editorPanel.find('.outcome-selector-btn').removeClass('selected');
+                  $(this).addClass('selected');
+
+                  // Update the hidden field
+                  $('#outcome').val(selectedOutcome);
+                  markEditorDirty();
+            });
+
             $(document).on('click', '.period-btn', function () {
                   const $btn = $(this);
                   const periodKey = $btn.data('period-key');
@@ -3679,6 +4387,7 @@
                         return;
                   }
                   handlePeriodAction(typeKey, label, periodKey, action);
+                  closePeriodsModal();
             });
             $(document).on('click', '#clipInBtn', () => setClipPoint('in'));
             $(document).on('click', '#clipOutBtn', () => setClipPoint('out'));
@@ -3718,20 +4427,35 @@
                   }
                   $playlistAddClipBtn.on('click', handleAddClipToPlaylist);
                   $playlistClips.on('click', '.playlist-clip', handleClipClick);
+                  $playlistClips.on('click', '.playlist-clip-download', handleDownloadClip);
                   $playlistClips.on('click', '.playlist-clip-delete', handleRemoveClip);
                   $playlistPrevBtn.on('click', () => navigatePlaylist(-1));
                   $playlistNextBtn.on('click', () => navigatePlaylist(1));
-                  $timelineMatrix.on('dragstart', '.matrix-dot[data-clip-id], .matrix-clip', handleMatrixItemDragStart);
-                  $timelineMatrix.on('dragend', '.matrix-dot[data-clip-id], .matrix-clip', handleMatrixItemDragEnd);
-                  $playlistList.on('dragover', '.playlist-item', handlePlaylistDragOver);
-                  $playlistList.on('dragenter', '.playlist-item', handlePlaylistDragEnter);
-                  $playlistList.on('dragleave', '.playlist-item', handlePlaylistDragLeave);
-                  $playlistList.on('drop', '.playlist-item', handlePlaylistDrop);
-                  $(document).on('dragend', () => {
-                        draggingClipId = null;
-                        clearPlaylistDropHighlight();
-                  });
             }
+
+            // Bind drag-and-drop handlers unconditionally so DnD always works
+            $timelineMatrix.on('dragstart', '.matrix-dot, .matrix-clip', handleMatrixItemDragStart);
+            $timelineMatrix.on('dragend', '.matrix-dot, .matrix-clip', handleMatrixItemDragEnd);
+            $playlistList.on('dragover', '.playlist-item', handlePlaylistDragOver);
+            $playlistList.on('dragenter', '.playlist-item', handlePlaylistDragEnter);
+            $playlistList.on('dragleave', '.playlist-item', handlePlaylistDragLeave);
+            $playlistList.on('drop', '.playlist-item', handlePlaylistDrop);
+            $(document).on('dragend', () => {
+                  draggingClipId = null;
+                  clearPlaylistDropHighlight();
+            });
+            // Debug: capture all dragstart on matrix dots and clips (even without data-clip-id)
+            $(document).on('dragstart', '.matrix-dot', function (e) {
+                  const attrClipId = $(this).attr('data-clip-id');
+                  const dataClipId = $(this).data('clipId');
+                  console.log('[Desk DnD] debug dragstart (raw matrix-dot)', {
+                        attrClipId,
+                        dataClipId,
+                        hasDataTransfer: !!(e.originalEvent && e.originalEvent.dataTransfer),
+                        outer: this.outerHTML ? this.outerHTML.slice(0, 200) : null,
+                  });
+            });
+            // console.log('[Desk DnD] handlers bound', ...);
 
             $filterTeam.on('change', renderTimeline);
             $filterType.on('change', renderTimeline);

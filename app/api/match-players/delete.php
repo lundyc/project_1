@@ -47,6 +47,14 @@ if (!can_manage_match_for_club($user, $roles, (int)$match['club_id'])) {
           respond_json(403, ['ok' => false, 'error' => 'Unauthorized']);
 }
 
-delete_match_player($matchPlayerId);
+$substitutionDeleteError = 'This player cannot be removed because they were involved in a substitution.';
+try {
+          delete_match_player($matchPlayerId);
+} catch (\RuntimeException $e) {
+          if ($e->getMessage() === $substitutionDeleteError) {
+                    respond_json(409, ['ok' => false, 'error' => 'Player cannot be removed because they were involved in a substitution.']);
+          }
+          respond_json(500, ['ok' => false, 'error' => $e->getMessage() ?: 'Unable to remove player']);
+}
 
 respond_json(200, ['ok' => true]);

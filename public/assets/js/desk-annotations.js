@@ -46,9 +46,11 @@
   const overlay = document.querySelector('[data-annotation-overlay]');
   const canvas = document.querySelector('[data-annotation-canvas]');
   const toolbar = document.querySelector('[data-annotation-toolbar]');
+  const video = document.getElementById('deskVideoPlayer');
   const pencilButton = document.getElementById('deskPencilTool');
   const circleButton = document.getElementById('deskCircleTool');
   const spotlightButton = document.getElementById('deskSpotlightTool');
+  const textButton = toolbar.querySelector('[data-drawing-tool="text"]');
 
   if (!overlay || !canvas || !toolbar || !pencilButton || !circleButton || !spotlightButton) {
     return;
@@ -78,13 +80,15 @@
 
   // State
   const state = {
-    pencilActive: true,
+    activeTool: null,
+    pencilActive: false,
     pencilThickness: DRAW_CONFIG.pencil.thickness,
     pencilColor: DRAW_CONFIG.pencil.color,
     circleActive: false,
     lineActive: false,
     polygonActive: false,
     spotlightActive: false,
+    textActive: false,
     circleMode: 'solid',
     arrowType: 'pass',
     shapeType: 'ellipse',
@@ -96,6 +100,53 @@
   };
 
   window.DeskDrawingState = state;
+
+  const TOOL_FLAG_MAP = {
+    pencil: 'pencilActive',
+    circle: 'circleActive',
+    spotlight: 'spotlightActive',
+    line: 'lineActive',
+    polygon: 'polygonActive',
+    text: 'textActive',
+  };
+
+  const DRAWING_POINTER_TOOLS = new Set(['pencil', 'circle', 'line', 'polygon', 'spotlight']);
+
+  const clearDrawingSession = () => {
+    state.drawing = null;
+    state.currentAction = null;
+    state.polygonPreviewPoint = null;
+  };
+
+  const clearActiveFlags = () => {
+    Object.values(TOOL_FLAG_MAP).forEach((flag) => {
+      state[flag] = false;
+    });
+  };
+
+  const setActiveTool = (tool) => {
+    if (tool && !Object.prototype.hasOwnProperty.call(TOOL_FLAG_MAP, tool)) {
+      return;
+    }
+    state.activeTool = tool || null;
+    clearActiveFlags();
+    if (state.activeTool) {
+      const flag = TOOL_FLAG_MAP[state.activeTool];
+      if (flag) {
+        state[flag] = true;
+      }
+    }
+  };
+
+  const applyToolSelection = (tool) => {
+    setActiveTool(tool);
+    clearDrawingSession();
+  };
+
+  const toggleToolSelection = (tool) => {
+    const nextTool = state.activeTool === tool ? null : tool;
+    applyToolSelection(nextTool);
+  };
 
   const pointerState = { pointerId: null };
 
@@ -200,16 +251,114 @@
   };
 
   // Canvas helpers
+  const getVideoRenderRect = () => {
+    if (video) {
+      const videoRect = video.getBoundingClientRect();
+      if (videoRect.width && videoRect.height) {
+        return videoRect;
+      }
+    }
+    return overlay.getBoundingClientRect();
+  };
+
   const updateCanvasSize = () => {
-    const rect = overlay.getBoundingClientRect();
-    if (!rect.width || !rect.height) {
+    const rect = getVideoRenderRect();
+    if (!rect || !rect.width || !rect.height) {
       return;
     }
     const ratio = window.devicePixelRatio || 1;
-    canvas.width = rect.width * ratio;
-    canvas.height = rect.height * ratio;
-    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    const targetWidth = Math.max(1, Math.round(rect.width * ratio));
+    const targetHeight = Math.max(1, Math.round(rect.height * ratio));
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    canvas.style.width = `${rect.width}px`;
+    canvas.style.height = `${rect.height}px`;
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0); // keep drawing commands aligned with current DPR.
     render();
+  };
+
+  const getCanvasDimensions = () => ({
+    width: Math.max(canvas.width, 1),
+    height: Math.max(canvas.height, 1),
+  });
+
+  const isNormalizedAction = (action) => Boolean(action && action.normalized === true);
+
+  // Rebuild pixel positions from normalized fractions using the latest canvas size.
+  const getActualCoordinate = (value, axis, action) => {
+    if (!isNormalizedAction(action) || typeof value !== 'number') {
+      return value;
+    }
+    const { width, height } = getCanvasDimensions();
+    return axis === 'x' ? value * width : value * height;
+  };
+
+  const getActualPoint = (action, point) => {
+    if (!point) {
+      return point;
+    }
+    return {
+      x: getActualCoordinate(point.x, 'x', action),
+      y: getActualCoordinate(point.y, 'y', action),
+    };
+  };
+
+  const normalizeAxis = (value, axis, width, height) => {
+    if (typeof value !== 'number') {
+      return value;
+    }
+    // Store the coordinate as a fraction of the canvas size so it survives layout changes.
+    return axis === 'x' ? value / width : value / height;
+  };
+
+  const normalizePoint = (point, width, height) => {
+    if (!point) {
+      return point;
+    }
+    return {
+      x: normalizeAxis(point.x, 'x', width, height),
+      y: normalizeAxis(point.y, 'y', width, height),
+    };
+  };
+
+  // Convert drawings to normalized coordinates before persisting so the data becomes resolution-independent.
+  const normalizeAction = (action) => {
+    if (!action || typeof action !== 'object') {
+      return null;
+    }
+    const { width, height } = getCanvasDimensions();
+    const normalized = { ...action, normalized: true };
+    if (Array.isArray(action.points)) {
+      normalized.points = action.points.map((pt) => normalizePoint(pt, width, height));
+    }
+    switch (action.type) {
+      case 'ellipse':
+        normalized.x = normalizeAxis(action.x, 'x', width, height);
+        normalized.y = normalizeAxis(action.y, 'y', width, height);
+        normalized.width = normalizeAxis(action.width, 'x', width, height);
+        normalized.height = normalizeAxis(action.height, 'y', width, height);
+        break;
+      case 'line':
+        normalized.startX = normalizeAxis(action.startX, 'x', width, height);
+        normalized.startY = normalizeAxis(action.startY, 'y', width, height);
+        normalized.endX = normalizeAxis(action.endX, 'x', width, height);
+        normalized.endY = normalizeAxis(action.endY, 'y', width, height);
+        break;
+      case 'rectangle':
+        normalized.startX = normalizeAxis(action.startX, 'x', width, height);
+        normalized.startY = normalizeAxis(action.startY, 'y', width, height);
+        normalized.width = normalizeAxis(action.width, 'x', width, height);
+        normalized.height = normalizeAxis(action.height, 'y', width, height);
+        break;
+      case 'spotlight':
+        normalized.centerX = normalizeAxis(action.centerX, 'x', width, height);
+        normalized.width = normalizeAxis(action.width, 'x', width, height);
+        normalized.groundY = normalizeAxis(action.groundY, 'y', width, height);
+        break;
+      default:
+        break;
+    }
+    return normalized;
   };
 
   const hexToRgb = (value) => {
@@ -238,13 +387,19 @@
     if (!action.points || !action.points.length) {
       return;
     }
+    const points = action.points
+      .map((point) => getActualPoint(action, point))
+      .filter((point) => point && typeof point.x === 'number' && typeof point.y === 'number');
+    if (!points.length) {
+      return;
+    }
     ctx.save();
     ctx.lineWidth = action.thickness;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.strokeStyle = action.color;
-    if (action.points.length === 1) {
-      const point = action.points[0];
+    if (points.length === 1) {
+      const point = points[0];
       ctx.beginPath();
       ctx.arc(point.x, point.y, action.thickness / 2, 0, Math.PI * 2);
       ctx.fillStyle = action.color;
@@ -253,30 +408,37 @@
       return;
     }
     ctx.beginPath();
-    ctx.moveTo(action.points[0].x, action.points[0].y);
-    for (let i = 1; i < action.points.length; i += 1) {
-      ctx.lineTo(action.points[i].x, action.points[i].y);
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i += 1) {
+      ctx.lineTo(points[i].x, points[i].y);
     }
     ctx.stroke();
     ctx.restore();
   };
 
   const drawEllipse = (action) => {
-    if (!action || action.width <= 0 || action.height <= 0) {
+    if (!action) {
       return;
     }
+    const widthValue = getActualCoordinate(action.width, 'x', action);
+    const heightValue = getActualCoordinate(action.height, 'y', action);
+    if (widthValue <= 0 || heightValue <= 0) {
+      return;
+    }
+    const xValue = getActualCoordinate(action.x, 'x', action);
+    const yValue = getActualCoordinate(action.y, 'y', action);
     ctx.save();
-    const centerX = action.x + action.width / 2;
-    const centerY = action.y + action.height / 2;
+    const centerX = xValue + widthValue / 2;
+    const centerY = yValue + heightValue / 2;
     if (action.mode === 'solid') {
       ctx.beginPath();
-      ctx.ellipse(centerX, centerY, action.width / 2, action.height / 2, 0, 0, Math.PI * 2);
+      ctx.ellipse(centerX, centerY, widthValue / 2, heightValue / 2, 0, 0, Math.PI * 2);
       ctx.fillStyle = rgba(action.color, 0.6);
       ctx.fill();
     } else if (action.mode === 'hollow') {
-      const beamWidth = Math.max(action.width, 1);
-      const beamHeight = Math.max(action.height, 1);
-      const beamLeft = action.x;
+      const beamWidth = Math.max(widthValue, 1);
+      const beamHeight = Math.max(1, Math.max(0, heightValue));
+      const beamLeft = xValue;
       const beamTop = 0;
       const beamBottom = beamTop + beamHeight;
 
@@ -304,7 +466,6 @@
 
       ctx.restore();
 
-      // ✅ existing bottom ellipse (unchanged)
       const ellipseCenterX = beamLeft + beamWidth / 2;
       const ellipseCenterY = beamBottom;
       const ellipseRadiusX = Math.max(beamWidth * 0.9, 30);
@@ -355,10 +516,9 @@
       );
       ctx.restore();
 
-
     } else {
-      const radiusX = action.width / 2;
-      const radiusY = action.height / 2;
+      const radiusX = widthValue / 2;
+      const radiusY = heightValue / 2;
       const top = centerY - radiusY;
       const bottom = centerY + radiusY;
       ctx.save();
@@ -401,8 +561,12 @@
     }
     ctx.save();
     ctx.beginPath();
-    ctx.moveTo(action.startX, action.startY);
-    ctx.lineTo(action.endX, action.endY);
+    const startX = getActualCoordinate(action.startX, 'x', action);
+    const startY = getActualCoordinate(action.startY, 'y', action);
+    const endX = getActualCoordinate(action.endX, 'x', action);
+    const endY = getActualCoordinate(action.endY, 'y', action);
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(endX, endY);
     ctx.strokeStyle = action.color;
     ctx.lineWidth = action.thickness;
     ctx.lineCap = 'round';
@@ -414,13 +578,18 @@
     if (!action || typeof action.width !== 'number' || typeof action.height !== 'number') {
       return;
     }
-    const width = action.width;
-    const height = action.height;
+    const width = getActualCoordinate(action.width, 'x', action);
+    const height = getActualCoordinate(action.height, 'y', action);
+    if (typeof width !== 'number' || typeof height !== 'number') {
+      return;
+    }
     if (width === 0 && height === 0) {
       return;
     }
-    const x = width >= 0 ? action.startX : action.startX + width;
-    const y = height >= 0 ? action.startY : action.startY + height;
+    const startX = getActualCoordinate(action.startX, 'x', action);
+    const startY = getActualCoordinate(action.startY, 'y', action);
+    const x = width >= 0 ? startX : startX + width;
+    const y = height >= 0 ? startY : startY + height;
     ctx.save();
     ctx.strokeStyle = action.color;
     ctx.lineWidth = action.thickness;
@@ -433,7 +602,12 @@
     if (!action || !Array.isArray(action.points) || action.points.length === 0) {
       return;
     }
-    const points = action.points;
+    const points = action.points
+      .map((point) => getActualPoint(action, point))
+      .filter((point) => point && typeof point.x === 'number' && typeof point.y === 'number');
+    if (!points.length) {
+      return;
+    }
     ctx.save();
     ctx.lineWidth = action.thickness;
     ctx.strokeStyle = action.color;
@@ -472,12 +646,21 @@
   };
 
   const drawSpotlight = (action) => {
-    if (!action || !action.width || typeof action.groundY !== 'number' || action.groundY <= 0) {
+    if (!action) {
       return;
     }
-    const beamWidth = Math.max(action.width, 1);
-    const beamHeight = Math.max(1, Math.min(action.groundY, canvas.height));
-    const beamLeft = action.centerX - beamWidth / 2;
+    const widthValue = getActualCoordinate(action.width, 'x', action);
+    const groundYValue = getActualCoordinate(action.groundY, 'y', action);
+    if (!widthValue || typeof groundYValue !== 'number' || groundYValue <= 0) {
+      return;
+    }
+    const centerXValue = getActualCoordinate(action.centerX, 'x', action);
+    if (typeof centerXValue !== 'number') {
+      return;
+    }
+    const beamWidth = Math.max(widthValue, 1);
+    const beamHeight = Math.max(1, Math.min(groundYValue, canvas.height));
+    const beamLeft = centerXValue - beamWidth / 2;
     const beamTop = 0;
     const beamColor = action.color || '#ffffff';
 
@@ -503,7 +686,7 @@
 
     const ellipseWidth = beamWidth * 1.2;
     const ellipseHeight = beamWidth * 0.4;
-    const ellipseCenterX = action.centerX;
+    const ellipseCenterX = centerXValue;
     const ellipseCenterY = beamHeight;
     const radiusX = ellipseWidth / 2;
     const radiusY = ellipseHeight / 2;
@@ -576,6 +759,10 @@
       spotlightButton.classList.toggle('is-active', state.spotlightActive);
       spotlightButton.setAttribute('aria-pressed', state.spotlightActive ? 'true' : 'false');
     }
+    if (textButton) {
+      textButton.classList.toggle('is-active', state.textActive);
+      textButton.setAttribute('aria-pressed', state.textActive ? 'true' : 'false');
+    }
     thicknessButtons.forEach((button) => {
       const thickness = Number(button.dataset.pencilThickness);
       button.classList.toggle('is-selected', thickness === state.pencilThickness);
@@ -647,7 +834,10 @@
     state.polygonPreviewPoint = null;
     state.drawing = null;
     state.redoStack = [];
-    state.drawHistory.push(actionToStore);
+    const normalizedAction = normalizeAction(actionToStore);
+    if (normalizedAction) {
+      state.drawHistory.push(normalizedAction);
+    }
     updateToolbarVisuals();
     render();
   };
@@ -672,17 +862,7 @@
     updateToolbarVisuals();
   };
 
-  const setActiveTool = (tool) => {
-    if (!['pencil', 'circle', 'spotlight', 'line', 'polygon'].includes(tool)) {
-      return;
-    }
-    state.pencilActive = tool === 'pencil';
-    state.circleActive = tool === 'circle';
-    state.spotlightActive = tool === 'spotlight';
-    state.lineActive = tool === 'line';
-    state.polygonActive = tool === 'polygon';
-    console.log('Active tool:', tool);
-  };
+  const PRIMARY_TOOL_NAMES = new Set(['pencil', 'circle', 'spotlight', 'text']);
 
   const handleToolbarClick = (event) => {
     const menuToggleButton = event.target.closest('[data-toolbar-button][data-menu-key]');
@@ -701,28 +881,15 @@
         handleRedo();
         return;
       }
-      if (toolName === 'pencil' || toolName === 'circle') {
-        const isAlreadyActive = toolName === 'pencil' ? state.pencilActive : state.circleActive;
-        if (!isAlreadyActive) {
-          setActiveTool(toolName);
-        }
+      if (PRIMARY_TOOL_NAMES.has(toolName)) {
+        toggleToolSelection(toolName);
         updateToolbarVisuals();
         if (!menuKey) {
           closeMenus();
         }
         return;
       }
-      if (toolName === 'spotlight') {
-        if (!state.spotlightActive) {
-          setActiveTool('spotlight');
-        }
-        updateToolbarVisuals();
-        if (!menuKey) {
-          closeMenus();
-        }
-        return;
-      }
-      if (toolName === 'text' || toolName === 'delete') {
+      if (toolName === 'delete') {
         closeMenus();
         return;
       }
@@ -754,24 +921,12 @@
     if (shapeTarget) {
       const shapeValue = shapeTarget.dataset.shapeType;
       if (shapeValue) {
-        if (shapeValue === 'line') {
-          if (!state.lineActive) {
-            setActiveTool('line');
-          }
-          state.drawing = null;
-          state.currentAction = null;
-          closeMenus();
-        } else if (shapeValue === 'polygon') {
-          if (!state.polygonActive) {
-            setActiveTool('polygon');
-          }
-          state.drawing = null;
-          state.currentAction = null;
-          state.polygonPreviewPoint = null;
-          closeMenus();
-        } else if (shapeValue === 'ellipse') {
-          if (!state.circleActive) {
-            setActiveTool('circle');
+        if (['line', 'polygon', 'ellipse'].includes(shapeValue)) {
+          const targetTool = shapeValue === 'ellipse' ? 'circle' : shapeValue;
+          const nextTool = state.activeTool === targetTool ? null : targetTool;
+          applyToolSelection(nextTool);
+          if (shapeValue === 'line' || shapeValue === 'polygon') {
+            closeMenus();
           }
         }
         state.shapeType = shapeValue;
@@ -796,6 +951,7 @@
   };
 
   // Pointer handling
+  // Derive pointer positions from the canvas bounds so annotations track the actual drawing surface.
   const getCanvasPoint = (event) => {
     const rect = canvas.getBoundingClientRect();
     return {
@@ -817,81 +973,94 @@
     if (event.button !== 0 || state.drawing) {
       return;
     }
+    const activeTool = state.activeTool;
+    if (!DRAWING_POINTER_TOOLS.has(activeTool)) {
+      return;
+    }
     const point = getCanvasPoint(event);
     pointerState.pointerId = event.pointerId;
     canvas.setPointerCapture?.(event.pointerId);
-    if (state.pencilActive) {
-      state.drawing = 'pencil';
-      state.currentAction = {
-        type: 'stroke',
-        color: state.pencilColor,
-        thickness: state.pencilThickness,
-        points: [point],
-      };
-    } else if (state.circleActive) {
-      state.drawing = 'circle';
-      state.currentAction = {
-        type: 'ellipse',
-        color: state.pencilColor,
-        mode: state.circleMode,
-        thickness: state.pencilThickness,
-        x: point.x,
-        y: point.y,
-        width: 0,
-        height: 0,
-        startX: point.x,
-        startY: point.y,
-      };
-    } else if (state.spotlightActive) {
-      state.drawing = 'spotlight';
-      state.currentAction = {
-        type: 'spotlight',
-        color: '#ffffff',
-        centerX: point.x,
-        startX: point.x,
-        startY: point.y,
-        width: DRAW_CONFIG.spotlight.minBeamWidth,
-        groundY: point.y,
-      };
-    } else if (state.lineActive) {
-      state.drawing = 'line';
-      state.currentAction = {
-        type: 'line',
-        color: state.pencilColor,
-        thickness: 4,
-        startX: point.x,
-        startY: point.y,
-        endX: point.x,
-        endY: point.y,
-      };
-    } else if (state.polygonActive) {
-      const polygonAction = state.currentAction;
-      const shouldClose = polygonAction
-        && polygonAction.type === 'polygon'
-        && !polygonAction.isClosed
-        && polygonAction.points.length >= 3
-        && getDistanceSquared(point, polygonAction.points[0]) <= POLYGON_CLOSE_THRESHOLD_SQ;
-      if (shouldClose) {
-        polygonAction.isClosed = true;
-        state.polygonPreviewPoint = null;
-        state.drawing = 'polygon';
-        commitCurrentAction();
-        event.preventDefault();
-        return;
-      }
-      state.polygonPreviewPoint = null;
-      if (!polygonAction || polygonAction.type !== 'polygon' || polygonAction.isClosed) {
+    switch (activeTool) {
+      case 'pencil':
+        state.drawing = 'pencil';
         state.currentAction = {
-          type: 'polygon',
+          type: 'stroke',
           color: state.pencilColor,
           thickness: state.pencilThickness,
           points: [point],
-          isClosed: false,
         };
-      } else {
-        polygonAction.points.push(point);
+        break;
+      case 'circle':
+        state.drawing = 'circle';
+        state.currentAction = {
+          type: 'ellipse',
+          color: state.pencilColor,
+          mode: state.circleMode,
+          thickness: state.pencilThickness,
+          x: point.x,
+          y: point.y,
+          width: 0,
+          height: 0,
+          startX: point.x,
+          startY: point.y,
+        };
+        break;
+      case 'spotlight':
+        state.drawing = 'spotlight';
+        state.currentAction = {
+          type: 'spotlight',
+          color: '#ffffff',
+          centerX: point.x,
+          startX: point.x,
+          startY: point.y,
+          width: DRAW_CONFIG.spotlight.minBeamWidth,
+          groundY: point.y,
+        };
+        break;
+      case 'line':
+        state.drawing = 'line';
+        state.currentAction = {
+          type: 'line',
+          color: state.pencilColor,
+          thickness: 4,
+          startX: point.x,
+          startY: point.y,
+          endX: point.x,
+          endY: point.y,
+        };
+        break;
+      case 'polygon': {
+        const polygonAction = state.currentAction;
+        const shouldClose = polygonAction
+          && polygonAction.type === 'polygon'
+          && !polygonAction.isClosed
+          && polygonAction.points.length >= 3
+          && getDistanceSquared(point, polygonAction.points[0]) <= POLYGON_CLOSE_THRESHOLD_SQ;
+        if (shouldClose) {
+          polygonAction.isClosed = true;
+          state.polygonPreviewPoint = null;
+          state.drawing = 'polygon';
+          commitCurrentAction();
+          event.preventDefault();
+          return;
+        }
+        state.polygonPreviewPoint = null;
+        if (!polygonAction || polygonAction.type !== 'polygon' || polygonAction.isClosed) {
+          state.currentAction = {
+            type: 'polygon',
+            color: state.pencilColor,
+            thickness: state.pencilThickness,
+            points: [point],
+            isClosed: false,
+          };
+        } else {
+          polygonAction.points.push(point);
+        }
+        state.drawing = 'polygon';
+        break;
       }
-      state.drawing = 'polygon';
+      default:
+        return;
     }
     updateToolbarVisuals();
     render();
@@ -979,12 +1148,66 @@
   });
   updateMenuVisibility();
 
-  window.addEventListener('resize', updateCanvasSize);
-  if (window.ResizeObserver) {
-    const observer = new ResizeObserver(updateCanvasSize);
-    observer.observe(overlay);
+  const refreshCanvas = () => {
+    window.requestAnimationFrame(updateCanvasSize);
+  };
+
+  // Track the current DPR query so we can re-sync the canvas whenever the pixel ratio changes.
+  let dprMediaQuery = null;
+
+  function cleanupDevicePixelRatioListener() {
+    if (!dprMediaQuery) {
+      return;
+    }
+    if (typeof dprMediaQuery.removeEventListener === 'function') {
+      dprMediaQuery.removeEventListener('change', handleDevicePixelRatioChange);
+    } else if (typeof dprMediaQuery.removeListener === 'function') {
+      dprMediaQuery.removeListener(handleDevicePixelRatioChange);
+    }
+    dprMediaQuery = null;
   }
-  window.requestAnimationFrame(updateCanvasSize);
+
+  function handleDevicePixelRatioChange() {
+    cleanupDevicePixelRatioListener();
+    registerDevicePixelRatioListener();
+    refreshCanvas();
+  }
+
+  function registerDevicePixelRatioListener() {
+    if (typeof window.matchMedia !== 'function') {
+      return;
+    }
+    const ratio = window.devicePixelRatio || 1;
+    dprMediaQuery = window.matchMedia(`(resolution: ${ratio}dppx)`);
+    if (typeof dprMediaQuery.addEventListener === 'function') {
+      dprMediaQuery.addEventListener('change', handleDevicePixelRatioChange);
+    } else if (typeof dprMediaQuery.addListener === 'function') {
+      dprMediaQuery.addListener(handleDevicePixelRatioChange);
+    }
+  }
+
+  window.addEventListener('resize', refreshCanvas);
+  const observerTarget = video || overlay;
+  if (window.ResizeObserver && observerTarget) {
+    const observer = new ResizeObserver(refreshCanvas);
+    observer.observe(observerTarget);
+  }
+  if (video) {
+    video.addEventListener('loadedmetadata', refreshCanvas);
+    video.addEventListener('loadeddata', refreshCanvas);
+  }
+  registerDevicePixelRatioListener();
+  refreshCanvas();
+  const fullscreenEventNames = [
+    'fullscreenchange',
+    'webkitfullscreenchange',
+    'mozfullscreenchange',
+    'MSFullscreenChange',
+  ];
+  fullscreenEventNames.forEach((eventName) => {
+    document.addEventListener(eventName, refreshCanvas);
+  });
+  window.addEventListener('orientationchange', refreshCanvas);
 })();
 
 /*

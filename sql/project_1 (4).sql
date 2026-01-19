@@ -535,6 +535,7 @@ CREATE TABLE `match_videos` (
   `id` bigint(20) UNSIGNED NOT NULL,
   `match_id` bigint(20) UNSIGNED NOT NULL,
   `source_path` varchar(255) NOT NULL,
+  `thumbnail_path` varchar(255) DEFAULT NULL,
   `duration_seconds` int(11) DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   `source_type` enum('upload','veo') NOT NULL DEFAULT 'upload',
@@ -548,8 +549,8 @@ CREATE TABLE `match_videos` (
 -- Dumping data for table `match_videos`
 --
 
-INSERT INTO `match_videos` (`id`, `match_id`, `source_path`, `duration_seconds`, `created_at`, `source_type`, `source_url`, `download_status`, `download_progress`, `error_message`) VALUES
-(1, 1, '/videos/matches/match_1/source/veo/standard/match_1_standard.mp4', 6686, '2025-12-25 14:17:54', 'veo', 'https://app.veo.co/matches/20251213-rossvale-1-4-saltcoats-8ae3733c/', 'completed', 100, NULL);
+INSERT INTO `match_videos` (`id`, `match_id`, `source_path`, `thumbnail_path`, `duration_seconds`, `created_at`, `source_type`, `source_url`, `download_status`, `download_progress`, `error_message`) VALUES
+(1, 1, '/videos/matches/match_1/source/veo/standard/match_1_standard.mp4', NULL, 6686, '2025-12-25 14:17:54', 'veo', 'https://app.veo.co/matches/20251213-rossvale-1-4-saltcoats-8ae3733c/', 'completed', 100, NULL);
 
 -- --------------------------------------------------------
 

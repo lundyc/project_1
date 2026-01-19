@@ -6,6 +6,7 @@ require_once __DIR__ . '/../../../lib/match_permissions.php';
 require_once __DIR__ . '/../../../lib/match_repository.php';
 require_once __DIR__ . '/../../../lib/playlist_service.php';
 require_once __DIR__ . '/../../../lib/playlist_repository.php';
+require_once __DIR__ . '/../../../lib/event_repository.php';
 require_once __DIR__ . '/common.php';
 
 auth_boot();
@@ -55,16 +56,34 @@ try {
 
           $generatedFiles = [];
           $generatedCount = 0;
+          $skipped = [];
           foreach ($clips as $clip) {
                     $start = isset($clip['start_second']) ? (int)$clip['start_second'] : null;
+                    $end = isset($clip['end_second']) ? (int)$clip['end_second'] : null;
+                    $duration = isset($clip['duration_seconds']) ? (int)$clip['duration_seconds'] : null;
+                    
+                    // If duration is not set, calculate from end_second
+                    if ($duration === null && $end !== null) {
+                              $duration = $end - $start;
+                    }
+                    
+                    // If no valid duration yet, try to calculate from event (for clips created with event_id as clip_id)
+                    if (($duration === null || $duration <= 0) && isset($clip['event_id']) && $clip['event_id']) {
+                              $event = event_get_by_id((int)$clip['event_id']);
+                              if ($event) {
+                                        $eventSecond = (int)($event['match_second'] ?? 0);
+                                        $start = max(0, $eventSecond - 30);
+                                        $end = $eventSecond + 30;
+                                        $duration = $end - $start;
+                              }
+                    }
+                    
                     if ($start === null || $start < 0) {
+                              $skipped[] = ['reason' => 'missing_start', 'clip_id' => $clip['id'] ?? $clip['clip_id'] ?? '?'];
                               continue;
                     }
-                    $duration = isset($clip['duration_seconds']) ? (int)$clip['duration_seconds'] : null;
-                    if ($duration === null && isset($clip['end_second'])) {
-                              $duration = (int)$clip['end_second'] - $start;
-                    }
                     if ($duration === null || $duration <= 0) {
+                              $skipped[] = ['reason' => 'missing_duration', 'clip_id' => $clip['id'] ?? $clip['clip_id'] ?? '?', 'duration' => $duration];
                               continue;
                     }
                     $generatedCount += 1;
@@ -77,7 +96,7 @@ try {
           }
 
           if (empty($generatedFiles)) {
-                    throw new RuntimeException('clip_generation_failed');
+                    throw new RuntimeException('clip_generation_failed: ' . json_encode(['skipped' => $skipped, 'clips_count' => count($clips)]));
           }
 
           $zipPath = $sessionDir . DIRECTORY_SEPARATOR . 'playlist.zip';

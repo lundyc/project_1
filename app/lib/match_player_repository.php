@@ -186,6 +186,16 @@ function update_match_player(int $id, array $data): bool
 
 function delete_match_player(int $id): bool
 {
+          $countStmt = db()->prepare(
+                    'SELECT COUNT(*) FROM match_substitutions
+             WHERE player_off_match_player_id = :id OR player_on_match_player_id = :id'
+          );
+          $countStmt->execute(['id' => $id]);
+          $count = (int)$countStmt->fetchColumn();
+          if ($count > 0) {
+                    throw new \RuntimeException('This player cannot be removed because they were involved in a substitution.');
+          }
+
           $stmt = db()->prepare('DELETE FROM match_players WHERE id = :id');
           return $stmt->execute(['id' => $id]);
 }

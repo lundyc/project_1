@@ -150,19 +150,6 @@
                     });
           }
 
-          function goToLineupStep(targetMatchId) {
-                    if (!targetMatchId) {
-                              return;
-                    }
-                    updateMatchId(targetMatchId, { persist: false });
-                    saveState({ matchId: targetMatchId, lineupReady: true });
-                    if (window.MatchWizardLineup && typeof window.MatchWizardLineup.setMatchId === 'function') {
-                              window.MatchWizardLineup.setMatchId(targetMatchId);
-                    }
-                    disableContinue();
-                    showStep(4);
-          }
-
           function getVideoMode() {
                     const checked = Array.from(videoModeRadios).find((r) => r.checked);
                     return checked ? checked.value : 'upload';
@@ -466,7 +453,7 @@
                                         if (!newId) {
                                                   throw new Error('Match id missing from response');
                                         }
-                              setFlash('success', 'Match saved. Continue to video.');
+                              setFlash('success', 'Match saved. Proceed to Step 2.');
                               showStep(2);
                               return newId;
                     } catch (e) {
@@ -492,20 +479,35 @@
                                         'Content-Type': 'application/json',
                                         Accept: 'application/json',
                               },
+                              credentials: 'same-origin',
                               body: JSON.stringify(payload),
                     });
 
-                    const data = await res.json().catch(() => ({}));
-                    if (debugMode) {
-                              logDebug('API response', { url, status: res.status, data });
+                    const rawText = await res.text();
+                    let data = null;
+                    if (rawText) {
+                              try {
+                                        data = JSON.parse(rawText);
+                              } catch (err) {
+                                        if (debugMode) {
+                                                  logDebug('API parse error', { url, error: err.message, rawText });
+                                        }
+                              }
                     }
-                    if (!res.ok || !data.ok) {
-                              const message = data.error || 'Request failed';
+
+                    if (debugMode) {
+                              logDebug('API response', { url, status: res.status, data: data ?? rawText });
+                    }
+
+                    const fallbackMessage = (rawText || '').trim() || `${res.status} ${res.statusText}`;
+                    if (!res.ok || !data || data.ok !== true) {
+                              const message = (data && (data.error || data.message)) || fallbackMessage || 'Request failed';
                               if (debugMode) {
                                         logDebug('API error', { url, status: res.status, message });
                               }
                               throw new Error(message);
                     }
+
                     return data;
           }
 
@@ -654,7 +656,6 @@
                                         console.info('VEO download completed', { matchId, videoPath: finalPath, percent });
                                         setContinueReady();
                                         stopPolling();
-                                        goToLineupStep(matchId);
                               } else if (status === 'failed' || status === 'error') {
                                        setProgress('failed', percent, error || 'Download failed', null, message || 'Download failed', downloadedBytes, totalBytes);
                                         console.warn('VEO download failed', { matchId, error: error || message, percent });
@@ -749,7 +750,6 @@
                                         const percent = hasVideo ? 100 : 0;
                                         setProgress(statusKey, percent, null, summary, null, 0, 0);
                                         setContinueReady();
-                                        goToLineupStep(matchId);
                               }
                     } catch (e) {
                               setFlash('danger', e.message || 'Unable to save match');
@@ -817,10 +817,6 @@
 
                     if (stored && stored.matchId) {
                               updateMatchId(stored.matchId, { persist: false });
-                              if (stored.lineupReady) {
-                                        goToLineupStep(stored.matchId);
-                                        return;
-                              }
                               if (stored.videoType === 'veo') {
                                         if (veoInput && stored.veoUrl) {
                                                   veoInput.value = stored.veoUrl;

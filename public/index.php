@@ -147,6 +147,25 @@ route('/api/match-players/delete', function () {
           require_auth();
           require __DIR__ . '/../app/api/match-players/delete.php';
 });
+route('/api/matches/{id}/substitutions', function () {
+          require_auth();
+          require __DIR__ . '/../app/api/matches/substitutions.php';
+});
+
+route('/api/match-substitutions/list', function () {
+          require_auth();
+          require __DIR__ . '/../app/api/match-substitutions/list.php';
+});
+
+route('/api/formations/list', function () {
+          require_auth();
+          require __DIR__ . '/../app/api/formations/list.php';
+});
+
+route('/api/match-formations/update', function () {
+          require_auth();
+          require __DIR__ . '/../app/api/match-formations/update.php';
+});
 
 route('/api/players/list', function () {
           require_auth();
@@ -163,7 +182,7 @@ route('/', function () {
           require __DIR__ . '/../app/views/pages/dashboard.php';
 });
 
-function render_match_summary(int $matchId): bool
+function render_match_stats(int $matchId): bool
 {
           require_auth();
           require_once __DIR__ . '/../app/lib/match_repository.php';
@@ -200,8 +219,36 @@ function render_match_summary(int $matchId): bool
           $derivedStats = get_or_compute_match_stats((int)$match['id'], (int)$match['events_version'], $events, $eventTypes);
           $matchPeriods = get_match_periods($matchId);
 
-          require __DIR__ . '/../app/views/pages/matches/summary.php';
+          require __DIR__ . '/../app/views/pages/matches/stats.php';
           return true;
+}
+
+function resolve_video_progress_file(int $matchId): ?string
+{
+          $storageDir = realpath(__DIR__ . '/../storage');
+          if (!$storageDir) {
+                    return null;
+          }
+          $progressFile = $storageDir . DIRECTORY_SEPARATOR . 'video_progress' . DIRECTORY_SEPARATOR . $matchId . '.json';
+          return is_file($progressFile) ? $progressFile : null;
+}
+
+function is_video_progress_completed(int $matchId): bool
+{
+          $progressFile = resolve_video_progress_file($matchId);
+          if (!$progressFile) {
+                    return false;
+          }
+          $contents = @file_get_contents($progressFile);
+          if ($contents === false) {
+                    return false;
+          }
+          $decoded = json_decode($contents, true);
+          if (!is_array($decoded)) {
+                    return false;
+          }
+          $status = strtolower(trim((string)($decoded['status'] ?? '')));
+          return $status === 'completed';
 }
 
 function handle_dynamic_match_routes(string $path): bool
@@ -232,10 +279,29 @@ function handle_dynamic_match_routes(string $path): bool
 
                     $videoStatus = $match['video_download_status'] ?? null;
                     $videoProgress = (int)($match['video_download_progress'] ?? 0);
+                    $progressCompleted = is_video_progress_completed($matchId);
                     $videoReady = !empty($match['video_source_path']);
+                    $projectRoot = realpath(__DIR__ . '/..');
+                    $standardRelative = '/videos/matches/match_' . $matchId . '/source/veo/standard/match_' . $matchId . '_standard.mp4';
+                    $standardAbsolute = $projectRoot
+                              ? $projectRoot . DIRECTORY_SEPARATOR . 'videos' . DIRECTORY_SEPARATOR . 'matches' . DIRECTORY_SEPARATOR . 'match_' . $matchId . DIRECTORY_SEPARATOR . 'source' . DIRECTORY_SEPARATOR . 'veo' . DIRECTORY_SEPARATOR . 'standard' . DIRECTORY_SEPARATOR . 'match_' . $matchId . '_standard.mp4'
+                              : '';
+                    $standardReady = $standardAbsolute && is_file($standardAbsolute);
 
                     if (($match['video_source_type'] ?? '') === 'veo') {
-                              $videoReady = $videoReady && ($videoStatus === 'completed');
+                              if ($videoStatus !== null) {
+                                        $videoReady = $videoReady && ($videoStatus === 'completed');
+                              } else {
+                                        $videoReady = $videoReady && $progressCompleted;
+                              }
+                    }
+
+                    if (!$videoReady && $standardReady && ($videoStatus === 'completed' || $progressCompleted)) {
+                              $videoReady = true;
+                              $match['video_source_path'] = $standardRelative;
+                              if (empty($match['video_source_type'])) {
+                                        $match['video_source_type'] = 'veo';
+                              }
                     }
 
                     if (!$videoReady) {
@@ -252,20 +318,56 @@ function handle_dynamic_match_routes(string $path): bool
                     return true;
           }
 
-          if (preg_match('#^/matches/(\d+)$#', $path, $m)) {
-                    return render_match_summary((int)$m[1]);
-          }
-
-          if (preg_match('#^/matches/(\d+)/summary$#', $path, $m)) {
-                    return render_match_summary((int)$m[1]);
-          }
-
-          if (preg_match('#^/matches/(\d+)/summary/recompute$#', $path, $m)) {
+          if (preg_match('#^/matches/(\d+)/lineup$#', $path, $m)) {
                     require_auth();
                     require_once __DIR__ . '/../app/lib/match_repository.php';
                     require_once __DIR__ . '/../app/lib/match_permissions.php';
-                    require_once __DIR__ . '/../app/lib/event_repository.php';
-                    require_once __DIR__ . '/../app/lib/match_stats_service.php';
+                    require_once __DIR__ . '/../app/lib/team_repository.php';
+                    require_once __DIR__ . '/../app/lib/formation_repository.php';
+
+                    $matchId = (int)$m[1];
+                    $match = get_match($matchId);
+
+                    if (!$match) {
+                              http_response_code(404);
+                              echo '404 Not Found';
+                              return true;
+                    }
+
+                    $user = current_user();
+                    $roles = $_SESSION['roles'] ?? [];
+
+                    if (!can_view_match($user, $roles, (int)$match['club_id'])) {
+                              http_response_code(403);
+                              echo '403 Forbidden';
+                              return true;
+                   }
+
+                    $homeFormation = get_active_match_formation($matchId, 'home');
+                    $awayFormation = get_active_match_formation($matchId, 'away');
+                    require __DIR__ . '/../app/views/pages/matches/lineup.php';
+                    return true;
+          }
+
+          if (preg_match('#^/matches/(\d+)$#', $path, $m)) {
+                    return render_match_stats((int)$m[1]);
+          }
+
+          if (preg_match('#^/matches/(\d+)/stats$#', $path, $m)) {
+                    return render_match_stats((int)$m[1]);
+          }
+
+          if (preg_match('#^/matches/(\d+)/summary$#', $path, $m)) {
+                    redirect('/matches/' . $m[1] . '/stats');
+                    return true;
+          }
+
+          if (preg_match('#^/matches/(\d+)/(?:summary|stats)/recompute$#', $path, $m)) {
+                   require_auth();
+                   require_once __DIR__ . '/../app/lib/match_repository.php';
+                   require_once __DIR__ . '/../app/lib/match_permissions.php';
+                   require_once __DIR__ . '/../app/lib/event_repository.php';
+                   require_once __DIR__ . '/../app/lib/match_stats_service.php';
 
                     if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
                               http_response_code(405);
@@ -299,8 +401,8 @@ function handle_dynamic_match_routes(string $path): bool
                     $eventTypes = $eventTypesStmt->fetchAll();
 
                     get_or_compute_match_stats((int)$match['id'], (int)$match['events_version'], $events, $eventTypes, true);
-                    $_SESSION['summary_flash_success'] = 'Stats recomputed';
-                    redirect('/matches/' . $matchId . '/summary');
+                    $_SESSION['stats_flash_success'] = 'Stats recomputed';
+                    redirect('/matches/' . $matchId . '/stats');
                     return true;
           }
 

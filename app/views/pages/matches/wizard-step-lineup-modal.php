@@ -129,3 +129,52 @@
                     </form>
           </div>
 </div>
+
+<div id="lineupSubstitutionModal" aria-hidden="true" role="dialog" style="display:none; position:fixed; inset:0; z-index:2200; background:rgba(0,0,0,0.6); align-items:center; justify-content:center;">
+          <div class="panel p-3 rounded-md" style="max-width:420px; width:100%; margin:0 16px;">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                              <div>
+                                        <div class="text-lg text-white fw-semibold">Make substitution</div>
+                                        <div class="text-xs text-muted-alt">Select players and timing</div>
+                              </div>
+                              <button type="button" class="btn btn-sm btn-secondary-soft" data-lineup-substitution-close aria-label="Close modal">×</button>
+                    </div>
+                    <form id="lineupSubstitutionForm" class="row g-3">
+                              <input type="hidden" name="team_side" value="">
+                              <div class="col-12">
+                                        <div class="row g-3">
+                                                  <div class="col-6">
+                                                            <h6 class="text-light mb-2">Players on pitch</h6>
+                                                            <div class="sub-player-list lineup-substitution-list" data-sub-list="off"></div>
+                                                  </div>
+                                                  <div class="col-6">
+                                                            <h6 class="text-light mb-2">Available subs</h6>
+                                                            <div class="sub-player-list lineup-substitution-list" data-sub-list="on"></div>
+                                                  </div>
+                                        </div>
+                              </div>
+                              <div class="col-6">
+                                        <label class="form-label text-light text-xs" for="lineupSubstitutionMinute">Minute</label>
+                                        <input type="number" id="lineupSubstitutionMinute" name="minute" class="form-control input-dark" min="0" step="1" required>
+                              </div>
+                              <div class="col-6">
+                                        <label class="form-label text-light text-xs" for="lineupSubstitutionMinuteExtra">Minute extra</label>
+                                        <input type="number" id="lineupSubstitutionMinuteExtra" name="minute_extra" class="form-control input-dark" min="0" step="1">
+                              </div>
+                              <div class="col-12">
+                                        <label class="form-label text-light text-xs" for="lineupSubstitutionReason">Reason</label>
+                                        <select id="lineupSubstitutionReason" name="reason" class="form-select select-dark">
+                                                  <option value="tactical">Tactical</option>
+                                                  <option value="injury">Injury</option>
+                                                  <option value="fitness">Fitness</option>
+                                                  <option value="disciplinary">Disciplinary</option>
+                                                  <option value="unknown">Unknown</option>
+                                        </select>
+                              </div>
+                              <div class="col-12 d-flex justify-content-end gap-2">
+                                        <button type="button" class="btn btn-secondary-soft" data-lineup-substitution-close>Cancel</button>
+                                        <button type="submit" class="btn btn-primary-soft" data-lineup-substitution-submit disabled>Confirm</button>
+                              </div>
+                    </form>
+          </div>
+</div>

@@ -37,6 +37,56 @@ function ensure_default_event_types(int $clubId): void
           }
 }
 
+function get_event_type_id_by_key(int $clubId, string $typeKey): ?int
+{
+          $stmt = db()->prepare('SELECT id FROM event_types WHERE club_id = :club_id AND type_key = :type_key LIMIT 1');
+          $stmt->execute([
+                    'club_id' => $clubId,
+                    'type_key' => $typeKey,
+          ]);
+          $row = $stmt->fetch();
+          if (!$row) {
+                    return null;
+          }
+          return (int)$row['id'];
+}
+
+function ensure_event_type_exists(int $clubId, string $typeKey, string $label, int $importance = 3): int
+{
+          $typeKey = trim($typeKey);
+          if ($typeKey === '') {
+                    throw new \InvalidArgumentException('type_key_required');
+          }
+          $label = trim($label) !== '' ? trim($label) : ucfirst($typeKey);
+
+          $existing = get_event_type_id_by_key($clubId, $typeKey);
+          if ($existing) {
+                    return $existing;
+          }
+
+          try {
+                    $stmt = db()->prepare(
+                              'INSERT INTO event_types (club_id, type_key, label, default_importance)
+               VALUES (:club_id, :type_key, :label, :importance)'
+                    );
+                    $stmt->execute([
+                              'club_id' => $clubId,
+                              'type_key' => $typeKey,
+                              'label' => $label,
+                              'importance' => max(1, min(5, $importance)),
+                    ]);
+                    return (int)db()->lastInsertId();
+          } catch (\PDOException $e) {
+                    if (($e->errorInfo[1] ?? null) === 1062) {
+                              $existingDuplicate = get_event_type_id_by_key($clubId, $typeKey);
+                              if ($existingDuplicate) {
+                                        return $existingDuplicate;
+                              }
+                    }
+                    throw $e;
+          }
+}
+
 function event_list_for_match(int $matchId): array
 {
           $pdo = db();
@@ -148,10 +198,13 @@ function event_get_by_id(int $eventId): ?array
           return $event;
 }
 
-function event_create(int $matchId, array $data, array $tagIds, int $userId): int
+function event_create(int $matchId, array $data, array $tagIds, int $userId, bool $withTransaction = true): int
 {
           $pdo = db();
-          $pdo->beginTransaction();
+          $transactionOwned = $withTransaction && !$pdo->inTransaction();
+          if ($transactionOwned) {
+                    $pdo->beginTransaction();
+          }
 
           try {
                     $normalized = normalize_event_payload($data);
@@ -190,10 +243,14 @@ function event_create(int $matchId, array $data, array $tagIds, int $userId): in
                               }
                     }
 
-                    $pdo->commit();
+                    if ($transactionOwned) {
+                              $pdo->commit();
+                    }
                     return $eventId;
           } catch (\Throwable $e) {
-                    $pdo->rollBack();
+                    if ($transactionOwned) {
+                              $pdo->rollBack();
+                    }
                     throw $e;
           }
 }

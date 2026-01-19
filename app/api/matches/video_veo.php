@@ -7,17 +7,29 @@ require_once __DIR__ . '/../../lib/db.php';
 if (!function_exists('match_wizard_log_path')) {
           function match_wizard_log_path(): ?string
           {
-                    static $path;
+                    static $path = null;
                     if ($path !== null) {
-                              return $path;
+                              return $path === false ? null : $path;
                     }
                     $root = realpath(__DIR__ . '/../../..');
                     if ($root === false) {
+                              $path = false;
                               return null;
                     }
                     $dir = $root . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'logs';
                     @mkdir($dir, 0777, true);
-                    return $path = $dir . DIRECTORY_SEPARATOR . 'match_wizard_debug.log';
+                    if (!is_dir($dir) || !is_writable($dir)) {
+                              error_log('[match_wizard_log] Unable to write logs to ' . $dir . ' (needs write permissions)');
+                              $path = false;
+                              return null;
+                    }
+                    $candidate = $dir . DIRECTORY_SEPARATOR . 'match_wizard_debug.log';
+                    if (file_exists($candidate) && !is_writable($candidate)) {
+                              error_log('[match_wizard_log] Log file exists but is not writable: ' . $candidate);
+                              $path = false;
+                              return null;
+                    }
+                    return $path = $candidate;
           }
 }
 
@@ -150,7 +162,13 @@ function log_veo_activity(int $matchId, string $message, array $context = []): v
                     }
           }
           if (isset($veoLog)) {
-                    file_put_contents($veoLog, $line . PHP_EOL, FILE_APPEND);
+                    $logDir = dirname($veoLog);
+                    $canWrite = is_dir($logDir) && is_writable($logDir);
+                    if ($canWrite && (!file_exists($veoLog) || is_writable($veoLog))) {
+                              file_put_contents($veoLog, $line . PHP_EOL, FILE_APPEND);
+                    } else {
+                              error_log('[veo_download_log] Unable to write to ' . $veoLog);
+                    }
           }
 }
 
@@ -204,7 +222,13 @@ log_stage_entry($matchId, 'php', 'Configured video path', ['public' => $publicPa
 
 $progressDir = $projectRoot . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'video_progress';
 @mkdir($progressDir, 0777, true);
+if (!is_dir($progressDir) || !is_writable($progressDir)) {
+          respond_error(500, 'Progress directory not writable', 'progress_dir_not_writable', $matchId, ['progress_dir' => $progressDir]);
+}
 $progressFile = $progressDir . DIRECTORY_SEPARATOR . $matchId . '.json';
+if (file_exists($progressFile) && !is_writable($progressFile)) {
+          respond_error(500, 'Progress file not writable', 'progress_file_not_writable', $matchId, ['progress_file' => $progressFile]);
+}
 
 $pyDir = $projectRoot . DIRECTORY_SEPARATOR . 'py';
 $script = $pyDir . DIRECTORY_SEPARATOR . 'veo_downloader.py';

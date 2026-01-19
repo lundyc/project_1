@@ -3,10 +3,10 @@ require_auth();
 require_once __DIR__ . '/../../../lib/time_helper.php';
 
 $base = base_path();
-$title = 'Match Summary';
+$title = 'Match Stats';
 
-$flashSuccess = $_SESSION['summary_flash_success'] ?? null;
-unset($_SESSION['summary_flash_success']);
+$flashSuccess = $_SESSION['stats_flash_success'] ?? null;
+unset($_SESSION['stats_flash_success']);
 
 $byType = $derivedStats['by_type_team'] ?? [];
 $totals = $derivedStats['totals'] ?? [];
@@ -100,6 +100,66 @@ function render_graph_card(string $label, int $homeVal, int $awayVal, string $no
                                                   <span><?= $gauge['homePercent'] ?>%</span>
                                                   <span><?= $gauge['awayPercent'] ?>%</span>
                                         </div>
+                              </div>
+                    </div>
+          </div>
+          <?php
+          return ob_get_clean();
+}
+
+function render_shot_accuracy_card(
+          string $label,
+          string $teamName,
+          string $onLabel,
+          string $offLabel,
+          int $onTarget,
+          int $offTarget,
+          int $onPct,
+          int $offPct,
+          int $total
+): string {
+          $gauge = build_overview_gauge($onTarget, $offTarget);
+          ob_start();
+
+          ?>
+          <div class="overview-graph-card">
+                    <div class="phase2-card-label"><?= htmlspecialchars($label) ?></div>
+                    <div class="overview-gauge-wrapper">
+                              <div class="overview-gauge" role="img" aria-label="<?= htmlspecialchars($teamName . ' on target share ' . $onPct . '%') ?>">
+                                        <svg viewBox="0 0 120 60" aria-hidden="true">
+                                                  <path class="overview-gauge-base" d="M 10 60 A 50 50 0 0 1 110 60"></path>
+                                                  <?php if ($gauge['homePath']): ?>
+                                                            <path class="overview-gauge-fill overview-gauge-home" d="<?= $gauge['homePath'] ?>"></path>
+                                                  <?php endif; ?>
+                                                  <?php if ($gauge['awayPath']): ?>
+                                                            <path class="overview-gauge-fill overview-gauge-away" d="<?= $gauge['awayPath'] ?>"></path>
+                                                  <?php endif; ?>
+                                        </svg>
+                                        <div class="overview-gauge-labels">
+                                                  <span class="overview-gauge-label-home"><?= $onPct ?>%</span>
+                                                  <span class="overview-gauge-label-away"><?= $offPct ?>%</span>
+                                        </div>
+                                        <div class="overview-gauge-center">
+                                                  <div class="overview-gauge-percent"><?= $onPct ?>%</div>
+                                                  <div class="overview-gauge-caption"><?= htmlspecialchars($teamName) ?> on target share</div>
+                                        </div>
+                              </div>
+                              <div class="overview-stats">
+                                        <div class="overview-stats-row overview-stats-labels">
+                                                  <span class="overview-stats-label"><?= htmlspecialchars($onLabel) ?></span>
+                                                  <span class="overview-stats-label"><?= htmlspecialchars($offLabel) ?></span>
+                                        </div>
+                                        <div class="overview-stats-row overview-stats-values">
+                                                  <span><?= $onTarget ?></span>
+                                                  <span><?= $offTarget ?></span>
+                                        </div>
+                                        <div class="overview-stats-row overview-stats-values">
+                                                  <span><?= $onPct ?>%</span>
+                                                  <span><?= $offPct ?>%</span>
+                                        </div>
+                              </div>
+                              <div class="overview-gauge-note text-xs text-muted-alt">
+                                        <?= $total ? htmlspecialchars(sprintf('%d of %d shots', $onTarget, $total)) : 'No shots recorded' ?>
                               </div>
                     </div>
           </div>
@@ -918,7 +978,7 @@ ob_start();
 ?>
 <div class="d-flex align-items-center justify-content-between mb-4">
           <div>
-                    <div class="text-muted-alt text-sm">Match Summary</div>
+                    <div class="text-muted-alt text-sm">Match Stats</div>
                     <h1 class="mb-1"><?= htmlspecialchars($match['home_team']) ?> <span class="text-muted-alt">vs</span> <?= htmlspecialchars($match['away_team']) ?></h1>
                     <div class="text-muted-alt text-sm"><?= $match['kickoff_at'] ? htmlspecialchars(date('M j, Y · H:i', strtotime($match['kickoff_at']))) : 'Date TBD' ?></div>
           </div>
@@ -933,60 +993,7 @@ ob_start();
 <?php endif; ?>
 
 <div class="panel p-3 rounded-md mb-4">
-          <div class="summary-score d-flex align-items-center justify-content-center mb-3">
-                    <div class="summary-team text-end me-3">
-                              <div class="text-muted-alt text-sm">Home</div>
-                              <div class="fw-semibold"><?= htmlspecialchars($match['home_team']) ?></div>
-                    </div>
-                    <div class="summary-scoreline text-center">
-                              <div class="score-number"><?= (int)($safe('goal')['home'] ?? 0) ?> : <?= (int)($safe('goal')['away'] ?? 0) ?></div>
-                              <div class="text-muted-alt text-xs"><?= htmlspecialchars($match['competition'] ?? '') ?></div>
-                    </div>
-                    <div class="summary-team text-start ms-3">
-                              <div class="text-muted-alt text-sm">Away</div>
-                              <div class="fw-semibold"><?= htmlspecialchars($match['away_team']) ?></div>
-                    </div>
-          </div>
-
-          <div class="comparison-list">
-                    <?php
-                    $rows = [
-                              ['label' => 'Goals', 'key' => 'goal'],
-                              ['label' => 'Shots', 'key' => 'shot'],
-                              ['label' => 'Chances', 'key' => 'chance'],
-                              ['label' => 'Set Pieces', 'key' => null, 'value' => $setPieces],
-                              ['label' => 'Fouls', 'key' => 'foul'],
-                              ['label' => 'Yellow Cards', 'key' => 'yellow_card'],
-                              ['label' => 'Red Cards', 'key' => 'red_card'],
-                              ['label' => 'Mistakes', 'key' => 'mistake'],
-                              ['label' => 'Good Play', 'key' => 'good_play'],
-                              ['label' => 'Highlights', 'key' => null, 'value' => ['home' => $byType['highlight']['home'] ?? 0, 'away' => $byType['highlight']['away'] ?? 0, 'unknown' => $byType['highlight']['unknown'] ?? 0], 'total' => $highlights],
-                    ];
-                    foreach ($rows as $row):
-                              $counts = $row['key'] ? $safe($row['key']) : ($row['value'] ?? $defaultCounts);
-                              $homeVal = (int)$counts['home'];
-                              $awayVal = (int)$counts['away'];
-                              $maxVal = max(1, $homeVal, $awayVal);
-                              $homePct = ($homeVal / $maxVal) * 100;
-                              $awayPct = ($awayVal / $maxVal) * 100;
-                    ?>
-                              <div class="comparison-row">
-                                        <div class="side value-home" aria-label="Home value <?= $homeVal ?> for <?= htmlspecialchars($row['label']) ?>">
-                                                  <div class="value-number text-home"><?= $homeVal ?></div>
-                                                  <div class="bar-wrap" title="<?= $homeVal ?>">
-                                                            <div class="bar bar-home" style="width: <?= $homePct ?>%"></div>
-                                                  </div>
-                                        </div>
-                                        <div class="metric-label"><?= htmlspecialchars($row['label']) ?></div>
-                                        <div class="side value-away" aria-label="Away value <?= $awayVal ?> for <?= htmlspecialchars($row['label']) ?>">
-                                                  <div class="bar-wrap" title="<?= $awayVal ?>">
-                                                            <div class="bar bar-away" style="width: <?= $awayPct ?>%"></div>
-                                                  </div>
-                                                  <div class="value-number text-away"><?= $awayVal ?></div>
-                                        </div>
-                              </div>
-                    <?php endforeach; ?>
-          </div>
+          <?php require __DIR__ . '/../../partials/match-summary-stats.php'; ?>
 </div>
 
 <?php
@@ -995,10 +1002,67 @@ $overviewMetrics = [
           ['label' => 'Shots', 'key' => 'shot'],
           ['label' => 'Goals', 'key' => 'goal'],
           ['label' => 'Corners', 'key' => 'corner'],
-          ['label' => 'Fouls', 'key' => 'foul'],
 ];
+$shotOnTargetCounts = $safe('shot_on_target');
+$shotOffTargetCounts = $safe('shot_off_target');
+$goalCounts = $safe('goal');
+// Calculate totals: on_target shots + off_target shots (excluding goals from the total)
+$homeShotTotal = (int)($shotOnTargetCounts['home'] ?? 0) + (int)($shotOffTargetCounts['home'] ?? 0);
+$awayShotTotal = (int)($shotOnTargetCounts['away'] ?? 0) + (int)($shotOffTargetCounts['away'] ?? 0);
+// On Target = on_target shots + goals scored
+$homeOnTargetCount = (int)($shotOnTargetCounts['home'] ?? 0) + (int)($goalCounts['home'] ?? 0);
+$awayOnTargetCount = (int)($shotOnTargetCounts['away'] ?? 0) + (int)($goalCounts['away'] ?? 0);
+// Off Target = shots that were off target
+$homeOffTargetCount = (int)($shotOffTargetCounts['home'] ?? 0);
+$awayOffTargetCount = (int)($shotOffTargetCounts['away'] ?? 0);
+// Total shots for display = on target + off target (which includes goals in on target)
+$homeTotalForDisplay = $homeOnTargetCount + $homeOffTargetCount;
+$awayTotalForDisplay = $awayOnTargetCount + $awayOffTargetCount;
+$shotOnTargetCounts = $safe('shot_on_target');
+$shotOffTargetCounts = $safe('shot_off_target');
+$homeShotGauge = build_overview_gauge($homeOnTargetCount, $homeOffTargetCount);
+$awayShotGauge = build_overview_gauge($awayOnTargetCount, $awayOffTargetCount);
 $firstHalfCounts = $phase2ByPeriod['1H'] ?? $defaultCounts;
 $secondHalfCounts = $phase2ByPeriod['2H'] ?? $defaultCounts;
+
+$periodKeyIndex = [];
+foreach ($matchPeriods as $period) {
+          $periodKey = strtolower(trim((string)($period['period_key'] ?? '')));
+          if ($periodKey === '') {
+                    continue;
+          }
+          if (!isset($periodKeyIndex[$periodKey])) {
+                    $periodKeyIndex[$periodKey] = $period;
+          }
+}
+
+$computePeriodCountsFromEvents = function (array $events, array $period) use ($defaultCounts) {
+          $counts = ['home' => 0, 'away' => 0, 'unknown' => 0];
+          $start = isset($period['start_second']) ? (int)$period['start_second'] : 0;
+          $end = array_key_exists('end_second', $period) && $period['end_second'] !== null ? (int)$period['end_second'] : null;
+          foreach ($events as $event) {
+                    $second = max(0, (int)($event['match_second'] ?? 0));
+                    if ($second < $start) {
+                              continue;
+                    }
+                    if ($end !== null && $second > $end) {
+                              continue;
+                    }
+                    $teamSide = normalize_team_side_value($event['team_side'] ?? 'unknown');
+                    $counts[$teamSide] = ($counts[$teamSide] ?? 0) + 1;
+          }
+          if ($counts === ['home' => 0, 'away' => 0, 'unknown' => 0]) {
+                    return $defaultCounts;
+          }
+          return $counts;
+};
+
+if (isset($periodKeyIndex['first_half'])) {
+          $firstHalfCounts = $computePeriodCountsFromEvents($events, $periodKeyIndex['first_half']);
+}
+if (isset($periodKeyIndex['second_half'])) {
+          $secondHalfCounts = $computePeriodCountsFromEvents($events, $periodKeyIndex['second_half']);
+}
 $homeHalfShift = (int)$secondHalfCounts['home'] - (int)$firstHalfCounts['home'];
 $awayHalfShift = (int)$secondHalfCounts['away'] - (int)$firstHalfCounts['away'];
           $homeHalfCue = $homeHalfShift > 0 ? 'Home activity rose after HT' : ($homeHalfShift < 0 ? 'Home settled after HT' : 'Home activity steady');
@@ -1065,6 +1129,30 @@ $awayHalfShift = (int)$secondHalfCounts['away'] - (int)$firstHalfCounts['away'];
                                                   $awayVal = (int)$counts['away'];
                                                   echo render_graph_card($metric['label'], $homeVal, $awayVal, $metric['note'] ?? '');
                                         endforeach; ?>
+                              </div>
+                              <div class="match-overview-graphs">
+                                        <?= render_shot_accuracy_card(
+                                                  'Home shot accuracy',
+                                                  $match['home_team'] ?? 'Home',
+                                                  'On Target',
+                                                  'Off Target',
+                                                  $homeOnTargetCount,
+                                                  $homeOffTargetCount,
+                                                  $homeShotGauge['homePercent'],
+                                                  $homeShotGauge['awayPercent'],
+                                                  $homeTotalForDisplay
+                                        ) ?>
+                                        <?= render_shot_accuracy_card(
+                                                  'Away shot accuracy',
+                                                  $match['away_team'] ?? 'Away',
+                                                  'On Target',
+                                                  'Off Target',
+                                                  $awayOnTargetCount,
+                                                  $awayOffTargetCount,
+                                                  $awayShotGauge['homePercent'],
+                                                  $awayShotGauge['awayPercent'],
+                                                  $awayTotalForDisplay
+                                        ) ?>
                               </div>
                     </div>
                     <div class="phase2-panel-column">

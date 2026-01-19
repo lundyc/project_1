@@ -4,6 +4,54 @@ require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/match_period_repository.php';
 
 /**
+ * Auto-calculate period and stoppage time based on event_time and period definitions.
+ * 
+ * @param int $matchId
+ * @param int $matchSecond The event time in seconds
+ * @return array{period_id: ?int, minute_extra: int} Period ID and calculated stoppage minutes
+ */
+function calculate_period_from_event_time(int $matchId, int $matchSecond): array
+{
+          $periods = get_match_periods($matchId);
+          $periodId = null;
+          $minuteExtra = 0;
+
+          // Find the period that contains this event
+          foreach ($periods as $period) {
+                    $start = $period['start_second'] ?? null;
+                    $end = $period['end_second'] ?? null;
+
+                    if ($start === null) {
+                              continue;
+                    }
+
+                    // Event is within this period's time range
+                    if ($end !== null && $matchSecond >= $start && $matchSecond <= $end) {
+                              $periodId = (int)$period['id'];
+                              break;
+                    }
+                    // Event is after period start but period hasn't ended yet
+                    if ($end === null && $matchSecond >= $start) {
+                              $periodId = (int)$period['id'];
+                              break;
+                    }
+                    // Event is after period end - it's stoppage time
+                    if ($end !== null && $matchSecond > $end) {
+                              $periodId = (int)$period['id'];
+                              // Calculate how many minutes past the end
+                              $secondsPastEnd = $matchSecond - $end;
+                              $minuteExtra = (int)ceil($secondsPastEnd / 60);
+                              break;
+                    }
+          }
+
+          return [
+                    'period_id' => $periodId,
+                    'minute_extra' => $minuteExtra,
+          ];
+}
+
+/**
  * Normalize incoming event data to satisfy NOT NULL columns and enums.
  *
  * @param array<string, mixed> $data
@@ -170,18 +218,12 @@ function validate_event_payload(array $input, int $matchId): array
                               throw new \RuntimeException('invalid_period');
                     }
           } else {
-                    $autoPeriods = get_match_periods($matchId);
-                    foreach ($autoPeriods as $period) {
-                              $start = $period['start_second'] ?? null;
-                              $end = $period['end_second'] ?? null;
-                              if ($start !== null && $end !== null && $normalized['match_second'] >= $start && $normalized['match_second'] <= $end) {
-                                        $normalized['period_id'] = (int)$period['id'];
-                                        break;
-                              }
-                              if ($start !== null && $end === null && $normalized['match_second'] >= $start) {
-                                        $normalized['period_id'] = (int)$period['id'];
-                                        break;
-                              }
+                    // Auto-calculate period and stoppage time from match_second
+                    $calculated = calculate_period_from_event_time($matchId, $normalized['match_second']);
+                    $normalized['period_id'] = $calculated['period_id'];
+                    // Only set minute_extra if not already provided and we calculated stoppage time
+                    if (($normalized['minute_extra'] ?? 0) === 0 && $calculated['minute_extra'] > 0) {
+                              $normalized['minute_extra'] = $calculated['minute_extra'];
                     }
           }
 

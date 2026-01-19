@@ -88,6 +88,9 @@ function upsert_match_video(int $matchId, array $data): void
           if (in_array('error_message', $columns, true)) {
                     $fields['error_message'] = $data['error_message'] ?? null;
           }
+          if (in_array('thumbnail_path', $columns, true)) {
+                    $fields['thumbnail_path'] = $data['thumbnail_path'] ?? null;
+          }
 
           $params = ['match_id' => $matchId];
 
@@ -119,6 +122,9 @@ function get_matches_for_user(array $user): array
                     'mv.source_type AS video_source_type',
                     'mv.source_path AS video_source_path',
           ];
+          if (in_array('thumbnail_path', $availableCols, true)) {
+                    $videoColumns[] = 'mv.thumbnail_path AS video_thumbnail_path';
+          }
           if (in_array('duration_seconds', $availableCols, true)) {
                     $videoColumns[] = 'mv.duration_seconds AS video_duration_seconds';
           }
@@ -171,12 +177,14 @@ function get_matches_for_user(array $user): array
 
 function get_match(int $id): ?array
 {
+          $availableCols = ensure_match_video_columns();
           $videoColumns = [
                     'mv.source_type AS video_source_type',
                     'mv.source_path AS video_source_path',
           ];
-
-          $availableCols = ensure_match_video_columns();
+          if (in_array('thumbnail_path', $availableCols, true)) {
+                    $videoColumns[] = 'mv.thumbnail_path AS video_thumbnail_path';
+          }
           if (in_array('source_url', $availableCols, true)) {
                     $videoColumns[] = 'mv.source_url AS video_source_url';
           }

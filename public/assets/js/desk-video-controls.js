@@ -45,6 +45,9 @@
       }
       controls.classList.remove('is-hidden');
       setDrawingToolbarVisibility(true);
+      if (videoFrame) {
+        videoFrame.classList.remove('cursor-hidden');
+      }
     };
 
     const hideControls = () => {
@@ -53,6 +56,9 @@
       }
       controls.classList.add('is-hidden');
       setDrawingToolbarVisibility(false);
+      if (videoFrame) {
+        videoFrame.classList.add('cursor-hidden');
+      }
     };
 
     const clearHideTimeout = () => {
@@ -99,9 +105,11 @@
       playPauseFeedbackIcon.classList.remove('fa-play', 'fa-pause');
       playPauseFeedbackIcon.classList.add(state === 'pause' ? 'fa-pause' : 'fa-play');
       playPauseFeedback.classList.add('is-visible');
+      playPauseFeedback.setAttribute('aria-hidden', 'false');
       clearTimeout(playPauseFeedbackTimer);
       playPauseFeedbackTimer = setTimeout(() => {
         playPauseFeedback.classList.remove('is-visible');
+        playPauseFeedback.setAttribute('aria-hidden', 'true');
       }, FEEDBACK_DURATION);
     };
 
@@ -112,9 +120,11 @@
       seekFeedback.classList.remove('is-rewind', 'is-forward');
       const directionClass = direction === 'forward' ? 'is-forward' : 'is-rewind';
       seekFeedback.classList.add(directionClass, 'is-visible');
+      seekFeedback.setAttribute('aria-hidden', 'false');
       clearTimeout(seekFeedbackTimer);
       seekFeedbackTimer = setTimeout(() => {
         seekFeedback.classList.remove('is-visible', 'is-rewind', 'is-forward');
+        seekFeedback.setAttribute('aria-hidden', 'true');
       }, FEEDBACK_DURATION);
     };
 

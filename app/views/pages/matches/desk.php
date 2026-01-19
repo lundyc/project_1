@@ -10,6 +10,7 @@ require_once __DIR__ . '/../../../lib/match_lock_service.php';
 require_once __DIR__ . '/../../../lib/event_outcome_rules.php';
 require_once __DIR__ . '/../../../lib/event_action_stack.php';
 require_once __DIR__ . '/../../../lib/match_period_repository.php';
+require_once __DIR__ . '/../../../lib/match_stats_service.php';
 require_once __DIR__ . '/../../../lib/csrf.php';
 
 $user = current_user();
@@ -72,11 +73,20 @@ $tagsStmt = db()->prepare('SELECT id, label FROM tags WHERE club_id IS NULL OR c
 $tagsStmt->execute(['club_id' => (int)$match['club_id']]);
 $tags = $tagsStmt->fetchAll();
 
+$matchId = (int)$match['id'];
+$events = event_list_for_match($matchId);
+$derivedStats = get_or_compute_match_stats(
+    $matchId,
+    (int)($match['events_version'] ?? 0),
+    $events,
+    $eventTypes
+);
+
 $title = 'Analysis Desk';
 $headExtras = '<link href="' . htmlspecialchars($base) . '/assets/css/desk.css?v=' . time() . '" rel="stylesheet">';
+$headExtras .= '<link href="' . htmlspecialchars($base) . '/assets/css/toast.css?v=' . time() . '" rel="stylesheet">';
 $headExtras .= '<script>window.ANNOTATIONS_ENABLED = true;</script>';
 $projectRoot = realpath(__DIR__ . '/../../../../');
-$matchId = (int)$match['id'];
 $isVeo = (($match['video_source_type'] ?? '') === 'veo');
 $standardRelative = '/videos/matches/match_' . $matchId . '/source/veo/standard/match_' . $matchId . '_standard.mp4';
 $standardAbsolute = $projectRoot
@@ -172,6 +182,7 @@ $deskConfig = [
 ];
 
 $footerScripts = '<script>window.DeskConfig = ' . json_encode($deskConfig) . ';</script>';
+$footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/toast.js?v=' . time() . '"></script>';
 $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-events.js?v=' . time() . '"></script>';
 $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-annotations.js?v=' . time() . '"></script>';
 $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-video-controls.js?v=' . time() . '"></script>';
@@ -210,9 +221,10 @@ ob_start();
                             <div class="text-xl fw-semibold"><?= htmlspecialchars($match['home_team']) ?> vs <?= htmlspecialchars($match['away_team']) ?></div>
                         </div>
                         <div class="video-actions">
-                            <div class="video-actions-left">
-                                <a class="toggle-btn is-active summary-btn" href="<?= htmlspecialchars($base) ?>/matches/<?= $matchId ?>/summary">Summary</a>
-                                <?php if (!empty($videoFormats) && count($videoFormats) > 1): ?>
+                                <div class="video-actions-left">
+                                    <a class="toggle-btn is-active stats-btn" href="<?= htmlspecialchars($base) ?>/matches/<?= $matchId ?>/stats">Stats</a>
+                                    <button type="button" class="toggle-btn lineup-toggle-btn" data-desk-lineup-button data-match-id="<?= $matchId ?>" aria-pressed="false">Lineup</button>
+                                    <?php if (!empty($videoFormats) && count($videoFormats) > 1): ?>
                                     <div class="video-format-toggle" data-video-format-toggle>
                                         <?php foreach ($videoFormats as $format): ?>
                       <button
@@ -238,15 +250,59 @@ ob_start();
                                             <?php if ($ANNOTATIONS_ENABLED): ?>
                                                 <div class="drawing-toolbar" data-annotation-toolbar>
                                                     <div class="drawing-toolbar-tools">
-                                                <div class="drawing-tool drawing-tool--menu drawing-tool--colors">
-                                                    <button
-                                                        type="button"
+                                                        <div class="drawing-tool drawing-tool--free-draw">
+                                                            <button
+                                                                id="deskPencilTool"
+                                                                type="button"
+                                                                class="drawing-tool-btn drawing-tool-btn--primary"
+                                                                data-drawing-tool="pencil"
+                                                                aria-pressed="false"
+                                                                aria-label="Free draw"
+
+                                                                data-tooltip="Free draw">
+                                                                <i class="fa-solid fa-pencil" aria-hidden="true"></i>
+                                                            </button>
+                                                        </div>
+                                                        <div class="drawing-tool drawing-tool--menu drawing-tool--text">
+                                                            <button
+                                                                type="button"
+                                                                class="drawing-tool-btn drawing-tool-btn--primary"
+                                                                data-toolbar-button
+                                                                data-menu-key="text"
+                                                                data-drawing-tool="text"
+                                                                aria-pressed="false"
+                                                                aria-label="Text tool"
+
+                                                                data-tooltip="Text">
+                                                                <i class="fa-solid fa-font" aria-hidden="true"></i>
+                                                            </button>
+                                                            <div class="drawing-tool-panel drawing-submenu text" data-toolbar-menu="text" aria-hidden="true" inert>
+                                                                <div class="drawing-submenu-heading">Text</div>
+                                                                <label class="drawing-option-label">
+                                                                    <span>Size</span>
+                                                                    <div class="drawing-option-range">
+                                                                        <input
+                                                                            type="range"
+                                                                            min="12"
+                                                                            max="48"
+                                                                            step="1"
+                                                                            value="18"
+                                                                            data-text-font-size
+                                                                            aria-label="Text font size">
+                                                                        <output data-text-font-size-value>18px</output>
+                                                                    </div>
+                                                                </label>
+                                                            </div>
+                                                        </div>
+                                                        <div class="drawing-tool drawing-tool--menu drawing-tool--colors">
+                                                            <button
+                                                                type="button"
                                                                 class="drawing-tool-btn drawing-tool-btn--primary"
                                                                 data-toolbar-button
                                                                 data-menu-key="colours"
                                                                 aria-pressed="false"
                                                                 aria-label="Colours"
-                                                                
+
                                                                 data-tooltip="Colours">
                                                                 <i class="fa-solid fa-palette" aria-hidden="true"></i>
                                                             </button>
@@ -270,7 +326,7 @@ ob_start();
                                                                 data-menu-key="arrows"
                                                                 aria-pressed="false"
                                                                 aria-label="Arrows"
-                                                               
+
                                                                 data-tooltip="Arrows">
                                                                 <i class="fa-solid fa-arrow-trend-up" aria-hidden="true"></i>
                                                             </button>
@@ -346,54 +402,10 @@ ob_start();
                                                                 data-drawing-tool="spotlight"
                                                                 aria-pressed="false"
                                                                 aria-label="Spotlight tool"
-                                                               
+
                                                                 data-tooltip="Spotlight">
                                                                 <i class="fa-solid fa-lightbulb" aria-hidden="true"></i>
                                                             </button>
-                                                        </div>
-                                                        <div class="drawing-tool drawing-tool--free-draw">
-                                                        <button
-                                                            id="deskPencilTool"
-                                                            type="button"
-                                                            class="drawing-tool-btn drawing-tool-btn--primary"
-                                                            data-drawing-tool="pencil"
-                                                            aria-pressed="false"
-                                                            aria-label="Free draw"
-                                                          
-                                                            data-tooltip="Free draw">
-                                                            <i class="fa-solid fa-pencil" aria-hidden="true"></i>
-                                                        </button>
-                                                        </div>
-                                                        <div class="drawing-tool drawing-tool--menu drawing-tool--text">
-                                                            <button
-                                                                type="button"
-                                                                class="drawing-tool-btn drawing-tool-btn--primary"
-                                                                data-toolbar-button
-                                                                data-menu-key="text"
-                                                                data-drawing-tool="text"
-                                                                aria-pressed="false"
-                                                                aria-label="Text tool"
-                                                            
-                                                                data-tooltip="Text">
-                                                                <i class="fa-solid fa-font" aria-hidden="true"></i>
-                                                            </button>
-                                                            <div class="drawing-tool-panel drawing-submenu text" data-toolbar-menu="text" aria-hidden="true" inert>
-                                                                <div class="drawing-submenu-heading">Text</div>
-                                                                <label class="drawing-option-label">
-                                                                    <span>Size</span>
-                                                                    <div class="drawing-option-range">
-                                                                        <input
-                                                                            type="range"
-                                                                            min="12"
-                                                                            max="48"
-                                                                            step="1"
-                                                                            value="18"
-                                                                            data-text-font-size
-                                                                            aria-label="Text font size">
-                                                                        <output data-text-font-size-value>18px</output>
-                                                                    </div>
-                                                                </label>
-                                                            </div>
                                                         </div>
                                                     </div>
                                                     <div class="drawing-toolbar-divider" aria-hidden="true"></div>
@@ -611,108 +623,165 @@ ob_start();
                 </div>
                     </section>
                 </div>
-            <aside class="desk-side">
-                    <div class="desk-side-tabs" data-desk-side-tabs data-default-tab="quick-tags">
-                    <div class="desk-side-tabs-bar" role="tablist">
-                        <button type="button" class="desk-side-tab is-active" data-tab-button="quick-tags" role="tab" aria-selected="true">Quick Tags</button>
-                        <button type="button" class="desk-side-tab" data-tab-button="playlists" role="tab" aria-selected="false">Playlists / Clips</button>
+            <aside class="desk-side is-mode-active">
+                <div class="desk-side-shell">
+                    <div class="desk-mode-bar" data-desk-side-modes data-default-mode="tag-live" role="tablist">
+                        <button type="button" class="desk-mode-button" data-mode="summary" aria-pressed="false" role="tab">Summary</button>
+                        <button type="button" class="desk-mode-button is-active" data-mode="tag-live" aria-pressed="true" role="tab">Tag Live</button>
                         <?php if ($ANNOTATIONS_ENABLED): ?>
-                            <button type="button" class="desk-side-tab" data-tab-button="drawings" role="tab" aria-selected="false">Drawings</button>
+                            <button type="button" class="desk-mode-button" data-mode="drawings" aria-pressed="false" role="tab">Drawings</button>
                         <?php endif; ?>
                     </div>
-                    <div class="desk-side-tabs-content">
-                        <div class="desk-side-tab-panel is-active" data-tab-panel="quick-tags" role="tabpanel">
-                            <div class="desk-quick-tags">
-                                <div class="panel-dark tagging-panel">
-                                    <div class="panel-row">
-                                        <div>
-                                            <div class="text-sm text-subtle">Quick Tag</div>
-                                            <div class="text-xs text-muted-alt">One click = one event</div>
+                    <div class="desk-side-scroll">
+                        <div class="desk-live-tagging" data-desk-live-tagging aria-hidden="false">
+                            <section class="desk-section desk-quick-tags-section" aria-label="Quick tags">
+                                <div class="desk-quick-tags">
+                                    <div class="panel-dark tagging-panel">
+                                        <div class="desk-section-header">
+                                            <div>
+                                                <div class="text-sm text-subtle">Quick Tags</div>
+                                                <div class="text-xs text-muted-alt">One click = one event</div>
+                                            </div>
                                         </div>
-                                    </div>
+                                        <div class="period-controls period-controls-collapsed">
+                                            <button
+                                                class="ghost-btn ghost-btn-sm desk-editable period-modal-toggle"
+                                                type="button"
+                                                aria-haspopup="dialog"
+                                                aria-expanded="false"
+                                                aria-controls="periodsModal"
+                                                aria-label="Open period controls">
+                                                Periods
+                                            </button>
+                                        </div>
 
-                                    <div class="period-controls period-btn-row">
-                                        <button class="ghost-btn ghost-btn-sm desk-editable period-btn period-start" id="btnPeriodFirstStart" type="button" data-period-key="first_half" data-period-action="start" data-period-label="First Half" data-period-event="period_start">▶ 1H</button>
-                                        <button class="ghost-btn ghost-btn-sm desk-editable period-btn period-start" id="btnPeriodSecondStart" type="button" data-period-key="second_half" data-period-action="start" data-period-label="Second Half" data-period-event="period_start">▶ 2H</button>
-                                        <button class="ghost-btn ghost-btn-sm desk-editable period-btn period-start" id="btnPeriodET1Start" type="button" data-period-key="extra_time_1" data-period-action="start" data-period-label="Extra Time 1" data-period-event="period_start">▶ ET1</button>
+                                        <div class="desk-event-groups">
+                                            <div class="desk-section-label">Event Groups</div>
+                                            <div id="quickTagBoard" class="qt-board"></div>
+                                        </div>
 
-                                        <button class="ghost-btn ghost-btn-sm desk-editable period-btn period-end" id="btnPeriodFirstEnd" type="button" data-period-key="first_half" data-period-action="end" data-period-label="First Half" data-period-event="period_end">■ 1H</button>
-                                        <button class="ghost-btn ghost-btn-sm desk-editable period-btn period-end" id="btnPeriodSecondEnd" type="button" data-period-key="second_half" data-period-action="end" data-period-label="Second Half" data-period-event="period_end">■ 2H</button>
-                                        <button class="ghost-btn ghost-btn-sm desk-editable period-btn period-end" id="btnPeriodET1End" type="button" data-period-key="extra_time_1" data-period-action="end" data-period-label="Extra Time 1" data-period-event="period_end">■ ET1</button>
+                                        <section class="desk-section desk-team-section" aria-label="Team selector" style="margin-top: 8px;">
+                                            <div class="desk-section-label">Team</div>
+                                            <div id="teamToggle" class="team-toggle desk-team-toggle">
+                                                <button class="toggle-btn is-active" data-team="home">Home</button>
+                                                <button class="toggle-btn" data-team="away">Away</button>
+                                            </div>
+                                        </section>
 
-                                        <button class="ghost-btn ghost-btn-sm desk-editable period-btn period-start" id="btnPeriodET2Start" type="button" data-period-key="extra_time_2" data-period-action="start" data-period-label="Extra Time 2" data-period-event="period_start">▶ ET2</button>
-                                        <button class="ghost-btn ghost-btn-sm desk-editable period-btn period-start" id="btnPeriodPenaltiesStart" type="button" data-period-key="penalties" data-period-action="start" data-period-label="Penalties" data-period-event="period_start">▶ P</button>
-
-                                        <button class="ghost-btn ghost-btn-sm desk-editable period-btn" id="blank_space_button" type="button" disabled></button>
-
-                                        <button class="ghost-btn ghost-btn-sm desk-editable period-btn period-end" id="btnPeriodET2End" type="button" data-period-key="extra_time_2" data-period-action="end" data-period-label="Extra Time 2" data-period-event="period_end">■ ET2</button>
-                                        <button class="ghost-btn ghost-btn-sm desk-editable period-btn period-end" id="btnPeriodPenaltiesEnd" type="button" data-period-key="penalties" data-period-action="end" data-period-label="Penalties" data-period-event="period_end">■ P</button>
-                                    </div>
-
-                                    <div id="teamToggle" class="team-toggle">
-                                        <button class="toggle-btn is-active" data-team="home">Home</button>
-                                        <button class="toggle-btn" data-team="away">Away</button>
-                                    </div>
-
-                                    <div id="quickTagBoard" class="qt-board"></div>
-                                    <div id="goalPlayerModal" class="goal-player-modal" role="dialog" aria-modal="true" aria-hidden="true" hidden>
-                                        <div class="goal-player-modal-backdrop" data-goal-modal-close></div>
-                                        <div class="panel-dark goal-player-modal-card">
-                                            <div class="goal-player-modal-header">
-                                                <div>
-                                                    <div class="text-sm text-subtle">Goal scorer</div>
-                                                    <div class="text-xs text-muted-alt">Pick a player to log the goal</div>
+                                        <div id="periodsModal" class="periods-modal" role="dialog" aria-modal="true" aria-hidden="true" hidden>
+                                            <div class="periods-modal-backdrop" data-period-modal-close></div>
+                                            <div class="panel-dark periods-modal-card" role="document">
+                                                <div class="periods-modal-header">
+                                                    <div>
+                                                        <div class="text-sm text-subtle">Period controls</div>
+                                                        <div class="text-xs text-muted-alt">Manage match periods on demand</div>
+                                                    </div>
+                                                    <button type="button" class="editor-modal-close" data-period-modal-close aria-label="Close period controls">✕</button>
                                                 </div>
-                                                <div class="goal-player-modal-header-actions">
-                                                    <button type="button" class="ghost-btn ghost-btn-sm" data-goal-unknown>Unknown player</button>
-                                                    <button type="button" class="editor-modal-close" data-goal-modal-close aria-label="Close goal scorer modal">✕</button>
+                                                <div class="periods-modal-body">
+                                                    <div id="currentPeriodStatus" class="period-status" aria-live="polite" role="status">
+                                                        Current period: Not started
+                                                    </div>
+                                                    <div class="periods-modal-section">
+                                                        <div class="periods-modal-section-header">First Half</div>
+                                                        <div class="periods-modal-section-controls">
+                                                            <button class="ghost-btn ghost-btn-sm desk-editable period-btn period-start" id="btnPeriodFirstStart" type="button" data-period-key="first_half" data-period-action="start" data-period-label="First Half" data-period-event="period_start">▶ Start First Half</button>
+                                                            <button class="ghost-btn ghost-btn-sm desk-editable period-btn period-end" id="btnPeriodFirstEnd" type="button" data-period-key="first_half" data-period-action="end" data-period-label="First Half" data-period-event="period_end">■ End First Half</button>
+                                                        </div>
+                                                    </div>
+                                                    <div class="periods-modal-section">
+                                                        <div class="periods-modal-section-header">Second Half</div>
+                                                        <div class="periods-modal-section-controls">
+                                                            <button class="ghost-btn ghost-btn-sm desk-editable period-btn period-start" id="btnPeriodSecondStart" type="button" data-period-key="second_half" data-period-action="start" data-period-label="Second Half" data-period-event="period_start">▶ Start Second Half</button>
+                                                            <button class="ghost-btn ghost-btn-sm desk-editable period-btn period-end" id="btnPeriodSecondEnd" type="button" data-period-key="second_half" data-period-action="end" data-period-label="Second Half" data-period-event="period_end">■ End Second Half</button>
+                                                        </div>
+                                                    </div>
+                                                    <div class="periods-modal-section">
+                                                        <div class="periods-modal-section-header">Extra Time</div>
+                                                        <div class="periods-modal-period-grid">
+                                                            <div class="periods-modal-period">
+                                                                <div class="periods-modal-period-label">Extra Time 1</div>
+                                                                <div class="periods-modal-section-controls">
+                                                                    <button class="ghost-btn ghost-btn-sm desk-editable period-btn period-start" id="btnPeriodET1Start" type="button" data-period-key="extra_time_1" data-period-action="start" data-period-label="Extra Time 1" data-period-event="period_start">▶ Start Extra Time 1</button>
+                                                                    <button class="ghost-btn ghost-btn-sm desk-editable period-btn period-end" id="btnPeriodET1End" type="button" data-period-key="extra_time_1" data-period-action="end" data-period-label="Extra Time 1" data-period-event="period_end">■ End Extra Time 1</button>
+                                                                </div>
+                                                            </div>
+                                                            <div class="periods-modal-period">
+                                                                <div class="periods-modal-period-label">Extra Time 2</div>
+                                                                <div class="periods-modal-section-controls">
+                                                                    <button class="ghost-btn ghost-btn-sm desk-editable period-btn period-start" id="btnPeriodET2Start" type="button" data-period-key="extra_time_2" data-period-action="start" data-period-label="Extra Time 2" data-period-event="period_start">▶ Start Extra Time 2</button>
+                                                                    <button class="ghost-btn ghost-btn-sm desk-editable period-btn period-end" id="btnPeriodET2End" type="button" data-period-key="extra_time_2" data-period-action="end" data-period-label="Extra Time 2" data-period-event="period_end">■ End Extra Time 2</button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="periods-modal-section">
+                                                        <div class="periods-modal-section-header">Penalties</div>
+                                                        <div class="periods-modal-section-controls">
+                                                            <button class="ghost-btn ghost-btn-sm desk-editable period-btn period-start" id="btnPeriodPenaltiesStart" type="button" data-period-key="penalties" data-period-action="start" data-period-label="Penalties" data-period-event="period_start">▶ Start Penalties</button>
+                                                            <button class="ghost-btn ghost-btn-sm desk-editable period-btn period-end" id="btnPeriodPenaltiesEnd" type="button" data-period-key="penalties" data-period-action="end" data-period-label="Penalties" data-period-event="period_end">■ End Penalties</button>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <div id="goalPlayerList" class="goal-player-modal-list"></div>
                                         </div>
-                                    </div>
-                                    <div id="shotPlayerModal" class="goal-player-modal shot-player-modal" role="dialog" aria-modal="true" aria-hidden="true" hidden>
-                                        <div class="goal-player-modal-backdrop" data-shot-modal-close></div>
-                                        <div class="panel-dark goal-player-modal-card">
-                                            <div class="goal-player-modal-header">
-                                                <div>
-                                                    <div class="text-sm text-subtle">Shot recorder</div>
-                                                    <div class="text-xs text-muted-alt">Select the shooter and outcome</div>
+                                        <div id="goalPlayerModal" class="goal-player-modal" role="dialog" aria-modal="true" aria-hidden="true" hidden>
+                                            <div class="goal-player-modal-backdrop" data-goal-modal-close></div>
+                                            <div class="panel-dark goal-player-modal-card">
+                                                <div class="goal-player-modal-header">
+                                                    <div>
+                                                        <div class="text-sm text-subtle">Goal scorer</div>
+                                                        <div class="text-xs text-muted-alt">Pick a player to log the goal</div>
+                                                    </div>
+                                                    <div class="goal-player-modal-header-actions">
+                                                        <button type="button" class="ghost-btn ghost-btn-sm" data-goal-unknown>Unknown player</button>
+                                                        <button type="button" class="editor-modal-close" data-goal-modal-close aria-label="Close goal scorer modal">✕</button>
+                                                    </div>
                                                 </div>
-                                                <div class="goal-player-modal-header-actions">
-                                                    <button type="button" class="ghost-btn ghost-btn-sm" data-shot-unknown>Unknown player</button>
-                                                    <button type="button" class="editor-modal-close" data-shot-modal-close aria-label="Close shot modal">✕</button>
-                                                </div>
+                                                <div id="goalPlayerList" class="goal-player-modal-list"></div>
                                             </div>
-                                            <div class="shot-outcome-controls">
-                                                <button type="button" class="ghost-btn shot-outcome-btn" data-shot-outcome="on_target">On Target</button>
-                                                <button type="button" class="ghost-btn shot-outcome-btn" data-shot-outcome="off_target">Off Target</button>
-                                            </div>
-                                            <div id="shotPlayerList" class="goal-player-modal-list shot-player-modal-list"></div>
                                         </div>
-                                    </div>
-                                    <div id="cardPlayerModal" class="goal-player-modal card-player-modal" role="dialog" aria-modal="true" aria-hidden="true" hidden>
-                                        <div class="goal-player-modal-backdrop" data-card-modal-close></div>
-                                        <div class="panel-dark goal-player-modal-card">
-                                            <div class="goal-player-modal-header">
-                                                <div>
-                                                    <div class="text-sm text-subtle">Card recipient</div>
-                                                    <div class="text-xs text-muted-alt">Pick a player to log the card</div>
+                                        <div id="shotPlayerModal" class="goal-player-modal shot-player-modal" role="dialog" aria-modal="true" aria-hidden="true" hidden>
+                                            <div class="goal-player-modal-backdrop" data-shot-modal-close></div>
+                                            <div class="panel-dark goal-player-modal-card">
+                                                <div class="goal-player-modal-header">
+                                                    <div>
+                                                        <div class="text-sm text-subtle">Shot recorder</div>
+                                                        <div class="text-xs text-muted-alt">Select the shooter and outcome</div>
+                                                    </div>
+                                                    <div class="goal-player-modal-header-actions">
+                                                        <button type="button" class="ghost-btn ghost-btn-sm" data-shot-unknown>Unknown player</button>
+                                                        <button type="button" class="editor-modal-close" data-shot-modal-close aria-label="Close shot modal">✕</button>
+                                                    </div>
                                                 </div>
-                                                <div class="goal-player-modal-header-actions">
-                                                    <button type="button" class="ghost-btn ghost-btn-sm" data-card-unknown>Unknown player</button>
-                                                    <button type="button" class="editor-modal-close" data-card-modal-close aria-label="Close card modal">✕</button>
+                                                <div class="shot-outcome-controls">
+                                                    <button type="button" class="ghost-btn shot-outcome-btn" data-shot-outcome="on_target">On Target</button>
+                                                    <button type="button" class="ghost-btn shot-outcome-btn" data-shot-outcome="off_target">Off Target</button>
                                                 </div>
+                                                <div id="shotPlayerList" class="goal-player-modal-list shot-player-modal-list"></div>
                                             </div>
-                                            <div id="cardPlayerList" class="goal-player-modal-list"></div>
                                         </div>
+                                        <div id="cardPlayerModal" class="goal-player-modal card-player-modal" role="dialog" aria-modal="true" aria-hidden="true" hidden>
+                                            <div class="goal-player-modal-backdrop" data-card-modal-close></div>
+                                            <div class="panel-dark goal-player-modal-card">
+                                                <div class="goal-player-modal-header">
+                                                    <div>
+                                                        <div class="text-sm text-subtle">Card recipient</div>
+                                                        <div class="text-xs text-muted-alt">Pick a player to log the card</div>
+                                                    </div>
+                                                    <div class="goal-player-modal-header-actions">
+                                                        <button type="button" class="ghost-btn ghost-btn-sm" data-card-unknown>Unknown player</button>
+                                                        <button type="button" class="editor-modal-close" data-card-modal-close aria-label="Close card modal">✕</button>
+                                                    </div>
+                                                </div>
+                                                <div id="cardPlayerList" class="goal-player-modal-list"></div>
+                                            </div>
+                                        </div>
+                                        <div id="tagToast" class="desk-toast" style="display:none;"></div>
                                     </div>
-                                    <div id="tagToast" class="desk-toast" style="display:none;"></div>
                                 </div>
-                            </div>
-                        </div>
-                        <div class="desk-side-tab-panel" data-tab-panel="playlists" role="tabpanel">
-                            <div class="desk-playlist">
+                            </section>
+                            <section class="desk-section desk-playlists-section" aria-label="Playlists">
                                 <div id="playlistsPanel" class="panel-dark playlists-panel">
                                     <div class="playlist-panel-header">
                                         <div class="playlist-panel-heading">
@@ -772,22 +841,38 @@ ob_start();
                                         <div id="playlistClips" class="playlist-clips text-sm text-muted-alt">No playlist selected.</div>
                                     </div>
                                 </div>
-                            </div>
+                            </section>
                         </div>
-                        <?php if ($ANNOTATIONS_ENABLED): ?>
-                            <div class="desk-side-tab-panel" data-tab-panel="drawings" role="tabpanel">
-                                <div class="drawings-playlist">
-                                    <div class="drawings-playlist-header">
+                        <div class="desk-mode-panels" data-mode-panels>
+                            <div class="desk-mode-panel" data-panel="summary">
+                                <div class="panel-dark desk-summary-panel">
+                                    <div class="panel-row">
                                         <div>
-                                            <div class="text-sm text-subtle">Drawings</div>
-                                            <div class="text-xs text-muted-alt">Auto-collected sketches</div>
+                                            <div class="text-sm text-subtle">Match summary</div>
+                                            <div class="text-xs text-muted-alt">Live analytics context</div>
                                         </div>
-                                        <span class="chip chip-muted">Auto</span>
                                     </div>
-                                    <div id="drawingsPlaylistList" class="drawings-playlist-list text-sm text-muted-alt">No drawings yet.</div>
+                                    <div class="desk-summary-content">
+                                        <?php require __DIR__ . '/../../partials/match-summary-stats.php'; ?>
+                                    </div>
                                 </div>
                             </div>
-                        <?php endif; ?>
+
+                            <?php if ($ANNOTATIONS_ENABLED): ?>
+                                <div class="desk-mode-panel" data-panel="drawings">
+                                    <div class="drawings-playlist">
+                                        <div class="drawings-playlist-header">
+                                            <div>
+                                                <div class="text-sm text-subtle">Drawings</div>
+                                                <div class="text-xs text-muted-alt">Auto-collected sketches</div>
+                                            </div>
+                                            <span class="chip chip-muted">Auto</span>
+                                        </div>
+                                        <div id="drawingsPlaylistList" class="drawings-playlist-list text-sm text-muted-alt">No drawings yet.</div>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+                        </div>
                     </div>
                 </div>
             </aside>
@@ -805,9 +890,6 @@ ob_start();
                         <div id="editorHint" class="text-xs text-muted-alt">Click a timeline item to edit details</div>
                     </div>
                     <div class="editor-modal-header-actions">
-                        <div class="editor-actions">
-                            <button class="ghost-btn ghost-btn-sm desk-editable" id="eventNewBtn" type="button">Clear</button>
-                        </div>
                         <button type="button" class="editor-modal-close" data-editor-close aria-label="Close event editor">✕</button>
                     </div>
                 </div>
@@ -819,108 +901,90 @@ ob_start();
                 <div class="editor-tabs-row">
                     <div class="editor-tabs" role="tablist">
                         <button id="editorTabDetails" class="editor-tab is-active" data-panel="details" role="tab" aria-controls="editorTabpanelDetails" aria-selected="true">Details</button>
-                        <button id="editorTabOutcome" class="editor-tab" data-panel="outcome" role="tab" aria-controls="editorTabpanelOutcome" aria-selected="false">Outcome</button>
                         <button id="editorTabNotes" class="editor-tab" data-panel="notes" role="tab" aria-controls="editorTabpanelNotes" aria-selected="false">Notes</button>
                         <button id="editorTabClip" class="editor-tab" data-panel="clip" role="tab" aria-controls="editorTabpanelClip" aria-selected="false">Clip</button>
                     </div>
                 </div>
                 <div class="editor-tab-panels">
                     <div id="editorTabpanelDetails" class="editor-tab-panel is-active" data-panel="details" role="tabpanel" aria-labelledby="editorTabDetails">
-                        <label class="field-label">Event type</label>
-                        <select class="input-dark desk-editable" id="event_type_id">
-                            <?php foreach ($eventTypes as $type): ?>
-                                <option value="<?= (int)$type['id'] ?>"><?= htmlspecialchars($type['label']) ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                        <div class="grid-2 gap-sm">
-                            <div>
-                                <label class="field-label">Match time (MM:SS)</label>
-                                <div class="d-flex gap-sm align-items-center">
-                                    <button class="ghost-btn ghost-btn-sm desk-editable time-stepper" id="eventTimeStepDown" type="button" aria-label="Decrease time">−</button>
-                                    <input type="text" class="input-dark desk-editable text-center" id="event_time_display" value="00:00" aria-label="Match time" placeholder="MM:SS">
-                                    <button class="ghost-btn ghost-btn-sm desk-editable time-stepper" id="eventTimeStepUp" type="button" aria-label="Increase time">+</button>
-                                </div>
-                                <div class="text-xs text-muted-alt">Seconds must be 0–59; match_second stays canonical.</div>
-                            </div>
-                            <div>
-                                <label class="field-label">+Extra minutes</label>
-                                <input type="number" min="0" class="input-dark desk-editable" id="minute_extra_display" value="0" placeholder="0">
-                                <div class="text-xs text-muted-alt">Additional stoppage minutes metadata.</div>
-                            </div>
-                        </div>
-                        <div class="grid-2 gap-sm">
-                            <div>
-                                <label class="field-label">Team</label>
-                                <select class="input-dark desk-editable" id="team_side">
-                                    <option value="home">Home</option>
-                                    <option value="away">Away</option>
-                                    <option value="unknown">Unknown</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="field-label">Period</label>
-                                <select class="input-dark desk-editable" id="period_id">
-                                    <option value="">None</option>
-                                    <?php foreach ($periods ?? [] as $period): ?>
-                                        <option
-                                            value="<?= (int)$period['id'] ?>"
-                                            data-start-second="<?= isset($period['start_second']) ? (int)$period['start_second'] : '' ?>"
-                                            data-end-second="<?= isset($period['end_second']) ? (int)$period['end_second'] : '' ?>">
-                                            <?= htmlspecialchars($period['label'] ?: ucfirst(str_replace('_', ' ', $period['period_key'] ?? 'Period'))) ?>
-                                        </option>
+                        <div class="editor-modal-content">
+                            <div class="editor-content-left">
+                                <label class="field-label">Event type</label>
+                                <select class="input-dark desk-editable" id="event_type_id">
+                                    <?php foreach ($eventTypes as $type): ?>
+                                        <option value="<?= (int)$type['id'] ?>"><?= htmlspecialchars($type['label']) ?></option>
                                     <?php endforeach; ?>
                                 </select>
-                                <div class="text-xs text-muted-alt" id="periodHelperText" aria-live="polite"></div>
+
+                                <div>
+                                    <label class="field-label">Match time (MM:SS)</label>
+                                    <div class="d-flex gap-sm align-items-center">
+                                        <button class="ghost-btn ghost-btn-sm desk-editable time-stepper" id="eventTimeStepDown" type="button" aria-label="Decrease time">−</button>
+                                        <input type="text" class="input-dark desk-editable text-center" id="event_time_display" value="00:00" aria-label="Match time" placeholder="MM:SS">
+                                        <button class="ghost-btn ghost-btn-sm desk-editable time-stepper" id="eventTimeStepUp" type="button" aria-label="Increase time">+</button>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="field-label">Team</label>
+                                    <div class="team-selector-buttons" id="teamSelectorButtons" data-field="team_side">
+                                        <button type="button" class="team-selector-btn desk-editable" data-team="home" title="<?= htmlspecialchars($match['home_team'] ?? 'Home') ?>">
+                                            <?= htmlspecialchars($match['home_team'] ?? 'Home') ?>
+                                        </button>
+                                        <button type="button" class="team-selector-btn desk-editable" data-team="away" title="<?= htmlspecialchars($match['away_team'] ?? 'Away') ?>">
+                                            <?= htmlspecialchars($match['away_team'] ?? 'Away') ?>
+                                        </button>
+                                        <button type="button" class="team-selector-btn desk-editable" data-team="unknown" title="No team">
+                                            No team
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div id="outcomeField" style="display:none;">
+                                    <label class="field-label">Outcome</label>
+                                    <div class="outcome-selector-buttons" id="outcomeButtonsContainer" data-field="outcome">
+                                        <button type="button" class="outcome-selector-btn desk-editable" data-outcome="on_target" title="On Target">
+                                            On Target
+                                        </button>
+                                        <button type="button" class="outcome-selector-btn desk-editable" data-outcome="off_target" title="Off Target">
+                                            Off Target
+                                        </button>
+                                    </div>
+                                    <input type="hidden" class="input-dark desk-editable" id="outcome" value="">
+                                </div>
+                                <div>
+                                    <label class="field-label">Zone</label>
+                                    <input type="text" class="input-dark desk-editable" id="zone">
+                                </div>
+                                <label class="field-label">Tags</label>
+                                <select multiple class="input-dark desk-editable" id="tag_ids">
+                                    <?php foreach ($tags as $tag): ?>
+                                        <option value="<?= (int)$tag['id'] ?>"><?= htmlspecialchars($tag['label']) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
                             </div>
-                        </div>
-                        <div class="grid-2 gap-sm">
-                            <div>
+
+                            <div class="editor-content-right">
                                 <label class="field-label">Player</label>
-                                <select class="input-dark desk-editable" id="match_player_id">
-                                    <option value="">None</option>
-                                    <?php if (!empty($homePlayers)): ?>
-                                        <optgroup label="Home - <?= htmlspecialchars($match['home_team']) ?>">
-                                            <?php foreach ($homePlayers as $p): ?>
-                                                <option value="<?= (int)$p['id'] ?>"><?= htmlspecialchars($p['display_name']) ?></option>
-                                            <?php endforeach; ?>
-                                        </optgroup>
-                                    <?php endif; ?>
-                                    <?php if (!empty($awayPlayers)): ?>
-                                        <optgroup label="Away - <?= htmlspecialchars($match['away_team']) ?>">
-                                            <?php foreach ($awayPlayers as $p): ?>
-                                                <option value="<?= (int)$p['id'] ?>"><?= htmlspecialchars($p['display_name']) ?></option>
-                                            <?php endforeach; ?>
-                                        </optgroup>
-                                    <?php endif; ?>
-                                </select>
+                                <div id="playerSelectorContainer" style="display:none;">
+                                    <div class="player-selector-columns">
+                                        <div class="player-selector-column">
+                                            <div class="player-selector-column-label">Starting XI</div>
+                                            <div id="playerSelectorStarting" class="player-selector-buttons"></div>
+                                        </div>
+                                        <div class="player-selector-column">
+                                            <div class="player-selector-column-label">Subs</div>
+                                            <div id="playerSelectorSubs" class="player-selector-buttons"></div>
+                                        </div>
+                                    </div>
+                                    <input type="hidden" class="input-dark desk-editable" id="match_player_id" value="">
+                                </div>
                             </div>
-                            <div>
-                                <label class="field-label">Importance</label>
-                                <select class="input-dark desk-editable" id="importance">
-                                    <?php for ($i = 1; $i <= 5; $i++): ?>
-                                        <option value="<?= $i ?>"><?= $i ?></option>
-                                    <?php endfor; ?>
-                                </select>
-                            </div>
+
+                            <!-- Hidden fields for Importance and Phase - not user-editable but retained for API -->
+                            <input type="hidden" class="input-dark desk-editable" id="importance" value="3">
+                            <input type="hidden" class="input-dark desk-editable" id="phase" value="unknown">
                         </div>
-                        <label class="field-label">Phase</label>
-                        <input type="text" class="input-dark desk-editable" id="phase" placeholder="unknown">
-                    </div>
-                    <div id="editorTabpanelOutcome" class="editor-tab-panel" data-panel="outcome" role="tabpanel" aria-labelledby="editorTabOutcome">
-                        <div id="outcomeField" style="display:none;">
-                            <label class="field-label">Outcome</label>
-                            <select class="input-dark desk-editable" id="outcome"></select>
-                        </div>
-                        <div>
-                            <label class="field-label">Zone</label>
-                            <input type="text" class="input-dark desk-editable" id="zone">
-                        </div>
-                        <label class="field-label">Tags</label>
-                        <select multiple class="input-dark desk-editable" id="tag_ids">
-                            <?php foreach ($tags as $tag): ?>
-                                <option value="<?= (int)$tag['id'] ?>"><?= htmlspecialchars($tag['label']) ?></option>
-                            <?php endforeach; ?>
-                        </select>
                     </div>
                     <div id="editorTabpanelNotes" class="editor-tab-panel" data-panel="notes" role="tabpanel" aria-labelledby="editorTabNotes">
                         <label class="field-label">Notes</label>
@@ -960,36 +1024,74 @@ ob_start();
                 <div class="panel-row editor-modal-footer">
                     <div class="btn-row">
                         <button class="primary-btn desk-editable" id="eventSaveBtn" type="button">Save edits</button>
-                        <button class="ghost-btn desk-editable" id="eventDeleteBtn" type="button">Delete</button>
                     </div>
+                    <button class="danger-btn desk-editable" id="eventDeleteBtn" type="button">Delete event</button>
                 </div>
-            </div>
         </div>
+    </div>
+
 
 <script>
     (function () {
-        const tabsRoot = document.querySelector('[data-desk-side-tabs]');
-        if (!tabsRoot) {
+        const modeRoot = document.querySelector('[data-desk-side-modes]');
+        const panelRoot = document.querySelector('[data-mode-panels]');
+        const deskSide = document.querySelector('.desk-side');
+        const liveContainer = document.querySelector('[data-desk-live-tagging]');
+        if (!modeRoot) {
             return;
         }
-        const buttons = Array.from(tabsRoot.querySelectorAll('[data-tab-button]'));
-        const panels = Array.from(tabsRoot.querySelectorAll('[data-tab-panel]'));
-        const activateTab = (key) => {
-            buttons.forEach((button) => {
-                const isActive = button.dataset.tabButton === key;
-                button.classList.toggle('is-active', isActive);
-                button.setAttribute('aria-selected', isActive ? 'true' : 'false');
-            });
-            panels.forEach((panel) => {
-                panel.classList.toggle('is-active', panel.dataset.tabPanel === key);
-            });
+        const buttons = Array.from(modeRoot.querySelectorAll('[data-mode]'));
+        const panels = panelRoot ? Array.from(panelRoot.querySelectorAll('[data-panel]')) : [];
+        const updateLiveVisibility = (mode) => {
+            const isLive = mode === 'tag-live';
+            deskSide?.classList.toggle('is-mode-active', isLive);
+            if (liveContainer) {
+                liveContainer.setAttribute('aria-hidden', (!isLive).toString());
+            }
         };
-        const defaultTab = tabsRoot.dataset.defaultTab || 'playlists';
-        activateTab(defaultTab);
+        const activateMode = (targetMode) => {
+            buttons.forEach((button) => {
+                const isActive = button.dataset.mode === targetMode;
+                button.classList.toggle('is-active', isActive);
+                button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+            });
+            if (!panelRoot) {
+                updateLiveVisibility(targetMode);
+                return;
+            }
+            const targetPanel = panels.find((panel) => panel.dataset.panel === targetMode);
+            panels.forEach((panel) => {
+                const isVisible = Boolean(targetPanel && panel === targetPanel);
+                panel.classList.toggle('is-visible', isVisible);
+                panel.setAttribute('aria-hidden', isVisible ? 'false' : 'true');
+            });
+            updateLiveVisibility(targetMode);
+        };
+        activateMode(modeRoot.dataset.defaultMode || 'tag-live');
         buttons.forEach((button) => {
             button.addEventListener('click', () => {
-                activateTab(button.dataset.tabButton);
+                activateMode(button.dataset.mode);
             });
+        });
+    })();
+</script>
+<script>
+    (function () {
+        const toggleBtn = document.querySelector('[data-desk-lineup-button]');
+        const deskRoot = document.getElementById('deskRoot');
+        if (!toggleBtn) {
+            return;
+        }
+
+        const normalizedBase = (deskRoot?.dataset.basePath || '').replace(/\/$/, '');
+        const contextMatchId = toggleBtn.dataset.matchId || deskRoot?.dataset.matchId;
+        if (!contextMatchId) {
+            return;
+        }
+
+        toggleBtn.addEventListener('click', () => {
+            const target = `${normalizedBase || ''}/matches/${encodeURIComponent(contextMatchId)}/lineup`;
+            window.location.href = target;
         });
     })();
 </script>

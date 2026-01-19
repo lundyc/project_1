@@ -101,27 +101,6 @@ $wizardConfig = [
           'debugConsole' => $debugMode,
 ];
 
-$lineupConfig = [
-          'basePath' => $base,
-          'clubId' => $selectedClubId,
-          'matchId' => $matchIdValue,
-          'homeTeamId' => $matchHomeId,
-          'awayTeamId' => $matchAwayId,
-          'matchPlayers' => [
-                    'list' => $base . '/api/match-players/list',
-                    'add' => $base . '/api/match-players/add',
-                    'update' => $base . '/api/match-players/update',
-                    'delete' => $base . '/api/match-players/delete',
-          ],
-          'players' => [
-                    'list' => $base . '/api/players/list',
-                    'create' => $base . '/api/players/create',
-          ],
-          'overviewPathTemplate' => $base . '/matches/{match_id}',
-          'analysisDeskPathTemplate' => $base . '/matches/{match_id}/desk',
-          'stateKey' => 'matchWizardState',
-];
-
 $setupConfig = [
           'basePath' => $base,
           'clubId' => $selectedClubId,
@@ -134,9 +113,7 @@ $setupConfig = [
 
 $footerScripts = '<script>window.MatchWizardConfig = ' . json_encode($wizardConfig) . ';</script>';
 $footerScripts .= '<script>window.MatchWizardSetupConfig = ' . json_encode($setupConfig) . ';</script>';
-$footerScripts .= '<script>window.MatchWizardLineupConfig = ' . json_encode($lineupConfig) . ';</script>';
 $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/match-setup.js?v=' . time() . '"></script>';
-$footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/wizard-lineup.js?v=' . time() . '"></script>';
 $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/match-wizard.js?v=' . time() . '"></script>';
 
 ob_start();
@@ -195,13 +172,6 @@ ob_start();
                               <div>
                                         <div class="text-xs text-muted-alt">Step 3</div>
                                         <div class="wizard-step-title">Download progress</div>
-                              </div>
-                    </div>
-                    <div class="wizard-step-card" data-step-nav="4">
-                              <div class="wizard-step-index">4</div>
-                              <div>
-                                        <div class="text-xs text-muted-alt">Step 4</div>
-                                        <div class="wizard-step-title">Player lineup</div>
                               </div>
                     </div>
           </div>
@@ -364,7 +334,7 @@ ob_start();
                                                   <?php if ($isEdit): ?>
                                                             <button type="button" class="btn btn-outline-secondary-soft btn-sm" id="step1SaveInline">Save details</button>
                                                   <?php endif; ?>
-                                                  <button type="button" class="btn btn-primary-soft" id="step1Next" <?= empty($teams) ? 'disabled' : '' ?>>Continue to video</button>
+                                                  <button type="button" class="btn btn-primary-soft" id="step1Next" <?= empty($teams) ? 'disabled' : '' ?>>Proceed to Step 2</button>
                                         </div>
                               </div>
                     </div>
@@ -486,15 +456,7 @@ ob_start();
                               <pre id="matchDebugJson" class="bg-surface border border-soft rounded-md p-2" style="max-height:180px; overflow:auto; font-size:0.75rem;"></pre>
                     </div>
           <?php endif; ?>
-          <div class="wizard-step-panel" data-step="4">
-                    <?php require __DIR__ . '/wizard-step-lineup.php'; ?>
-          </div>
-          <div class="wizard-actions mt-4">
-                    <button type="button" class="btn btn-outline-secondary-soft btn-sm" id="wizardSaveBtn">Save progress</button>
-                    <a href="<?= htmlspecialchars($base) ?>/matches" class="btn btn-secondary-soft btn-sm" id="wizardFinishBtn">Finish</a>
-          </div>
 </form>
-<?php require __DIR__ . '/wizard-step-lineup-modal.php'; ?>
 
 <div id="setupModals">
           <div id="teamCreateModal" class="setup-modal" role="dialog" aria-hidden="true" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:2100; align-items:center; justify-content:center;">
