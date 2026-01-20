@@ -20,6 +20,9 @@
                     }
 
                     _init() {
+                              // Set initial aria-hidden state
+                              this.element.setAttribute('aria-hidden', 'true');
+
                               // Bind close button
                               const closeBtn = this.element.querySelector('[data-bs-dismiss="modal"]');
                               if (closeBtn) {
@@ -257,7 +260,7 @@
                               this.toggle.addEventListener('click', (e) => {
                                         e.preventDefault();
                                         e.stopPropagation();
-                                        this.toggle();
+                                        this.toggleDropdown();
                               });
 
                               // Close on outside click
@@ -292,7 +295,7 @@
                               this.toggle.setAttribute('aria-expanded', 'false');
                     }
 
-                    toggle() {
+                    toggleDropdown() {
                               if (this.isOpen) {
                                         this.hide();
                               } else {

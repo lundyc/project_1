@@ -3364,3 +3364,277 @@ a:hover {
 .form-check-label {
           cursor: pointer;
 }
+
+/* ====================================
+   Match Edit Page Styles
+   ==================================== */
+
+/* Navigation Items */
+.edit-nav-item {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          width: 100%;
+          padding: 0.625rem 1rem;
+          text-align: left;
+          font-size: 0.875rem;
+          font-weight: 500;
+          border-radius: 0.5rem;
+          border: 1px solid;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          background-color: rgba(30, 41, 59, 0.4);
+          border-color: rgba(255, 255, 255, 0.1);
+          color: rgb(203, 213, 225);
+}
+
+.edit-nav-item:hover {
+          background-color: rgba(51, 65, 85, 0.5);
+          border-color: rgba(255, 255, 255, 0.2);
+}
+
+.edit-nav-item.active {
+          background-color: rgb(79, 70, 229);
+          border-color: rgb(99, 102, 241);
+          color: rgb(255, 255, 255);
+          box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.2), 0 4px 6px -4px rgba(79, 70, 229, 0.2);
+}
+
+.edit-nav-item i.fa-chevron-right {
+          opacity: 0;
+          transition: opacity 0.2s ease;
+}
+
+.edit-nav-item:hover i.fa-chevron-right,
+.edit-nav-item.active i.fa-chevron-right {
+          opacity: 1;
+}
+
+/* Event Tabs */
+.event-tab {
+          display: inline-flex;
+          align-items: center;
+          padding: 0.875rem 1.25rem;
+          font-size: 0.875rem;
+          font-weight: 500;
+          color: rgb(148, 163, 184);
+          background: transparent;
+          border: none;
+          border-bottom: 2px solid transparent;
+          cursor: pointer;
+          transition: all 0.2s ease;
+}
+
+.event-tab:hover {
+          color: rgb(226, 232, 240);
+          background: rgba(51, 65, 85, 0.3);
+}
+
+.event-tab.active {
+          color: rgb(255, 255, 255);
+          border-bottom-color: rgb(59, 130, 246);
+          background: rgba(59, 130, 246, 0.05);
+}
+
+/* Section transitions */
+.edit-section {
+          animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+          from {
+                    opacity: 0;
+                    transform: translateY(10px);
+          }
+
+          to {
+                    opacity: 1;
+                    transform: translateY(0);
+          }
+}
+
+.event-tab-content {
+          animation: fadeIn 0.25s ease;
+}
+
+/* Lineup Player Cards */
+.lineup-player-card {
+          padding: 0.75rem;
+          background: rgba(30, 41, 59, 0.5);
+          border: 1px solid rgba(148, 163, 184, 0.1);
+          border-radius: 0.5rem;
+          transition: all 0.2s ease;
+}
+
+.lineup-player-card:hover {
+          background: rgba(30, 41, 59, 0.8);
+          border-color: rgba(148, 163, 184, 0.2);
+}
+
+.lineup-shirt-number {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 2rem;
+          height: 2rem;
+          font-size: 0.75rem;
+          font-weight: 600;
+          color: rgb(255, 255, 255);
+          background: rgba(59, 130, 246, 0.2);
+          border: 1px solid rgba(59, 130, 246, 0.4);
+          border-radius: 0.375rem;
+}
+
+.lineup-position {
+          font-size: 0.75rem;
+          font-weight: 500;
+          color: rgb(148, 163, 184);
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+}
+
+.lineup-delete-btn {
+          padding: 0.375rem;
+          color: rgb(148, 163, 184);
+          background: transparent;
+          border: none;
+          border-radius: 0.375rem;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          opacity: 0;
+}
+
+.lineup-player-card:hover .lineup-delete-btn {
+          opacity: 1;
+}
+
+.lineup-delete-btn:hover {
+          color: rgb(248, 113, 113);
+          background: rgba(248, 113, 113, 0.1);
+}
+
+/* Modal Styles */
+.modal {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          z-index: 9999;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 1rem;
+}
+
+.modal-backdrop {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.75);
+          backdrop-filter: blur(4px);
+}
+
+.modal-dialog {
+          position: relative;
+          width: 100%;
+          max-width: 500px;
+          z-index: 1;
+}
+
+.modal-content {
+          background: rgb(15, 23, 42);
+          border: 1px solid rgba(148, 163, 184, 0.2);
+          border-radius: 0.75rem;
+          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+          animation: modalSlideIn 0.3s ease;
+}
+
+@keyframes modalSlideIn {
+          from {
+                    opacity: 0;
+                    transform: translateY(-20px) scale(0.95);
+          }
+
+          to {
+                    opacity: 1;
+                    transform: translateY(0) scale(1);
+          }
+}
+
+.modal-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 1.5rem;
+          border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.modal-title {
+          font-size: 1.125rem;
+          font-weight: 600;
+          color: rgb(255, 255, 255);
+}
+
+.modal-close {
+          padding: 0.5rem;
+          color: rgb(148, 163, 184);
+          background: transparent;
+          border: none;
+          border-radius: 0.375rem;
+          cursor: pointer;
+          transition: all 0.2s ease;
+}
+
+.modal-close:hover {
+          color: rgb(255, 255, 255);
+          background: rgba(148, 163, 184, 0.1);
+}
+
+.modal-body {
+          padding: 1.5rem;
+}
+
+.modal-footer {
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 0.75rem;
+          padding: 1.5rem;
+          border-top: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.btn-primary {
+          padding: 0.625rem 1.25rem;
+          font-size: 0.875rem;
+          font-weight: 500;
+          color: rgb(255, 255, 255);
+          background: rgb(59, 130, 246);
+          border: none;
+          border-radius: 0.5rem;
+          cursor: pointer;
+          transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+          background: rgb(29, 78, 216);
+}
+
+.btn-secondary {
+          padding: 0.625rem 1.25rem;
+          font-size: 0.875rem;
+          font-weight: 500;
+          color: rgb(226, 232, 240);
+          background: rgba(148, 163, 184, 0.1);
+          border: 1px solid rgba(148, 163, 184, 0.2);
+          border-radius: 0.5rem;
+          cursor: pointer;
+          transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+          background: rgba(148, 163, 184, 0.2);
+          border-color: rgba(148, 163, 184, 0.3);
+}

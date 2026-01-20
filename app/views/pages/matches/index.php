@@ -259,7 +259,7 @@ ob_start();
                     </div>
           <?php endif; ?>
 </div>
-<div class="modal fade" id="matchShareModal" tabindex="-1" aria-labelledby="matchShareModalLabel" aria-hidden="true">
+<div class="modal fade" id="matchShareModal" tabindex="-1" aria-labelledby="matchShareModalLabel" style="display:none;">
           <div class="modal-dialog modal-dialog-centered">
                     <div class="modal-content">
                               <div class="modal-header">

@@ -233,6 +233,16 @@ route('/api/match-substitutions/list', function () {
           require __DIR__ . '/../app/api/match-substitutions/list.php';
 });
 
+route('/api/match-substitutions/create', function () {
+          require_auth();
+          require __DIR__ . '/../app/api/match-substitutions/create.php';
+});
+
+route('/api/match-substitutions/delete', function () {
+          require_auth();
+          require __DIR__ . '/../app/api/match-substitutions/delete.php';
+});
+
 route('/api/formations/list', function () {
           require_auth();
           require __DIR__ . '/../app/api/formations/list.php';
@@ -567,7 +577,7 @@ function handle_dynamic_match_routes(string $path): bool
                               return true;
                     }
 
-                    require __DIR__ . '/../app/views/pages/matches/edit_step1.php';
+                    require __DIR__ . '/../app/views/pages/matches/edit.php';
                     return true;
               }
 
