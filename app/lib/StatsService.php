@@ -2,6 +2,9 @@
 
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/match_repository.php';
+require_once __DIR__ . '/event_repository.php';
+require_once __DIR__ . '/match_stats_service.php';
+require_once __DIR__ . '/match_period_repository.php';
 
 /**
  * StatsService - Centralized service for all statistics data access
@@ -344,6 +347,142 @@ class StatsService
         }
 
         return $stats;
+    }
+
+    /**
+     * Get match events broken down by team side and type (goals, yellow/red cards)
+     *
+     * @param int $matchId
+     * @return array
+     * @throws \Exception
+     */
+    public function getMatchEvents(int $matchId): array
+    {
+        // Verify match belongs to this club
+        $matchStmt = $this->pdo->prepare('
+            SELECT id, club_id
+            FROM matches
+            WHERE id = :id AND club_id = :club_id
+            LIMIT 1
+        ');
+        $matchStmt->execute(['id' => $matchId, 'club_id' => $this->clubId]);
+        $match = $matchStmt->fetch();
+        if (!$match) {
+            throw new \Exception('Match not found');
+        }
+
+        $typeMap = $this->getEventTypeMapping();
+        $goalTypeId = $typeMap['goal'] ?? null;
+        $yellowTypeId = $typeMap['yellow_card'] ?? null;
+        $redTypeId = $typeMap['red_card'] ?? null;
+
+        $stmt = $this->pdo->prepare('
+            SELECT 
+                e.team_side,
+                e.event_type_id,
+                e.minute,
+                e.match_player_id,
+                e.player_id,
+                p.display_name AS player_name
+            FROM events e
+            LEFT JOIN match_players mp ON mp.id = e.match_player_id
+            LEFT JOIN players p ON p.id = COALESCE(e.player_id, mp.player_id)
+            WHERE e.match_id = :match_id
+            ORDER BY e.minute ASC, e.id ASC
+        ');
+        $stmt->execute(['match_id' => $matchId]);
+        $rows = $stmt->fetchAll();
+
+        $events = [
+            'home_goals' => [],
+            'away_goals' => [],
+            'home_yellow' => [],
+            'away_yellow' => [],
+            'home_red' => [],
+            'away_red' => [],
+        ];
+
+        foreach ($rows as $row) {
+            $side = $row['team_side'] === 'away' ? 'away' : 'home';
+            $typeId = (int)($row['event_type_id'] ?? 0);
+            $minute = (int)($row['minute'] ?? 0);
+            $player = $row['player_name'] ?? 'Unknown';
+
+            if ($goalTypeId && $typeId === $goalTypeId) {
+                $events["{$side}_goals"][] = ['player' => $player, 'minute' => $minute];
+            } elseif ($yellowTypeId && $typeId === $yellowTypeId) {
+                $events["{$side}_yellow"][] = ['player' => $player, 'minute' => $minute];
+            } elseif ($redTypeId && $typeId === $redTypeId) {
+                $events["{$side}_red"][] = ['player' => $player, 'minute' => $minute];
+            }
+        }
+
+        return $events;
+    }
+
+    /**
+     * Get derived match stats (phase 2 buckets, per-period, per-15, and full events)
+     *
+     * @param int $matchId
+     * @return array
+     * @throws \Exception
+     */
+    public function getMatchDerivedData(int $matchId): array
+    {
+        $matchStmt = $this->pdo->prepare('
+            SELECT 
+                m.id,
+                m.club_id,
+                m.events_version,
+                m.kickoff_at,
+                m.status,
+                COALESCE(ht.name, "Home") AS home_team,
+                COALESCE(at.name, "Away") AS away_team,
+                COALESCE(c.name, "Competition") AS competition
+            FROM matches m
+            LEFT JOIN teams ht ON ht.id = m.home_team_id
+            LEFT JOIN teams at ON at.id = m.away_team_id
+            LEFT JOIN competitions c ON c.id = m.competition_id
+            WHERE m.id = :id AND m.club_id = :club_id
+            LIMIT 1
+        ');
+        $matchStmt->execute(['id' => $matchId, 'club_id' => $this->clubId]);
+        $match = $matchStmt->fetch();
+
+        if (!$match) {
+            throw new \Exception('Match not found');
+        }
+
+        $events = event_list_for_match($matchId);
+        $eventTypes = $this->getEventTypesForClub();
+        $eventsVersion = (int)($match['events_version'] ?? 0);
+        $derived = get_or_compute_match_stats($matchId, $eventsVersion, $events, $eventTypes);
+        $periods = get_match_periods($matchId);
+
+        $kickoffAt = null;
+        if (!empty($match['kickoff_at'])) {
+            try {
+                $kickoffAt = new \DateTime($match['kickoff_at']);
+            } catch (\Throwable $e) {
+                $kickoffAt = null;
+            }
+        }
+
+        return [
+            'match' => [
+                'id' => $matchId,
+                'home_team' => $match['home_team'] ?? 'Home',
+                'away_team' => $match['away_team'] ?? 'Away',
+                'competition' => $match['competition'] ?? 'Competition',
+                'status' => $match['status'] ?? 'Scheduled',
+                'date' => $kickoffAt ? $kickoffAt->format('j M Y') : null,
+                'time' => $kickoffAt ? $kickoffAt->format('H:i') : null,
+                'events_version' => $eventsVersion,
+            ],
+            'derived' => $derived,
+            'events' => $events,
+            'periods' => $periods,
+        ];
     }
 
 
@@ -1030,6 +1169,18 @@ class StatsService
      * 
      * @return array Associative array of type_key => event_type_id
      */
+    private function getEventTypesForClub(): array
+    {
+        $stmt = $this->pdo->prepare('
+            SELECT id, label, type_key, default_importance
+            FROM event_types
+            WHERE club_id = :club_id
+            ORDER BY label ASC
+        ');
+        $stmt->execute(['club_id' => $this->clubId]);
+        return $stmt->fetchAll();
+    }
+
     private function getEventTypeMapping(): array
     {
         $stmt = $this->pdo->prepare('
@@ -1189,9 +1340,10 @@ class StatsService
         return isset($map[$typeKey]) ? (int)$map[$typeKey] : 0;
     }
 
-    public function getTeamPerformanceStats(?int $seasonId = null, ?string $type = null): array
+    public function getTeamPerformanceStats(?int $seasonId = null, ?string $type = null, ?int $formLimit = null): array
     {
         $goalTypeId = $this->getGoalEventTypeId();
+        $desiredFormLimit = $formLimit !== null ? max(1, min(10, $formLimit)) : 5;
         
         $where = ['m.club_id = :club_id', 'm.status = "ready"'];
         $params = ['club_id' => $this->clubId, 'goal_type_id' => $goalTypeId];
@@ -1306,7 +1458,7 @@ class StatsService
             }
             $competitionRecord['goal_difference'] = $competitionRecord['goals_for'] - $competitionRecord['goals_against'];
 
-            if (count($form) < 5) {
+            if (count($form) < $desiredFormLimit) {
                 $form[] = [
                     'match_id' => (int)$match['id'],
                     'result' => $result,

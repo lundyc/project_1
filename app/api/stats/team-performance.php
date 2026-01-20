@@ -27,9 +27,10 @@ try {
     // Get filter parameters
     $seasonId = !empty($_GET['season_id']) ? (int)$_GET['season_id'] : null;
     $type = !empty($_GET['type']) && in_array($_GET['type'], ['league', 'cup'], true) ? $_GET['type'] : null;
+    $formLimit = isset($_GET['form_limit']) ? (int)$_GET['form_limit'] : null;
 
     $service = new StatsService($clubId);
-    $stats = $service->getTeamPerformanceStats($seasonId, $type);
+    $stats = $service->getTeamPerformanceStats($seasonId, $type, $formLimit);
 
     echo json_encode([
         'success' => true,

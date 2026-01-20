@@ -267,7 +267,7 @@ ob_start();
                         </div>
                         <div class="video-actions">
                                 <div class="video-actions-left">
-                                    <a class="toggle-btn is-active stats-btn" href="<?= htmlspecialchars($base) ?>/matches/<?= $matchId ?>/stats">Stats</a>
+                                    <a class="toggle-btn is-active stats-btn" href="<?= htmlspecialchars($base) ?>/stats/match/<?= $matchId ?>">Stats</a>
                                     <button type="button" class="toggle-btn lineup-toggle-btn" data-desk-lineup-button data-match-id="<?= $matchId ?>" aria-pressed="false">Lineup</button>
                                     <?php if (!empty($videoFormats) && count($videoFormats) > 1): ?>
                                     <div class="video-format-toggle" data-video-format-toggle>

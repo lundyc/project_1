@@ -1,10 +1,10 @@
 <?php
 /**
- * Match Overview API
+ * Match Derived Stats API
  *
- * GET /api/stats/match/overview?match_id={match_id}
+ * GET /api/stats/match/derived?match_id={match_id}
  *
- * Returns aggregated event metrics for a single match with contextual metadata.
+ * Returns derived match statistics (phase 2 buckets, per-period/per-15, full events, periods, and match meta).
  */
 require_auth();
 require_once __DIR__ . '/../../../lib/StatsService.php';
@@ -41,38 +41,14 @@ try {
     }
 
     $service = new StatsService($clubId);
-    $stats = $service->getMatchStats($matchId);
-    $events = $service->getMatchEvents($matchId);
-
-    $kickoffAt = null;
-    if (!empty($match['kickoff_at'])) {
-        try {
-            $kickoffAt = new DateTime($match['kickoff_at']);
-        } catch (Exception $e) {
-            $kickoffAt = null;
-        }
-    }
-
-    $matchMeta = [
-        'id' => $matchId,
-        'home_team' => $match['home_team'] ?? ($match['home_team_name'] ?? 'Home'),
-        'away_team' => $match['away_team'] ?? ($match['away_team_name'] ?? 'Away'),
-        'competition' => $match['competition'] ?? $match['competition_name'] ?? 'Competition',
-        'status' => $match['status'] ?? 'Scheduled',
-        'date' => $kickoffAt ? $kickoffAt->format('j M Y') : null,
-        'time' => $kickoffAt ? $kickoffAt->format('H:i') : null,
-    ];
+    $derived = $service->getMatchDerivedData($matchId);
 
     echo json_encode([
         'success' => true,
-        'data' => [
-            'match' => $matchMeta,
-            'stats' => $stats,
-            'events' => $events,
-        ],
+        'data' => $derived,
     ]);
 } catch (\Throwable $e) {
-    error_log('Stats match overview API error: ' . $e->getMessage());
+    error_log('Stats match derived API error: ' . $e->getMessage());
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Unable to load match overview statistics']);
+    echo json_encode(['success' => false, 'error' => 'Unable to load match derived statistics']);
 }

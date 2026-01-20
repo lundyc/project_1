@@ -414,9 +414,17 @@ ob_start();
                             <div class="col-12 col-md-6">
                                 <div class="rounded-xl border border-white/10 bg-slate-800/60 p-3">
                                     <div class="d-flex align-items-center justify-content-between mb-3">
-                                        <h5 class="mb-0 text-light">Recent Form (Last 5)</h5>
+                                        <h5 class="mb-0 text-light">Recent Form</h5>
+                                        <select id="team-performance-form-count" class="block rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-white/30">
+                                            <option value="5" selected>Last 5</option>
+                                            <option value="6">Last 6</option>
+                                            <option value="7">Last 7</option>
+                                            <option value="8">Last 8</option>
+                                            <option value="9">Last 9</option>
+                                            <option value="10">Last 10</option>
+                                        </select>
                                     </div>
-                                    <div id="team-performance-form" class="flex gap-3 overflow-x-auto px-2">
+                                    <div id="team-performance-form" class="transition-opacity duration-300">
                                         <div class="text-muted text-xs">Loading…</div>
                                     </div>
                                     <div id="team-performance-form-empty" class="text-muted text-xs mt-2" style="display:none;">Add matches to capture your form.</div>
@@ -1354,9 +1362,11 @@ ob_start();
         const contentEl = document.getElementById('team-performance-content');
         const formContainer = document.getElementById('team-performance-form');
         const formEmptyEl = document.getElementById('team-performance-form-empty');
+        const formCountSelect = document.getElementById('team-performance-form-count');
         const recordBody = document.getElementById('team-performance-home-away');
         const statElements = document.querySelectorAll('[data-team-stat]');
         let initialized = false;
+        let formEntries = [];
 
         function formatNumber(value) {
             if (value === null || value === undefined || value === '') {
@@ -1544,12 +1554,42 @@ ob_start();
             recordBody.innerHTML = rows.join('');
         }
 
+        function getFormLimit() {
+            const val = formCountSelect ? parseInt(formCountSelect.value, 10) : 5;
+            return Number.isFinite(val) ? val : 5;
+        }
+
+        function applyFormLayout(limit) {
+            if (!formContainer) return;
+            const base = 'transition-opacity duration-300';
+            if (limit > 5) {
+                formContainer.className = `${base} grid gap-3 px-2`;
+                formContainer.style.display = 'grid';
+                formContainer.style.gridTemplateColumns = 'repeat(5, minmax(0, 1fr))';
+                formContainer.style.overflowX = 'visible';
+            } else {
+                formContainer.className = `${base} flex flex-nowrap gap-3 px-2 overflow-x-auto`;
+                formContainer.style.display = 'flex';
+                formContainer.style.gridTemplateColumns = '';
+                formContainer.style.overflowX = 'auto';
+            }
+        }
+
         function renderForm(entries = []) {
+            formEntries = Array.isArray(entries) ? entries : [];
+            renderFormWithLimit();
+        }
+
+        function renderFormWithLimit() {
             if (!formContainer) {
                 return;
             }
-            formContainer.innerHTML = '';
-            if (!Array.isArray(entries) || entries.length === 0) {
+
+            const limit = getFormLimit();
+            const subset = formEntries.slice(0, limit);
+
+            if (!subset.length) {
+                formContainer.innerHTML = '';
                 if (formEmptyEl) {
                     formEmptyEl.style.display = '';
                 }
@@ -1559,25 +1599,36 @@ ob_start();
                 formEmptyEl.style.display = 'none';
             }
 
-            entries.forEach((entry) => {
-                const pill = document.createElement('div');
-                const result = entry.result ?? '—';
-                const colorClass = result === 'W' ? 'tp-form-result--W' : result === 'D' ? 'tp-form-result--D' : result === 'L' ? 'tp-form-result--L' : '';
-                pill.className = `rounded-lg border border-white/10 bg-slate-800/40 p-2 flex-shrink-0 w-32 text-center ${colorClass}`;
-                const dateLabel = entry.date ? new Date(entry.date).toLocaleDateString() : 'TBD';
-                const venueLabel = entry.venue ?? 'Home';
-                const opponent = entry.opponent ?? 'Opponent';
-                const score = entry.score ?? '—';
-                const resultClass = result === 'W' ? 'text-emerald-400' : result === 'D' ? 'text-amber-400' : 'text-red-400';
-                pill.innerHTML = `
-                    <div class="${resultClass} text-3xl font-bold mb-2">${result}</div>
-                    <div class="text-sm font-semibold text-slate-100 mb-1">${score}</div>
-                    <div class="text-xs text-slate-400 mb-1">${venueLabel}</div>
-                    <div class="text-xs text-slate-400">vs ${opponent}</div>
-                    <div class="text-xs text-slate-500 mt-1">${dateLabel}</div>
-                `;
-                formContainer.appendChild(pill);
-            });
+            applyFormLayout(limit);
+
+            // simple fade
+            formContainer.style.opacity = '0';
+            setTimeout(() => {
+                formContainer.innerHTML = '';
+                subset.forEach((entry) => {
+                    const pill = document.createElement('div');
+                    const result = entry.result ?? '—';
+                    const colorClass = result === 'W' ? 'tp-form-result--W' : result === 'D' ? 'tp-form-result--D' : result === 'L' ? 'tp-form-result--L' : '';
+                    pill.className = `rounded-lg border border-white/10 bg-slate-800/40 p-3 w-full min-w-[7.5rem] text-center shadow-sm transition-transform duration-200 hover:-translate-y-0.5 ${colorClass}`;
+                    const dateLabel = entry.date ? new Date(entry.date).toLocaleDateString() : 'TBD';
+                    const venueLabel = entry.venue ?? 'Home';
+                    const opponent = entry.opponent ?? 'Opponent';
+                    const score = entry.score ?? '—';
+                    const resultClass = result === 'W' ? 'text-emerald-400' : result === 'D' ? 'text-amber-400' : 'text-red-400';
+                    pill.innerHTML = `
+                        <div class="${resultClass} text-3xl font-bold mb-2">${result}</div>
+                        <div class="text-sm font-semibold text-slate-100 mb-1">${score}</div>
+                        <div class="text-xs text-slate-400 mb-1">${venueLabel}</div>
+                        <div class="text-xs text-slate-400">vs ${opponent}</div>
+                        <div class="text-xs text-slate-500 mt-1">${dateLabel}
+                        </div>
+                    `;
+                    formContainer.appendChild(pill);
+                });
+                requestAnimationFrame(() => {
+                    formContainer.style.opacity = '1';
+                });
+            }, 30);
         }
 
         function applyStats(data) {
@@ -1635,12 +1686,16 @@ ob_start();
         function getFilterParams() {
             const seasonSelect = document.getElementById('team-performance-season-filter');
             const typeSelect = document.getElementById('team-performance-type-filter');
+            const formSelect = document.getElementById('team-performance-form-count');
             const params = new URLSearchParams();
             if (seasonSelect && seasonSelect.value) {
                 params.append('season_id', seasonSelect.value);
             }
             if (typeSelect && typeSelect.value) {
                 params.append('type', typeSelect.value);
+            }
+            if (formSelect && formSelect.value) {
+                params.append('form_limit', formSelect.value);
             }
             return params.toString();
         }
@@ -1650,8 +1705,11 @@ ob_start();
             return filters ? url + '?' + filters : url;
         }
 
-        function fetchStats() {
-            showLoadingState();
+        function fetchStats(options = {}) {
+            const silent = options.silent === true;
+            if (!silent) {
+                showLoadingState();
+            }
             fetch(getUrl(), {
                 credentials: 'same-origin',
                 headers: { Accept: 'application/json' },
@@ -1672,7 +1730,9 @@ ob_start();
                 })
                 .catch((error) => {
                     console.error('[Team Performance]', error);
-                    showErrorState();
+                    if (!silent) {
+                        showErrorState();
+                    }
                 });
         }
 
@@ -1704,15 +1764,23 @@ ob_start();
                         updateCompetitionTypeRows();
                     });
                 }
+                if (formCountSelect) {
+                    formCountSelect.addEventListener('change', () => {
+                        saveFilterValues();
+                        fetchStats({ silent: true });
+                    });
+                }
             },
         };
         
         function saveFilterValues() {
             const seasonSelect = document.getElementById('team-performance-season-filter');
             const typeSelect = document.getElementById('team-performance-type-filter');
+            const formSelect = document.getElementById('team-performance-form-count');
             const filters = {};
             if (seasonSelect) filters.season = seasonSelect.value;
             if (typeSelect) filters.type = typeSelect.value;
+            if (formSelect) filters.form_count = formSelect.value;
             localStorage.setItem('teamPerformanceFilters', JSON.stringify(filters));
         }
         
@@ -1724,11 +1792,15 @@ ob_start();
                 const filters = JSON.parse(saved);
                 const seasonSelect = document.getElementById('team-performance-season-filter');
                 const typeSelect = document.getElementById('team-performance-type-filter');
+                const formSelect = document.getElementById('team-performance-form-count');
                 if (seasonSelect && filters.season) {
                     seasonSelect.value = filters.season;
                 }
                 if (typeSelect && filters.type) {
                     typeSelect.value = filters.type;
+                }
+                if (formSelect && filters.form_count) {
+                    formSelect.value = filters.form_count;
                 }
             } catch (e) {
                 console.error('Failed to restore team performance filters', e);

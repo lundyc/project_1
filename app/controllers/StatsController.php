@@ -80,6 +80,13 @@ class StatsController
 
         $matchStatusLabel = $match['status'] ?? 'Scheduled';
 
+        // Load derived stats and events for server-side rendering
+        $statsService = new StatsService($clubId);
+        $derivedData = $statsService->getMatchDerivedData($matchId);
+        $derivedStats = $derivedData['derived'] ?? [];
+        $events = $derivedData['events'] ?? [];
+        $periods = $derivedData['periods'] ?? [];
+
         require __DIR__ . '/../views/pages/stats/match.php';
     }
 }
