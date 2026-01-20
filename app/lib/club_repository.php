@@ -4,7 +4,8 @@ require_once __DIR__ . '/db.php';
 
 function get_all_clubs(): array
 {
-          $stmt = db()->query('SELECT id, name FROM clubs ORDER BY name ASC');
+          // Exclude "Opponents" club (id=3) as it's just a container for opponent teams
+          $stmt = db()->query('SELECT id, name FROM clubs WHERE id != 3 ORDER BY id ASC');
 
           return $stmt->fetchAll();
 }

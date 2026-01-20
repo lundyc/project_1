@@ -154,21 +154,21 @@ $formatStatusLabel = static function (string $status): string {
 
 ob_start();
 ?>
-<div class="stats-page container mt-4">
-    <div class="library-layout">
-        <header class="library-layout__header">
+<div class="w-full mt-4 text-slate-200">
+    <div class="max-w-full">
+        <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 px-4 md:px-6 mb-6">
             <div>
-                <h1 class="library-layout__title">Statistics Dashboard</h1>
-                <p class="library-layout__description">View club-wide analytics and performance indicators.</p>
+                <h1 class="text-2xl md:text-3xl font-bold tracking-tight">Statistics Dashboard</h1>
+                <p class="text-slate-400 text-sm">View club-wide analytics and performance indicators.</p>
             </div>
-            <div class="library-layout__header-actions">
-                <p class="text-muted text-xs mb-0">
-                    Viewing stats for <strong><?= htmlspecialchars($clubContextName) ?></strong>.
+            <div class="flex items-center gap-3">
+                <p class="text-slate-400 text-xs">
+                    Viewing stats for <span class="font-semibold text-slate-200"><?= htmlspecialchars($clubContextName) ?></span>.
                 </p>
                 <?php if ($showClubSelector): ?>
-                    <div class="ms-2">
-                        <label for="stats-club-selector" class="form-label text-muted text-xs mb-1">Switch club context</label>
-                        <select id="stats-club-selector" class="form-select form-select-sm">
+                    <div>
+                        <label for="stats-club-selector" class="block text-slate-400 text-xs mb-1">Switch club context</label>
+                        <select id="stats-club-selector" class="block w-48 rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-white/30">
                             <?php foreach ($availableClubs as $club): ?>
                                 <option value="<?= (int)$club['id'] ?>" <?= (int)$club['id'] === $selectedClubId ? 'selected' : '' ?>>
                                     <?= htmlspecialchars($club['name'] ?? 'Club') ?>
@@ -180,74 +180,129 @@ ob_start();
             </div>
         </header>
 
-        <div class="library-tabs-row mb-3">
-            <nav class="library-tabs stats-tabs" role="tablist" aria-label="Statistics tabs">
-                <?php $tabs = [
-                    'overview' => 'Overview',
-                    'team-performance' => 'Team Performance',
-                    'player-performance' => 'Player Performance',
-                ]; ?>
-                <?php foreach ($tabs as $tabId => $tabLabel): ?>
-                    <button
-                        type="button"
-                        class="library-tab btn btn-sm btn-outline-light stats-tab <?= $tabId === 'overview' ? 'is-active' : '' ?>"
-                        role="tab"
-                        aria-selected="<?= $tabId === 'overview' ? 'true' : 'false' ?>"
-                        data-tab-id="<?= htmlspecialchars($tabId) ?>">
-                        <?= htmlspecialchars($tabLabel) ?>
-                    </button>
-                <?php endforeach; ?>
-            </nav>
-            <div class="library-tabs-row__right">
-                <span class="text-muted text-xs">Club-level stats only</span>
-            </div>
-        </div>
-
-        <div class="stats-panels">
-            <section id="overview-panel" role="tabpanel" aria-labelledby="overview-tab" data-panel-id="overview">
-                <div class="panel panel-dark p-4">
-                    <h3 class="mb-3">League Stats Overview</h3>
-                    <p class="text-muted-alt text-sm mb-4">Showing statistics for Fourth Division matches only.</p>
-                    <div class="stats-overview-grid">
-                        <?php foreach ($overviewMetrics as $metric): ?>
-                            <article
-                                class="stats-overview-card"
-                                data-stat-card="<?= htmlspecialchars($metric['key']) ?>"
-                                data-stat-direction="<?= htmlspecialchars($metric['direction'] ?? 'positive') ?>">
-                                <div class="stats-overview-card__left">
-                                    <div class="stats-overview-card__desc"><?= htmlspecialchars($metric['description']) ?></div>
-                                    <div class="stats-overview-card__value" data-stat-value="<?= htmlspecialchars($metric['key']) ?>">—</div>
-                                    <div class="stats-overview-card__label"><?= htmlspecialchars($metric['label']) ?></div>
-                                </div>
-                                <div class="stats-overview-card__icon">
-                                    <i class="fa-solid <?= htmlspecialchars($metric['icon']) ?> <?= htmlspecialchars($metric['icon_color']) ?>" aria-hidden="true"></i>
-                                </div>
-                            </article>
-                        <?php endforeach; ?>
-                    </div>
-                    <div id="overview-error" class="text-danger text-xs mt-3" style="display:none;">Unable to load overview statistics.</div>
-
-                    <!-- Matches list (Overview only) -->
-                    <div class="mt-4">
-                        <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-2 mb-2">
+        <div class="grid grid-cols-12 gap-2 px-4 md:px-6 lg:px-8 w-full">
+            <aside class="col-span-2 space-y-4 min-w-0">
+                <nav class="flex flex-col gap-2 mb-3" role="tablist" aria-label="Statistics tabs">
+                    <?php $tabs = [
+                        'overview' => 'Overview',
+                        'team-performance' => 'Team Performance',
+                        'player-performance' => 'Player Performance',
+                    ]; ?>
+                    <?php foreach ($tabs as $tabId => $tabLabel): ?>
+                        <button
+                            type="button"
+                            class="stats-tab w-full text-left px-4 py-2.5 text-sm font-medium rounded-lg border transition-all duration-200 <?= $tabId === 'overview' ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'bg-slate-800/40 border-white/10 text-slate-300 hover:bg-slate-700/50 hover:border-white/20' ?>"
+                            role="tab"
+                            aria-selected="<?= $tabId === 'overview' ? 'true' : 'false' ?>"
+                            data-tab-id="<?= htmlspecialchars($tabId) ?>">
+                            <?= htmlspecialchars($tabLabel) ?>
+                        </button>
+                    <?php endforeach; ?>
+                </nav>
+                <div class="space-y-4">
+                    <div class="rounded-xl bg-slate-900/80 border border-white/10 p-3" data-filter-group="overview">
+                        <h6 class="text-slate-300 text-xs font-semibold mb-2">Filters</h6>
+                        <div class="flex flex-col gap-3">
                             <div>
-                                <h4 class="mb-0">Matches</h4>
-                                <span class="text-muted text-xs"><?= htmlspecialchars($clubContextName) ?> matches in focus.</span>
+                                <label class="block text-slate-400 text-xs mb-1">Season</label>
+                                <select id="overview-season-filter" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-white/30">
+                                    <option value="">All Seasons</option>
+                                    <?php foreach ($seasons ?? [] as $season): ?>
+                                        <option value="<?= htmlspecialchars((string)$season['id']) ?>">
+                                            <?= htmlspecialchars($season['name'] ?? 'Season ' . $season['id']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
                             </div>
-                            <span class="text-muted text-xs">All data reflects ready matches only.</span>
+                            <div>
+                                <label class="block text-slate-400 text-xs mb-1">Competition Type</label>
+                                <select id="overview-type-filter" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-white/30">
+                                    <option value="">Both League &amp; Cup</option>
+                                    <option value="league">League Only</option>
+                                    <option value="cup">Cup Only</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="rounded-xl bg-slate-900/80 border border-white/10 p-3" data-filter-group="team-performance" style="display:none;">
+                        <h6 class="text-slate-300 text-xs font-semibold mb-2">Filters</h6>
+                        <div class="flex flex-col gap-3">
+                            <div>
+                                <label class="block text-slate-400 text-xs mb-1">Season</label>
+                                <select id="team-performance-season-filter" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-white/30">
+                                    <option value="">All Seasons</option>
+                                    <?php foreach ($seasons ?? [] as $season): ?>
+                                        <option value="<?= htmlspecialchars((string)$season['id']) ?>">
+                                            <?= htmlspecialchars($season['name'] ?? 'Season ' . $season['id']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-slate-400 text-xs mb-1">Competition Type</label>
+                                <select id="team-performance-type-filter" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-white/30">
+                                    <option value="">Both League &amp; Cup</option>
+                                    <option value="league">League Only</option>
+                                    <option value="cup">Cup Only</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="rounded-xl bg-slate-900/80 border border-white/10 p-3" data-filter-group="player-performance" style="display:none;">
+                        <h6 class="text-slate-300 text-xs font-semibold mb-2">Filters</h6>
+                        <div class="flex flex-col gap-3">
+                            <div>
+                                <label class="block text-slate-400 text-xs mb-1">Season</label>
+                                <select id="player-season-filter" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-white/30">
+                                    <option value="">All Seasons</option>
+                                    <?php foreach ($seasons ?? [] as $season): ?>
+                                        <option value="<?= htmlspecialchars((string)$season['id']) ?>">
+                                            <?= htmlspecialchars($season['name'] ?? 'Season ' . $season['id']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-slate-400 text-xs mb-1">Competition Type</label>
+                                <select id="player-type-filter" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-white/30">
+                                    <option value="">Both League &amp; Cup</option>
+                                    <option value="league">League Only</option>
+                                    <option value="cup">Cup Only</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-slate-400 text-xs mb-1">Position</label>
+                                <select id="player-position-filter" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-white/30">
+                                    <option value="">All Positions</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+            <main class="col-span-7 space-y-4 min-w-0">
+                <div class="stats-panels">
+            <section id="overview-panel" role="tabpanel" aria-labelledby="overview-tab" data-panel-id="overview">
+                <div class="rounded-xl bg-slate-900/80 border border-white/10 p-3">
+                    <!-- Matches list (Overview only) -->
+                    <div class="mt-1">
+                        <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-2 mb-2">
+                        
+                                <h4 class="mb-0">Matches</h4>
+                        
+                         
                         </div>
                         <?php if (!empty($matches)): ?>
-                            <div class="library-list table-responsive">
-                                <table class="table table-sm table-bordered mb-0 text-nowrap">
-                                    <thead class="table-dark">
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full text-sm text-slate-200">
+                                    <thead class="bg-slate-900/90 text-slate-100 uppercase tracking-wider">
                                         <tr>
-                                            <th>Date</th>
-                                            <th>Time</th>
-                                            <th>Match</th>
-                                            <th class="text-center">Score</th>
-                                            <th>Competition</th>
-                                            <th>Status</th>
-                                            <th class="text-center">Action</th>
+                                            <th class="px-3 py-2">Date</th>
+                                            <th class="px-3 py-2">Time</th>
+                                            <th class="px-3 py-2">Match</th>
+                                            <th class="px-3 py-2 text-center">Score</th>
+                                            <th class="px-3 py-2">Competition</th>
+                                            <th class="px-3 py-2 text-center">Action</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -271,22 +326,19 @@ ob_start();
                                             $competition = $match['competition'] ?? '';
                                         ?>
                                         <tr data-match-id="<?= htmlspecialchars((string)$matchId) ?>">
-                                            <td><?= htmlspecialchars($dateLabel) ?></td>
-                                            <td><?= htmlspecialchars($timeLabel) ?></td>
-                                            <td>
-                                                <a href="<?= $matchUrl ?>" class="link-light text-decoration-none">
+                                            <td class="px-3 py-2 whitespace-nowrap"><?= htmlspecialchars($dateLabel) ?></td>
+                                            <td class="px-3 py-2 whitespace-nowrap"><?= htmlspecialchars($timeLabel) ?></td>
+                                            <td class="px-3 py-2">
+                                                <a href="<?= $matchUrl ?>" class="text-indigo-300 hover:text-indigo-100">
                                                     <?= htmlspecialchars($title) ?>
                                                 </a>
                                             </td>
-                                            <td class="text-center">
-                                                <span class="fw-semibold <?= $scoreLabel !== '—' ? 'text-success' : 'text-muted' ?>"><?= htmlspecialchars($scoreLabel) ?></span>
+                                            <td class="px-3 py-2 text-center">
+                                                <span class="font-semibold <?= $scoreLabel !== '—' ? 'text-emerald-400' : 'text-slate-400' ?>"><?= htmlspecialchars($scoreLabel) ?></span>
                                             </td>
-                                            <td><?= htmlspecialchars($competition) ?></td>
-                                            <td>
-                                                <span class="status-badge status-badge--<?= htmlspecialchars($statusClass) ?>"><?= htmlspecialchars($statusLabel) ?></span>
-                                            </td>
-                                            <td class="text-center">
-                                                <a class="btn btn-sm btn-outline-light" href="<?= $matchUrl ?>">View</a>
+                                            <td class="px-3 py-2"><?= htmlspecialchars($competition) ?></td>
+                                            <td class="px-3 py-2 text-center">
+                                                <a class="inline-flex items-center px-2.5 py-1 text-xs rounded-md border border-white/20 hover:bg-white/10" href="<?= $matchUrl ?>">View</a>
                                             </td>
                                         </tr>
                                     <?php endforeach; ?>
@@ -301,43 +353,25 @@ ob_start();
             </section>
 
             <section id="team-performance-panel" role="tabpanel" aria-labelledby="team-performance-tab" data-panel-id="team-performance" style="display:none;">
-            <div class="panel panel-dark p-4 mt-4">
+            <div class="rounded-xl bg-slate-900/80 border border-white/10 p-3">
                     <div class="d-flex flex-column flex-md-row align-items-start justify-content-between gap-3 mb-3">
                         <div>
                             <h3 class="mb-1">Team Performance</h3>
-                            <p class="text-muted-alt text-sm mb-0">Detailed club-level results, home/away splits, and recent form.</p>
                         </div>
-                        <span class="text-muted text-xs">All numbers reflect your resolved club.</span>
                     </div>
+                    
+                    <!-- Filters moved to left sidebar -->
+                    
                 <div id="team-performance-content" style="display:none;">
-                    <div class="tp-stats-grid" id="team-performance-cards">
-                        <?php $performanceCards = [
-                            ['label' => 'Matches', 'key' => 'matches_played'],
-                            ['label' => 'Wins', 'key' => 'wins'],
-                            ['label' => 'Draws', 'key' => 'draws'],
-                            ['label' => 'Losses', 'key' => 'losses'],
-                            ['label' => 'Goals For', 'key' => 'goals_for'],
-                            ['label' => 'Goals Against', 'key' => 'goals_against'],
-                            ['label' => 'Goal Difference', 'key' => 'goal_difference'],
-                            ['label' => 'Clean Sheets', 'key' => 'clean_sheets'],
-                        ]; ?>
-                        <?php foreach ($performanceCards as $card): ?>
-                            <div class="tp-card">
-                                <div class="tp-card__label"><?= htmlspecialchars($card['label']) ?></div>
-                                <div class="tp-card__value" data-team-stat="<?= htmlspecialchars($card['key']) ?>">—</div>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
                         <div class="row g-3 mt-3">
                             <div class="col-12">
-                                <div class="panel panel-secondary p-3">
+                                <div class="rounded-xl border border-white/10 bg-slate-800/60 p-3">
                                     <div class="d-flex align-items-center justify-content-between mb-3">
                                         <h5 class="mb-0 text-light">Home vs Away Record</h5>
-                                        <span class="text-muted text-xs">Split by venue</span>
                                     </div>
-                                    <div class="table-responsive d-flex justify-content-center">
-                                        <table class="table table-sm table-bordered mb-0 text-nowrap tp-home-away-table">
-                            <thead class="table-dark">
+                                    <div class="overflow-x-auto">
+                                        <table class="min-w-full text-sm">
+                            <thead class="bg-slate-900/90 text-slate-100 uppercase tracking-wider">
                                                 <tr>
                                                     <th>Venue</th>
                                                     <th class="text-center">MP</th>
@@ -349,7 +383,7 @@ ob_start();
                                                     <th class="text-center">GD</th>
                                                 </tr>
                                             </thead>
-                                            <tbody id="team-performance-home-away">
+                                            <tbody id="team-performance-home-away" class="text-slate-200">
                                                 <tr>
                                                     <td>Home</td>
                                                     <td class="text-center">—</td>
@@ -378,26 +412,24 @@ ob_start();
                         </div>
                         <div class="row g-3 mt-3">
                             <div class="col-12 col-md-6">
-                                <div class="panel panel-secondary p-3">
+                                <div class="rounded-xl border border-white/10 bg-slate-800/60 p-3">
                                     <div class="d-flex align-items-center justify-content-between mb-3">
                                         <h5 class="mb-0 text-light">Recent Form (Last 5)</h5>
-                                        <span class="text-muted text-xs">Latest matches</span>
                                     </div>
-                                    <div id="team-performance-form" class="tp-form-grid">
+                                    <div id="team-performance-form" class="flex gap-3 overflow-x-auto px-2">
                                         <div class="text-muted text-xs">Loading…</div>
                                     </div>
                                     <div id="team-performance-form-empty" class="text-muted text-xs mt-2" style="display:none;">Add matches to capture your form.</div>
                                 </div>
                             </div>
                             <div class="col-12 col-md-6">
-                                <div class="panel panel-secondary p-3">
+                                <div class="rounded-xl border border-white/10 bg-slate-800/60 p-3">
                                     <div class="d-flex align-items-center justify-content-between mb-3">
                                         <h5 class="mb-0 text-light">Goals &amp; Clean Sheets</h5>
-                                        <span class="text-muted text-xs">By competition</span>
                                     </div>
-                                    <div class="table-responsive d-flex justify-content-center">
-                                        <table class="table table-sm table-bordered mb-0 text-nowrap tp-goals-table">
-                                            <thead class="table-dark">
+                                    <div class="overflow-x-auto">
+                                        <table class="min-w-full text-sm">
+                                            <thead class="bg-slate-900/90 text-slate-100 uppercase tracking-wider">
                                                 <tr>
                                                     <th>Competition</th>
                                                     <th class="text-center">For</th>
@@ -406,15 +438,15 @@ ob_start();
                                                     <th class="text-center">Clean</th>
                                                 </tr>
                                             </thead>
-                                            <tbody>
-                                                <tr>
+                                            <tbody class="text-slate-200">
+                                                <tr data-competition-type="league">
                                                     <td>League</td>
                                                     <td class="text-center" data-league-stat="goals_for">—</td>
                                                     <td class="text-center" data-league-stat="goals_against">—</td>
                                                     <td class="text-center" data-league-stat="goal_difference">—</td>
                                                     <td class="text-center" data-league-stat="clean_sheets">—</td>
                                                 </tr>
-                                                <tr>
+                                                <tr data-competition-type="cup">
                                                     <td>Cup</td>
                                                     <td class="text-center" data-cup-stat="goals_for">—</td>
                                                     <td class="text-center" data-cup-stat="goals_against">—</td>
@@ -435,26 +467,9 @@ ob_start();
             </section>
 
             <section id="player-performance-panel" role="tabpanel" aria-labelledby="player-performance-tab" data-panel-id="player-performance" style="display:none;">
-                <div class="panel panel-dark p-4 mt-4">
+                <div class="rounded-xl bg-slate-900/80 border border-white/10 p-4">
                     <h3 class="mb-3">Player Performance</h3>
-                    
-                    <!-- Filters -->
-                    <div class="d-flex flex-column flex-md-row align-items-start gap-3 mb-3">
-                        <div class="flex-fill">
-                            <label class="form-label text-muted text-xs mb-1">Filter by Position</label>
-                            <select id="player-position-filter" class="form-select form-select-sm">
-                                <option value="">All Positions</option>
-                            </select>
-                        </div>
-                        <div class="flex-fill">
-                            <label class="form-label text-muted text-xs mb-1">Filter by Type</label>
-                            <select id="player-type-filter" class="form-select form-select-sm">
-                                <option value="">All Players</option>
-                                <option value="starters">Starters Only</option>
-                                <option value="subs">Substitutes Only</option>
-                            </select>
-                        </div>
-                    </div>
+                    <!-- Filters moved to left sidebar -->
 
                     <!-- Table -->
                     <div id="player-performance-content">
@@ -463,18 +478,28 @@ ob_start();
                         <div id="player-performance-empty" class="text-muted text-xs" style="display:none;">No player data available.</div>
                         
                         <div id="player-performance-table-wrapper" style="display:none;">
-                            <div class="table-responsive">
-                                <table class="table table-sm table-dark table-hover mb-0">
-                                    <thead>
+                            <div class="overflow-x-auto rounded-xl border border-white/10">
+                                <table class="w-full text-sm text-slate-200">
+                                    <thead class="sticky top-0 bg-slate-900/95 border-b border-white/10">
                                         <tr>
-                                            <th class="sortable" data-sort="name">Player <span class="sort-icon">⇅</span></th>
-                                            <th class="sortable" data-sort="position">Position <span class="sort-icon">⇅</span></th>
-                                            <th class="text-center sortable" data-sort="appearances">Apps <span class="sort-icon">⇅</span></th>
-                                            <th class="text-center sortable" data-sort="starts">Starts <span class="sort-icon">⇅</span></th>
-                                            <th class="text-center sortable" data-sort="goals">Goals <span class="sort-icon">⇅</span></th>
-                                            <th class="text-center sortable" data-sort="assists">Assists <span class="sort-icon">⇅</span></th>
-                                            <th class="text-center sortable" data-sort="cards">Cards <span class="sort-icon">⇅</span></th>
-                                            <th class="text-center sortable" data-sort="minutes">Minutes <span class="sort-icon">⇅</span></th>
+                                            <th class="sortable px-6 py-3 text-left font-semibold uppercase tracking-wide text-slate-300 cursor-pointer hover:text-slate-100" data-sort="name">Player <span class="ml-1 text-xs opacity-50">⇅</span></th>
+                                            <th class="sortable px-4 py-3 text-center font-semibold uppercase tracking-wide text-slate-300 cursor-pointer hover:text-slate-100" data-sort="position">Pos <span class="ml-1 text-xs opacity-50">⇅</span></th>
+                                            <th class="sortable px-4 py-3 text-center font-semibold uppercase tracking-wide text-slate-300 cursor-pointer hover:text-slate-100" data-sort="appearances">Apps <span class="ml-1 text-xs opacity-50">⇅</span></th>
+                                            <th class="sortable px-4 py-3 text-center font-semibold uppercase tracking-wide text-slate-300 cursor-pointer hover:text-slate-100" data-sort="starts">Starts <span class="ml-1 text-xs opacity-50">⇅</span></th>
+                                            <th class="sortable px-4 py-3 text-center font-semibold uppercase tracking-wide text-slate-300 cursor-pointer hover:text-slate-100" data-sort="goals">Goals <span class="ml-1 text-xs opacity-50">⇅</span></th>
+                                            <th class="sortable px-4 py-3 text-center font-semibold uppercase tracking-wide text-slate-300 cursor-pointer hover:text-slate-100" data-sort="yellow_cards">
+                                                <span class="inline-flex items-center justify-center gap-2">
+                                                    <svg class="yellowCard-ico" style="width: 12px; height: 16px;"><use xlink:href="/assets/svg/incident.svg#card"></use></svg>
+                                                    <span class="text-xs opacity-50">⇅</span>
+                                                </span>
+                                            </th>
+                                            <th class="sortable px-4 py-3 text-center font-semibold uppercase tracking-wide text-slate-300 cursor-pointer hover:text-slate-100" data-sort="red_cards">
+                                                <span class="inline-flex items-center justify-center gap-2">
+                                                    <svg class="redCard-ico" style="width: 12px; height: 16px;"><use xlink:href="/assets/svg/incident.svg#card"></use></svg>
+                                                    <span class="text-xs opacity-50">⇅</span>
+                                                </span>
+                                            </th>
+                                            <th class="sortable px-4 py-3 text-center font-semibold uppercase tracking-wide text-slate-300 cursor-pointer hover:text-slate-100" data-sort="minutes">Mins <span class="ml-1 text-xs opacity-50">⇅</span></th>
                                         </tr>
                                     </thead>
                                     <tbody id="player-performance-tbody">
@@ -485,7 +510,110 @@ ob_start();
                     </div>
                 </div>
             </section>
-        </div>
+                </div>
+            </main>
+            
+            <!-- Right Sidebar: Overview Cards -->
+            <aside id="overview-sidebar" class="col-span-3 min-w-0">
+                <div class="rounded-xl bg-slate-900/80 border border-white/10 p-4">
+                    <h5 class="text-slate-200 font-semibold mb-1" id="overview-title">Overview</h5>
+                    <div class="text-slate-400 text-xs mb-4">Club-wide performance summary</div>
+                    <div class="space-y-3">
+                        <!-- Grouped: Matches/Clean Sheets/Avg Goals -->
+                        <article class="rounded-lg border border-white/10 bg-slate-800/40 px-3 py-3">
+                            <div class="grid grid-cols-3 gap-3 text-center">
+                                <div data-stat-card="total_matches">
+                                    <div class="text-[10px] text-slate-400 mb-1">Matches</div>
+                                    <div class="text-xl font-bold text-slate-100" data-stat-value="total_matches">—</div>
+                                </div>
+                                <div data-stat-card="clean_sheets">
+                                    <div class="text-[10px] text-slate-400 mb-1">Clean Sheets</div>
+                                    <div class="text-xl font-bold text-slate-100" data-stat-value="clean_sheets">—</div>
+                                </div>
+                                <div data-stat-card="average_goals_per_game">
+                                    <div class="text-[10px] text-slate-400 mb-1">Avg Goals</div>
+                                    <div class="text-xl font-bold text-slate-100" data-stat-value="average_goals_per_game">—</div>
+                                </div>
+                            </div>
+                        </article>
+                        
+                        <div class="border-t border-white/10"></div>
+                        
+                        <!-- Grouped: Match Results -->
+                        <article class="rounded-lg border border-white/10 bg-slate-800/40 px-3 py-3">
+                            <div class="text-xs font-semibold text-slate-300 mb-2 text-center">Match Results</div>
+                            <div class="grid grid-cols-3 gap-3 text-center">
+                                <div data-stat-card="wins">
+                                    <div class="text-[10px] text-slate-400 mb-1">Wins</div>
+                                    <div class="text-xl font-bold text-emerald-400" data-stat-value="wins">—</div>
+                                </div>
+                                <div data-stat-card="draws">
+                                    <div class="text-[10px] text-slate-400 mb-1">Draws</div>
+                                    <div class="text-xl font-bold text-amber-400" data-stat-value="draws">—</div>
+                                </div>
+                                <div data-stat-card="losses">
+                                    <div class="text-[10px] text-slate-400 mb-1">Losses</div>
+                                    <div class="text-xl font-bold text-red-400" data-stat-value="losses">—</div>
+                                </div>
+                            </div>
+                        </article>
+                        
+                        <div class="border-t border-white/10"></div>
+                        
+                        <!-- Grouped: Goals -->
+                        <article class="rounded-lg border border-white/10 bg-slate-800/40 px-3 py-3">
+                            <div class="text-xs font-semibold text-slate-300 mb-2 text-center">Goals</div>
+                            <div class="grid grid-cols-3 gap-3 text-center">
+                                <div data-stat-card="goals_for">
+                                    <div class="text-[10px] text-slate-400 mb-1">For</div>
+                                    <div class="text-xl font-bold text-emerald-400" data-stat-value="goals_for">—</div>
+                                </div>
+                                <div data-stat-card="goals_against">
+                                    <div class="text-[10px] text-slate-400 mb-1">Against</div>
+                                    <div class="text-xl font-bold text-red-400" data-stat-value="goals_against">—</div>
+                                </div>
+                                <div data-stat-card="goal_difference" data-stat-direction="signed">
+                                    <div class="text-[10px] text-slate-400 mb-1">Diff</div>
+                                    <div class="text-xl font-bold text-cyan-400" data-stat-value="goal_difference">—</div>
+                                </div>
+                            </div>
+                        </article>
+                    </div>
+                    <div id="overview-error" class="text-red-400 text-xs mt-3" style="display:none;">Unable to load overview statistics.</div>
+                </div>
+            </aside>
+            
+            <!-- Right Sidebar: Team Performance Cards -->
+            <aside id="team-performance-sidebar" class="col-span-3 min-w-0" style="display:none;">
+                <div class="rounded-xl bg-slate-900/80 border border-white/10 p-4">
+                    <h5 class="text-slate-200 font-semibold mb-1">Team Statistics</h5>
+                    <div class="text-slate-400 text-xs mb-4">Performance metrics</div>
+                    <div class="space-y-3" id="team-performance-cards-sidebar"></div>
+                </div>
+            </aside>
+            
+            <!-- Right Sidebar: Player Performance Stats -->
+            <aside id="player-performance-sidebar" class="col-span-3 min-w-0" style="display:none;">
+                <div class="rounded-xl bg-slate-900/80 border border-white/10 p-4">
+                    <div class="space-y-3">
+                        <!-- Option 1: Top Player Statistics -->
+                        <div>
+                            <h5 class="text-slate-200 font-semibold mb-1">Top Performers</h5>
+                            <div class="text-slate-400 text-xs mb-4">Squad standouts</div>
+                            <div class="space-y-3" id="player-top-performers"></div>
+                        </div>
+                        
+                        <div class="border-t border-white/10"></div>
+                        
+                        <!-- Option 2: Squad Overview -->
+                        <div>
+                            <h5 class="text-slate-200 font-semibold mb-1">Squad Summary</h5>
+                            <div class="text-slate-400 text-xs mb-4">Aggregate metrics</div>
+                            <div class="space-y-3" id="player-squad-summary"></div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
 
         
     </div>
@@ -531,6 +659,31 @@ ob_start();
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 12px;
     background-color: rgba(255, 255, 255, 0.02);
+}
+
+/* Three-column layout */
+.stats-three-col {
+    display: grid;
+    grid-template-columns: 280px 1fr 320px;
+    gap: 16px;
+}
+.stats-col-left {
+    display: flex;
+    flex-direction: column;
+}
+.stats-col-main {
+    min-width: 0; /* allow table/content to shrink */
+}
+.stats-col-right {
+    min-width: 0;
+}
+@media (max-width: 992px) {
+    .stats-three-col {
+        grid-template-columns: 1fr;
+    }
+    .stats-col-right {
+        order: 3;
+    }
 }
 
 /* Overview redesign */
@@ -841,6 +994,7 @@ ob_start();
     font-size: 0.85em;
 }
 </style>
+<!-- Custom CSS removed; using Tailwind utility classes -->
 
 <script>
 (function () {
@@ -870,13 +1024,35 @@ ob_start();
     function showTab(tabId) {
         tabButtons.forEach((button) => {
             const isActive = button.getAttribute('data-tab-id') === tabId;
-            button.classList.toggle('is-active', isActive);
             button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+            
+            if (isActive) {
+                button.classList.remove('bg-slate-800/40', 'border-white/10', 'text-slate-300', 'hover:bg-slate-700/50', 'hover:border-white/20');
+                button.classList.add('bg-indigo-600', 'border-indigo-500', 'text-white', 'shadow-lg', 'shadow-indigo-500/20');
+            } else {
+                button.classList.remove('bg-indigo-600', 'border-indigo-500', 'text-white', 'shadow-lg', 'shadow-indigo-500/20');
+                button.classList.add('bg-slate-800/40', 'border-white/10', 'text-slate-300', 'hover:bg-slate-700/50', 'hover:border-white/20');
+            }
         });
 
         panels.forEach((panel) => {
             const panelId = panel.getAttribute('data-panel-id');
             panel.style.display = panelId === tabId ? '' : 'none';
+        });
+
+        // Toggle right sidebars based on active tab
+        const overviewSidebar = document.getElementById('overview-sidebar');
+        const teamPerformanceSidebar = document.getElementById('team-performance-sidebar');
+        const playerPerformanceSidebar = document.getElementById('player-performance-sidebar');
+        if (overviewSidebar) overviewSidebar.style.display = tabId === 'overview' ? '' : 'none';
+        if (teamPerformanceSidebar) teamPerformanceSidebar.style.display = tabId === 'team-performance' ? '' : 'none';
+        if (playerPerformanceSidebar) playerPerformanceSidebar.style.display = tabId === 'player-performance' ? '' : 'none';
+
+        // Toggle filter groups in sidebar
+        const filterGroups = document.querySelectorAll('[data-filter-group]');
+        filterGroups.forEach((group) => {
+            const groupId = group.getAttribute('data-filter-group');
+            group.style.display = groupId === tabId ? '' : 'none';
         });
 
         const module = tabModules[tabId];
@@ -901,8 +1077,128 @@ ob_start();
     }
 
     const overviewModule = (() => {
-        const overviewUrl = apiBase + '/overview';
+        const baseUrl = apiBase + '/overview';
+        const matchesUrl = apiBase + '/matches';
         let intervalId = null;
+
+        function getFilterParams() {
+            const seasonSelect = document.getElementById('overview-season-filter');
+            const typeSelect = document.getElementById('overview-type-filter');
+            const params = new URLSearchParams();
+            if (seasonSelect && seasonSelect.value) {
+                params.append('season_id', seasonSelect.value);
+            }
+            if (typeSelect && typeSelect.value) {
+                params.append('type', typeSelect.value);
+            }
+            return params.toString();
+        }
+        
+        function getUrl() {
+            const filters = getFilterParams();
+            return filters ? baseUrl + '?' + filters : baseUrl;
+        }
+        
+        function getMatchesUrl() {
+            const filters = getFilterParams();
+            return filters ? matchesUrl + '?' + filters : matchesUrl;
+        }
+        
+        function formatMatchDate(kickoffAt) {
+            if (!kickoffAt) return 'TBD';
+            try {
+                const date = new Date(kickoffAt);
+                return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+            } catch (e) {
+                return 'TBD';
+            }
+        }
+        
+        function formatMatchTime(kickoffAt) {
+            if (!kickoffAt) return 'TBD';
+            try {
+                const date = new Date(kickoffAt);
+                return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+            } catch (e) {
+                return 'TBD';
+            }
+        }
+        
+        function formatStatus(status) {
+            if (!status) return 'Unknown';
+            return status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ');
+        }
+        
+        function updateMatchesTable(matches) {
+            const tbody = document.querySelector('#overview-panel tbody');
+            if (!tbody) return;
+            
+            tbody.innerHTML = '';
+            
+            if (!matches || matches.length === 0) {
+                const row = tbody.insertRow();
+                const cell = row.insertCell();
+                cell.colSpan = 6;
+                cell.className = 'px-3 py-4 text-center text-slate-400';
+                cell.textContent = 'No matches found for the selected filters.';
+                return;
+            }
+            
+            matches.forEach(match => {
+                const row = tbody.insertRow();
+                const matchId = match.id;
+                const matchUrl = (basePath ? '/' + basePath : '') + '/stats/match/' + matchId;
+                const title = (match.home_team || 'Home') + ' vs ' + (match.away_team || 'Away');
+                const dateLabel = formatMatchDate(match.kickoff_at);
+                const timeLabel = formatMatchTime(match.kickoff_at);
+                const homeGoals = match.home_goals ?? 0;
+                const awayGoals = match.away_goals ?? 0;
+                const scoreLabel = homeGoals + ' - ' + awayGoals;
+                const hasScore = homeGoals > 0 || awayGoals > 0;
+                const status = match.status || 'draft';
+                const statusLabel = formatStatus(status);
+                const competition = match.competition || '';
+                
+                row.innerHTML = `
+                    <td class="px-3 py-2 whitespace-nowrap">${dateLabel}</td>
+                    <td class="px-3 py-2 whitespace-nowrap">${timeLabel}</td>
+                    <td class="px-3 py-2">
+                        <a href="${matchUrl}" class="text-indigo-300 hover:text-indigo-100">${title}</a>
+                    </td>
+                    <td class="px-3 py-2 text-center">
+                        <span class="font-semibold ${hasScore ? 'text-emerald-400' : 'text-slate-400'}">${scoreLabel}</span>
+                    </td>
+                    <td class="px-3 py-2">${competition}</td>
+                    <td class="px-3 py-2 text-center">
+                        <a class="inline-flex items-center px-2.5 py-1 text-xs rounded-md border border-white/20 hover:bg-white/10" href="${matchUrl}">View</a>
+                    </td>
+                `;
+            });
+        }
+        
+        function fetchMatches() {
+            fetch(getMatchesUrl(), {
+                credentials: 'same-origin',
+                headers: { Accept: 'application/json' },
+                cache: 'no-cache',
+            })
+                .then((response) => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then((payload) => {
+                    if (payload.success && payload.matches) {
+                        updateMatchesTable(payload.matches);
+                    } else {
+                        throw new Error(payload.error || 'Invalid payload');
+                    }
+                })
+                .catch((error) => {
+                    console.error('[Stats Matches]', error);
+                });
+        }
 
         function updateCard(key, value) {
             const valueEl = document.querySelector(`[data-stat-value="${key}"]`);
@@ -928,6 +1224,28 @@ ob_start();
             }
         }
 
+        function updateOverviewTitle() {
+            const seasonSelect = document.getElementById('overview-season-filter');
+            const typeSelect = document.getElementById('overview-type-filter');
+            const titleEl = document.getElementById('overview-title');
+            
+            const parts = [];
+            if (typeSelect && typeSelect.value) {
+                const typeText = typeSelect.options[typeSelect.selectedIndex].text;
+                parts.push(typeText);
+            }
+            if (seasonSelect && seasonSelect.value) {
+                const seasonText = seasonSelect.options[seasonSelect.selectedIndex].text;
+                parts.push(seasonText);
+            }
+            
+            if (parts.length > 0) {
+                titleEl.textContent = 'Overview (' + parts.join(' - ') + ')';
+            } else {
+                titleEl.textContent = 'Overview';
+            }
+        }
+
         function applyStats(data) {
             if (!data || typeof data !== 'object') {
                 return;
@@ -936,10 +1254,11 @@ ob_start();
                 updateCard(key, data[key]);
             });
             document.getElementById('overview-error').style.display = 'none';
+            updateOverviewTitle();
         }
 
         function fetchStats() {
-            fetch(overviewUrl, {
+            fetch(getUrl(), {
                 credentials: 'same-origin',
                 headers: { Accept: 'application/json' },
                 cache: 'no-cache',
@@ -968,10 +1287,63 @@ ob_start();
                 if (intervalId !== null) {
                     return;
                 }
+                
+                // Restore saved filter values from localStorage
+                restoreOverviewFilterValues();
+                
                 fetchStats();
+                fetchMatches();
                 intervalId = window.setInterval(fetchStats, 30000);
+                
+                // Add filter listeners
+                const seasonSelect = document.getElementById('overview-season-filter');
+                const typeSelect = document.getElementById('overview-type-filter');
+                if (seasonSelect) {
+                    seasonSelect.addEventListener('change', () => {
+                        saveOverviewFilterValues();
+                        fetchStats();
+                        fetchMatches();
+                        updateOverviewTitle();
+                    });
+                }
+                if (typeSelect) {
+                    typeSelect.addEventListener('change', () => {
+                        saveOverviewFilterValues();
+                        fetchStats();
+                        fetchMatches();
+                        updateOverviewTitle();
+                    });
+                }
             },
         };
+        
+        function saveOverviewFilterValues() {
+            const seasonSelect = document.getElementById('overview-season-filter');
+            const typeSelect = document.getElementById('overview-type-filter');
+            const filters = {};
+            if (seasonSelect) filters.season = seasonSelect.value;
+            if (typeSelect) filters.type = typeSelect.value;
+            localStorage.setItem('overviewFilters', JSON.stringify(filters));
+        }
+        
+        function restoreOverviewFilterValues() {
+            const saved = localStorage.getItem('overviewFilters');
+            if (!saved) return;
+            
+            try {
+                const filters = JSON.parse(saved);
+                const seasonSelect = document.getElementById('overview-season-filter');
+                const typeSelect = document.getElementById('overview-type-filter');
+                if (seasonSelect && filters.season) {
+                    seasonSelect.value = filters.season;
+                }
+                if (typeSelect && filters.type) {
+                    typeSelect.value = filters.type;
+                }
+            } catch (e) {
+                console.error('Failed to restore overview filters', e);
+            }
+        }
     })();
 
     const teamPerformanceModule = (() => {
@@ -1065,6 +1437,80 @@ ob_start();
                 }
                 el.textContent = formatNumber(payload?.[key]);
             });
+            
+            // Also update sidebar cards
+            updateSidebarCards(payload);
+        }
+        
+        function updateSidebarCards(payload) {
+            const cardsContainer = document.getElementById('team-performance-cards-sidebar');
+            if (!cardsContainer) return;
+            
+            const html = `
+                <!-- Group 1: Goals & Clean Sheets -->
+                <article class="rounded-lg border border-white/10 bg-slate-800/40 px-3 py-3">
+                    <div class="grid grid-cols-2 gap-3 text-center">
+                        <div>
+                            <div class="text-[10px] text-slate-400 mb-1">Goals For</div>
+                            <div class="text-xl font-bold text-emerald-400">${formatNumber(payload?.goals_for)}</div>
+                        </div>
+                        <div>
+                            <div class="text-[10px] text-slate-400 mb-1">Clean Sheets</div>
+                            <div class="text-xl font-bold text-slate-100">${formatNumber(payload?.clean_sheets)}</div>
+                        </div>
+                    </div>
+                </article>
+                
+                <div class="border-t border-white/10"></div>
+                
+                <!-- Group 2: Match Results -->
+                <article class="rounded-lg border border-white/10 bg-slate-800/40 px-3 py-3">
+                    <div class="text-xs font-semibold text-slate-300 mb-2 text-center">Match Results</div>
+                    <div class="grid grid-cols-3 gap-3 text-center">
+                        <div>
+                            <div class="text-[10px] text-slate-400 mb-1">Wins</div>
+                            <div class="text-xl font-bold text-emerald-400">${formatNumber(payload?.wins)}</div>
+                        </div>
+                        <div>
+                            <div class="text-[10px] text-slate-400 mb-1">Losses</div>
+                            <div class="text-xl font-bold text-red-400">${formatNumber(payload?.losses)}</div>
+                        </div>
+                        <div>
+                            <div class="text-[10px] text-slate-400 mb-1">Draws</div>
+                            <div class="text-xl font-bold text-amber-400">${formatNumber(payload?.draws)}</div>
+                        </div>
+                    </div>
+                </article>
+                
+                <div class="border-t border-white/10"></div>
+                
+                <!-- Group 3: Goals Stats -->
+                <article class="rounded-lg border border-white/10 bg-slate-800/40 px-3 py-3">
+                    <div class="text-xs font-semibold text-slate-300 mb-2 text-center">Goals</div>
+                    <div class="grid grid-cols-3 gap-3 text-center">
+                        <div>
+                            <div class="text-[10px] text-slate-400 mb-1">For</div>
+                            <div class="text-xl font-bold text-emerald-400">${formatNumber(payload?.goals_for)}</div>
+                        </div>
+                        <div>
+                            <div class="text-[10px] text-slate-400 mb-1">Against</div>
+                            <div class="text-xl font-bold text-red-400">${formatNumber(payload?.goals_against)}</div>
+                        </div>
+                        <div>
+                            <div class="text-[10px] text-slate-400 mb-1">Diff</div>
+                            <div class="text-xl font-bold text-cyan-400">${formatNumber(payload?.goal_difference)}</div>
+                        </div>
+                    </div>
+                </article>
+            `;
+            
+            cardsContainer.innerHTML = html;
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
 
         function renderHomeAway(record = {}) {
@@ -1117,17 +1563,18 @@ ob_start();
                 const pill = document.createElement('div');
                 const result = entry.result ?? '—';
                 const colorClass = result === 'W' ? 'tp-form-result--W' : result === 'D' ? 'tp-form-result--D' : result === 'L' ? 'tp-form-result--L' : '';
-                pill.className = `panel panel-secondary p-2 text-center flex-fill ${colorClass}`;
+                pill.className = `rounded-lg border border-white/10 bg-slate-800/40 p-2 flex-shrink-0 w-32 text-center ${colorClass}`;
                 const dateLabel = entry.date ? new Date(entry.date).toLocaleDateString() : 'TBD';
                 const venueLabel = entry.venue ?? 'Home';
                 const opponent = entry.opponent ?? 'Opponent';
                 const score = entry.score ?? '—';
-                const resultClass = result === 'W' ? 'text-success' : result === 'D' ? 'text-warning' : 'text-danger';
+                const resultClass = result === 'W' ? 'text-emerald-400' : result === 'D' ? 'text-amber-400' : 'text-red-400';
                 pill.innerHTML = `
-                    <div class="${resultClass} fs-5 fw-bold">${result}</div>
-                    <div class="text-muted text-xs">${score}</div>
-                    <div class="text-muted text-xs">${venueLabel} · ${dateLabel}</div>
-                    <div class="text-muted text-xs">vs ${opponent}</div>
+                    <div class="${resultClass} text-3xl font-bold mb-2">${result}</div>
+                    <div class="text-sm font-semibold text-slate-100 mb-1">${score}</div>
+                    <div class="text-xs text-slate-400 mb-1">${venueLabel}</div>
+                    <div class="text-xs text-slate-400">vs ${opponent}</div>
+                    <div class="text-xs text-slate-500 mt-1">${dateLabel}</div>
                 `;
                 formContainer.appendChild(pill);
             });
@@ -1164,11 +1611,48 @@ ob_start();
                 const value = cup[key] ?? 0;
                 el.textContent = formatNumber(value);
             });
+            
+            // Show/hide rows based on filter selection
+            updateCompetitionTypeRows();
+        }
+        
+        function updateCompetitionTypeRows() {
+            const typeSelect = document.getElementById('team-performance-type-filter');
+            if (!typeSelect) return;
+            
+            const selectedType = typeSelect.value;
+            const leagueRow = document.querySelector('tr[data-competition-type="league"]');
+            const cupRow = document.querySelector('tr[data-competition-type="cup"]');
+            
+            if (leagueRow) {
+                leagueRow.style.display = !selectedType || selectedType === 'league' ? '' : 'none';
+            }
+            if (cupRow) {
+                cupRow.style.display = !selectedType || selectedType === 'cup' ? '' : 'none';
+            }
+        }
+
+        function getFilterParams() {
+            const seasonSelect = document.getElementById('team-performance-season-filter');
+            const typeSelect = document.getElementById('team-performance-type-filter');
+            const params = new URLSearchParams();
+            if (seasonSelect && seasonSelect.value) {
+                params.append('season_id', seasonSelect.value);
+            }
+            if (typeSelect && typeSelect.value) {
+                params.append('type', typeSelect.value);
+            }
+            return params.toString();
+        }
+        
+        function getUrl() {
+            const filters = getFilterParams();
+            return filters ? url + '?' + filters : url;
         }
 
         function fetchStats() {
             showLoadingState();
-            fetch(url, {
+            fetch(getUrl(), {
                 credentials: 'same-origin',
                 headers: { Accept: 'application/json' },
                 cache: 'no-cache',
@@ -1198,9 +1682,58 @@ ob_start();
                     return;
                 }
                 initialized = true;
+                
+                // Restore saved filter values from localStorage
+                restoreFilterValues();
+                
                 fetchStats();
+                
+                // Add filter listeners
+                const seasonSelect = document.getElementById('team-performance-season-filter');
+                const typeSelect = document.getElementById('team-performance-type-filter');
+                if (seasonSelect) {
+                    seasonSelect.addEventListener('change', () => {
+                        saveFilterValues();
+                        fetchStats();
+                    });
+                }
+                if (typeSelect) {
+                    typeSelect.addEventListener('change', () => {
+                        saveFilterValues();
+                        fetchStats();
+                        updateCompetitionTypeRows();
+                    });
+                }
             },
         };
+        
+        function saveFilterValues() {
+            const seasonSelect = document.getElementById('team-performance-season-filter');
+            const typeSelect = document.getElementById('team-performance-type-filter');
+            const filters = {};
+            if (seasonSelect) filters.season = seasonSelect.value;
+            if (typeSelect) filters.type = typeSelect.value;
+            localStorage.setItem('teamPerformanceFilters', JSON.stringify(filters));
+        }
+        
+        function restoreFilterValues() {
+            const saved = localStorage.getItem('teamPerformanceFilters');
+            if (!saved) return;
+            
+            try {
+                const filters = JSON.parse(saved);
+                const seasonSelect = document.getElementById('team-performance-season-filter');
+                const typeSelect = document.getElementById('team-performance-type-filter');
+                if (seasonSelect && filters.season) {
+                    seasonSelect.value = filters.season;
+                }
+                if (typeSelect && filters.type) {
+                    typeSelect.value = filters.type;
+                }
+            } catch (e) {
+                console.error('Failed to restore team performance filters', e);
+            }
+        }
     })();
 
     function createPlaceholderModule() {
@@ -1218,6 +1751,7 @@ ob_start();
         let currentSort = { field: 'appearances', direction: 'desc' };
 
         function init() {
+            restorePlayerFilterValues();
             loadPlayerPerformance();
             setupFilters();
             setupSorting();
@@ -1234,7 +1768,22 @@ ob_start();
             emptyEl.style.display = 'none';
             tableWrapper.style.display = 'none';
 
-            fetch(`${apiBase}/player-performance`)
+            // Build filter query
+            const seasonSelect = document.getElementById('player-season-filter');
+            const typeSelect = document.getElementById('player-type-filter');
+            const params = new URLSearchParams();
+            if (seasonSelect && seasonSelect.value) {
+                params.append('season_id', seasonSelect.value);
+            }
+            if (typeSelect && typeSelect.value) {
+                params.append('type', typeSelect.value);
+            }
+            
+            const url = params.toString() 
+                ? `${apiBase}/player-performance?${params.toString()}` 
+                : `${apiBase}/player-performance`;
+
+            fetch(url)
                 .then(resp => {
                     if (!resp.ok) throw new Error('Network response was not ok');
                     return resp.json();
@@ -1247,6 +1796,7 @@ ob_start();
                         filteredPlayers = [...allPlayers];
                         populatePositionFilter();
                         renderTable();
+                        updatePlayerPerformanceSidebar();
                         tableWrapper.style.display = 'block';
                     } else {
                         emptyEl.style.display = 'block';
@@ -1273,21 +1823,72 @@ ob_start();
         }
 
         function setupFilters() {
-            const positionFilter = document.getElementById('player-position-filter');
+            const seasonFilter = document.getElementById('player-season-filter');
             const typeFilter = document.getElementById('player-type-filter');
+            const positionFilter = document.getElementById('player-position-filter');
 
-            positionFilter.addEventListener('change', applyFilters);
-            typeFilter.addEventListener('change', applyFilters);
+            // Season and type filters reload data
+            if (seasonFilter) {
+                seasonFilter.addEventListener('change', () => {
+                    savePlayerFilterValues();
+                    loadPlayerPerformance();
+                });
+            }
+            // Type filter (league/cup) also reloads
+            if (typeFilter) {
+                typeFilter.addEventListener('change', () => {
+                    savePlayerFilterValues();
+                    loadPlayerPerformance();
+                });
+            }
+            // Position filter applies to current data
+            if (positionFilter) {
+                positionFilter.addEventListener('change', () => {
+                    savePlayerFilterValues();
+                    applyFilters();
+                });
+            }
+        }
+        
+        function savePlayerFilterValues() {
+            const seasonSelect = document.getElementById('player-season-filter');
+            const typeSelect = document.getElementById('player-type-filter');
+            const positionSelect = document.getElementById('player-position-filter');
+            const filters = {};
+            if (seasonSelect) filters.season = seasonSelect.value;
+            if (typeSelect) filters.type = typeSelect.value;
+            if (positionSelect) filters.position = positionSelect.value;
+            localStorage.setItem('playerPerformanceFilters', JSON.stringify(filters));
+        }
+        
+        function restorePlayerFilterValues() {
+            const saved = localStorage.getItem('playerPerformanceFilters');
+            if (!saved) return;
+            
+            try {
+                const filters = JSON.parse(saved);
+                const seasonSelect = document.getElementById('player-season-filter');
+                const typeSelect = document.getElementById('player-type-filter');
+                const positionSelect = document.getElementById('player-position-filter');
+                if (seasonSelect && filters.season) {
+                    seasonSelect.value = filters.season;
+                }
+                if (typeSelect && filters.type) {
+                    typeSelect.value = filters.type;
+                }
+                if (positionSelect && filters.position) {
+                    positionSelect.value = filters.position;
+                }
+            } catch (e) {
+                console.error('Failed to restore player performance filters', e);
+            }
         }
 
         function applyFilters() {
             const positionFilter = document.getElementById('player-position-filter').value;
-            const typeFilter = document.getElementById('player-type-filter').value;
 
             filteredPlayers = allPlayers.filter(player => {
                 if (positionFilter && player.position !== positionFilter) return false;
-                if (typeFilter === 'starters' && player.starts === 0) return false;
-                if (typeFilter === 'subs' && player.sub_appearances === 0) return false;
                 return true;
             });
 
@@ -1351,23 +1952,25 @@ ob_start();
             if (filteredPlayers.length === 0) {
                 const row = tbody.insertRow();
                 const cell = row.insertCell();
-                cell.colSpan = 8;
-                cell.className = 'text-center text-muted';
+                cell.colSpan = 9;
+                cell.className = 'px-4 py-4 text-center text-slate-400';
                 cell.textContent = 'No players match the current filters.';
                 return;
             }
 
-            filteredPlayers.forEach(player => {
+            filteredPlayers.forEach((player, index) => {
                 const row = tbody.insertRow();
+                const isEven = index % 2 === 0;
+                row.className = `border-b border-white/10 ${isEven ? 'bg-slate-800/30' : 'bg-slate-900/20'} hover:bg-slate-800/50 transition-colors`;
                 row.innerHTML = `
-                    <td>${escapeHtml(player.name)}</td>
-                    <td>${escapeHtml(player.position)}</td>
-                    <td class="text-center">${player.appearances}</td>
-                    <td class="text-center">${player.starts}</td>
-                    <td class="text-center">${player.goals > 0 ? '⚽ ' + player.goals : '—'}</td>
-                    <td class="text-center">${player.assists > 0 ? player.assists : '—'}</td>
-                    <td class="text-center">${formatCards(player.yellow_cards, player.red_cards)}</td>
-                    <td class="text-center">${player.minutes_played}</td>
+                    <td class="px-6 py-3 text-left"><span class="font-bold text-slate-100">${escapeHtml(player.name)}</span></td>
+                    <td class="px-4 py-3 text-center text-slate-300">${escapeHtml(player.position)}</td>
+                    <td class="px-4 py-3 text-center text-slate-300">${player.appearances}</td>
+                    <td class="px-4 py-3 text-center text-slate-300">${player.starts}</td>
+                    <td class="px-4 py-3 text-center text-slate-300 font-semibold">${player.goals > 0 ? player.goals : '—'}</td>
+                    <td class="px-4 py-3 text-center text-slate-300">${player.yellow_cards > 0 ? `<span class="inline-flex items-center gap-1">${player.yellow_cards}</span>` : '—'}</td>
+                    <td class="px-4 py-3 text-center text-slate-300">${player.red_cards > 0 ? `<span class="inline-flex items-center gap-1">${player.red_cards}</span>` : '—'}</td>
+                    <td class="px-4 py-3 text-center text-slate-300">${player.minutes_played}</td>
                 `;
             });
         }
@@ -1384,6 +1987,147 @@ ob_start();
             div.textContent = text;
             return div.innerHTML;
         }
+        
+        function updatePlayerPerformanceSidebar() {
+            if (!allPlayers || allPlayers.length === 0) return;
+            
+            updateTopPerformers();
+            updateSquadSummary();
+        }
+        
+        function updateTopPerformers() {
+            const container = document.getElementById('player-top-performers');
+            if (!container) return;
+            
+            // Find top goalscorer
+            const topScorer = [...allPlayers].sort((a, b) => b.goals - a.goals)[0] || {};
+            const totalGoals = allPlayers.reduce((sum, p) => sum + p.goals, 0);
+            const goalsPerMatch = allPlayers.length > 0 ? (totalGoals / allPlayers.length).toFixed(2) : 0;
+            
+            // Find player with most appearances
+            const mostUsed = [...allPlayers].sort((a, b) => b.appearances - a.appearances)[0] || {};
+            
+            // Discipline stats
+            const totalYellow = allPlayers.reduce((sum, p) => sum + p.yellow_cards, 0);
+            const totalRed = allPlayers.reduce((sum, p) => sum + p.red_cards, 0);
+            
+            // Top minute player
+            const minuteLeader = [...allPlayers].sort((a, b) => b.minutes_played - a.minutes_played)[0] || {};
+            
+            container.innerHTML = `
+                <!-- Core Leaders grouped -->
+                <article class="rounded-lg border border-white/10 bg-slate-800/40 px-3 py-3">
+                    <div class="text-xs font-semibold text-slate-300 mb-3">Top Leaders</div>
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between gap-2">
+                            <div>
+                                <div class="text-[10px] uppercase tracking-wide text-slate-400">Top Goalscorer</div>
+                                <div class="text-sm text-slate-300">${topScorer.name ? escapeHtml(topScorer.name) : '—'}</div>
+                            </div>
+                            <div class="text-2xl font-bold text-emerald-400">${topScorer.goals || 0}</div>
+                        </div>
+                        <div class="flex items-center justify-between gap-2">
+                            <div>
+                                <div class="text-[10px] uppercase tracking-wide text-slate-400">Most Minutes</div>
+                                <div class="text-sm text-slate-300">${minuteLeader.name ? escapeHtml(minuteLeader.name) : '—'}</div>
+                            </div>
+                            <div class="text-2xl font-bold text-cyan-400">${minuteLeader.minutes_played || 0}</div>
+                        </div>
+                        <div class="flex items-center justify-between gap-2">
+                            <div>
+                                <div class="text-[10px] uppercase tracking-wide text-slate-400">Most Used</div>
+                                <div class="text-sm text-slate-300">${mostUsed.name ? escapeHtml(mostUsed.name) : '—'}</div>
+                            </div>
+                            <div class="text-2xl font-bold text-blue-400">${mostUsed.appearances || 0}</div>
+                        </div>
+                    </div>
+                </article>
+
+                <!-- Discipline -->
+                <article class="rounded-lg border border-white/10 bg-slate-800/40 px-3 py-3">
+                    <div class="text-xs font-semibold text-slate-300 mb-2">Discipline</div>
+                    <div class="grid grid-cols-2 gap-3 text-center">
+                        <div>
+                            <div class="text-xl font-bold text-yellow-500">${totalYellow}</div>
+                            <div class="text-xs text-slate-400">Yellow Cards</div>
+                        </div>
+                        <div>
+                            <div class="text-xl font-bold text-red-500">${totalRed}</div>
+                            <div class="text-xs text-slate-400">Red Cards</div>
+                        </div>
+                    </div>
+                </article>
+            `;
+        }
+        
+        function updateSquadSummary() {
+            const container = document.getElementById('player-squad-summary');
+            if (!container) return;
+            
+            // Squad size by position
+            const positions = {};
+            allPlayers.forEach(p => {
+                const pos = p.position || 'N/A';
+                positions[pos] = (positions[pos] || 0) + 1;
+            });
+            
+            // Total stats
+            const totalGoals = allPlayers.reduce((sum, p) => sum + p.goals, 0);
+            const totalYellow = allPlayers.reduce((sum, p) => sum + p.yellow_cards, 0);
+            const totalRed = allPlayers.reduce((sum, p) => sum + p.red_cards, 0);
+            const totalMinutes = allPlayers.reduce((sum, p) => sum + p.minutes_played, 0);
+            const goalsPerPlayer = allPlayers.length > 0 ? (totalGoals / allPlayers.length).toFixed(2) : '0.00';
+            const avgMinutesPerPlayer = allPlayers.length > 0 ? (totalMinutes / allPlayers.length).toFixed(0) : '0';
+            
+            const positionList = Object.entries(positions)
+                .map(([pos, count]) => `${count} ${pos}`)
+                .join(', ');
+            
+            container.innerHTML = `
+                <!-- Squad core stats grouped -->
+                <article class="rounded-lg border border-white/10 bg-slate-800/40 px-3 py-3">
+                    <div class="text-xs font-semibold text-slate-300 mb-3">Squad Overview</div>
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between gap-2">
+                            <div>
+                                <div class="text-[10px] uppercase tracking-wide text-slate-400">Squad Size</div>
+                                <div class="text-xs text-slate-500 mt-1">${escapeHtml(positionList)}</div>
+                            </div>
+                            <div class="text-2xl font-bold text-slate-100">${allPlayers.length}</div>
+                        </div>
+                        <div class="flex items-center justify-between gap-2">
+                            <div>
+                                <div class="text-[10px] uppercase tracking-wide text-slate-400">Goals Scored</div>
+                                <div class="text-xs text-slate-500 mt-1">${goalsPerPlayer} per player</div>
+                            </div>
+                            <div class="text-2xl font-bold text-emerald-400">${totalGoals}</div>
+                        </div>
+                        <div class="flex items-center justify-between gap-2">
+                            <div>
+                                <div class="text-[10px] uppercase tracking-wide text-slate-400">Playing Time</div>
+                                <div class="text-xs text-slate-500 mt-1">${avgMinutesPerPlayer} avg per player</div>
+                            </div>
+                            <div class="text-2xl font-bold text-cyan-400">${totalMinutes}</div>
+                        </div>
+                    </div>
+                </article>
+
+                <!-- Discipline Summary -->
+                <article class="rounded-lg border border-white/10 bg-slate-800/40 px-3 py-3">
+                    <div class="text-xs font-semibold text-slate-300 mb-2">Discipline</div>
+                    <div class="grid grid-cols-2 gap-3 text-center">
+                        <div>
+                            <div class="text-xl font-bold text-yellow-500">${totalYellow}</div>
+                            <div class="text-xs text-slate-400">Yellow</div>
+                        </div>
+                        <div>
+                            <div class="text-xl font-bold text-red-500">${totalRed}</div>
+                            <div class="text-xs text-slate-400">Red</div>
+                        </div>
+                    </div>
+                </article>
+            `;
+        }
 
         return { init };
     })();
@@ -1398,10 +2142,14 @@ ob_start();
         button.addEventListener('click', () => {
             const tabId = button.getAttribute('data-tab-id');
             showTab(tabId);
+            // Save the active tab to localStorage
+            localStorage.setItem('statsPageActiveTab', tabId);
         });
     });
 
-    showTab('overview');
+    // Restore the active tab from localStorage, or default to 'overview'
+    const savedTab = localStorage.getItem('statsPageActiveTab') || 'overview';
+    showTab(savedTab);
 })();
 </script>
 

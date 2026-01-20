@@ -31,7 +31,7 @@ $base = base_path();
 
 ob_start();
 ?>
-<div class="d-flex align-items-center justify-content-between mb-4">
+<div class="flex items-center justify-between mb-6">
           <div>
                     <h1 class="mb-1">Players</h1>
                     <p class="text-muted-alt text-sm mb-0">Manage club-wide players, positions, and assignments.</p>

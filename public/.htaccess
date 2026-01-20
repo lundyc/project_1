@@ -1,9 +1,11 @@
 RewriteEngine On
 RewriteBase /
 
-# Allow direct access to existing files and directories (assets, uploads, etc.)
-RewriteCond %{REQUEST_FILENAME} -f [OR]
-RewriteCond %{REQUEST_FILENAME} -d
+# Block direct access to admin directory - route through index.php instead
+RewriteRule ^admin/?$ index.php [L]
+
+# Allow direct access to existing files (assets, uploads, etc.) but not directories
+RewriteCond %{REQUEST_FILENAME} -f
 RewriteRule ^ - [L]
 
 # Send every other request (admin, matches, api, etc.) through the front controller

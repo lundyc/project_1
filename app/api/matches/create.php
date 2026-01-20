@@ -207,9 +207,10 @@ if ($seasonId !== null) {
 }
 
 if ($competitionId !== null) {
-          $competitionCheck = db()->prepare('SELECT id FROM competitions WHERE id = :id AND club_id = :club_id LIMIT 1');
+          $competitionCheck = db()->prepare('SELECT id, season_id FROM competitions WHERE id = :id AND club_id = :club_id LIMIT 1');
           $competitionCheck->execute(['id' => $competitionId, 'club_id' => $clubId]);
-          if (!$competitionCheck->fetch()) {
+          $competitionRow = $competitionCheck->fetch();
+          if (!$competitionRow) {
                     log_match_wizard_event(null, 'match_creation_validation', 'Competition invalid for club', [
                               'club_id' => $clubId,
                               'competition_id' => $competitionId,
@@ -223,6 +224,23 @@ if ($competitionId !== null) {
                     }
                     $_SESSION['match_form_error'] = 'Invalid competition for this club';
                     redirect('/matches/create?club_id=' . $clubId);
+          }
+
+          $competitionSeasonId = (int)$competitionRow['season_id'];
+          if ($seasonId !== null && $competitionSeasonId !== $seasonId) {
+                    if ($wantsJson) {
+                              respond_match_json(422, [
+                                        'ok' => false,
+                                        'error' => 'Competition must belong to the selected season',
+                                        'error_code' => 'match_creation_competition_season_mismatch',
+                              ]);
+                    }
+                    $_SESSION['match_form_error'] = 'Competition must belong to the selected season';
+                    redirect('/matches/create?club_id=' . $clubId);
+          }
+
+          if ($seasonId === null) {
+                    $seasonId = $competitionSeasonId;
           }
 }
  

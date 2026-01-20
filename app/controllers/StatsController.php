@@ -23,6 +23,12 @@ class StatsController
             $availableClubs = get_all_clubs();
         }
 
+        require_once __DIR__ . '/../lib/season_repository.php';
+        require_once __DIR__ . '/../lib/competition_repository.php';
+        
+        $seasons = get_seasons_by_club($selectedClubId);
+        $competitions = get_competitions_by_club($selectedClubId);
+
         $statsService = new StatsService($selectedClubId);
         $matches = $statsService->getMatchList();
 

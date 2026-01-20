@@ -2,9 +2,14 @@
 /**
  * Team Performance API Endpoint
  *
- * GET /api/stats/team-performance
+ * GET /api/stats/team-performance?season_id=X&type=league|cup
  *
  * Returns derived performance data for the selected club (matches, record, form, home/away splits).
+ * Supports filtering by season and competition type.
+ * 
+ * Query Parameters:
+ *   - season_id: Filter by season ID (optional)
+ *   - type: Filter by competition type (league|cup, optional, defaults to both)
  */
 require_once __DIR__ . '/../../lib/auth.php';
 require_once __DIR__ . '/../../lib/StatsService.php';
@@ -18,9 +23,13 @@ header('Content-Type: application/json');
 try {
     $context = resolve_club_context_for_stats();
     $clubId = $context['club_id'];
+    
+    // Get filter parameters
+    $seasonId = !empty($_GET['season_id']) ? (int)$_GET['season_id'] : null;
+    $type = !empty($_GET['type']) && in_array($_GET['type'], ['league', 'cup'], true) ? $_GET['type'] : null;
 
     $service = new StatsService($clubId);
-    $stats = $service->getTeamPerformanceStats();
+    $stats = $service->getTeamPerformanceStats($seasonId, $type);
 
     echo json_encode([
         'success' => true,

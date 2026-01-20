@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/../../lib/auth.php';
 require_once __DIR__ . '/../../lib/competition_repository.php';
+require_once __DIR__ . '/../../lib/season_repository.php';
 require_once __DIR__ . '/../../lib/match_permissions.php';
 
 auth_boot();
@@ -25,9 +26,15 @@ if (empty($input) && $raw) {
 }
 
 $clubId = isset($input['club_id']) ? (int)$input['club_id'] : 0;
+$seasonId = isset($input['season_id']) ? (int)$input['season_id'] : 0;
 $name = isset($input['name']) ? trim((string)$input['name']) : '';
+$type = isset($input['type']) ? strtolower(trim((string)$input['type'])) : 'cup';
 
-if ($clubId <= 0 || $name === '') {
+if (!in_array($type, ['league', 'cup'], true)) {
+          $type = 'cup';
+}
+
+if ($clubId <= 0 || $seasonId <= 0 || $name === '') {
           respond_json(422, ['ok' => false, 'error' => 'Invalid input']);
 }
 
@@ -43,9 +50,18 @@ if (!$isPlatformAdmin && (!isset($user['club_id']) || (int)$user['club_id'] !== 
           respond_json(403, ['ok' => false, 'error' => 'Unauthorized']);
 }
 
+if (!is_season_in_club($seasonId, $clubId)) {
+          respond_json(422, ['ok' => false, 'error' => 'Invalid season for this club']);
+}
+
 try {
-          $competitionId = create_competition_for_club($clubId, $name);
-          respond_json(200, ['ok' => true, 'competition' => ['id' => $competitionId, 'name' => $name]]);
+          $competitionId = create_competition_for_club($clubId, $seasonId, $name, $type);
+          respond_json(200, ['ok' => true, 'competition' => [
+                    'id' => $competitionId,
+                    'name' => $name,
+                    'season_id' => $seasonId,
+                    'type' => $type,
+          ]]);
 } catch (\Throwable $e) {
           respond_json(500, ['ok' => false, 'error' => 'Unable to create competition']);
 }

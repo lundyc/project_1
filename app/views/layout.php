@@ -15,7 +15,7 @@ auth_boot();
           <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css?v=<?= $cacheBuster ?>" rel="stylesheet">
           <link href="<?= htmlspecialchars($base) ?>/assets/css/tailwind.css?v=<?= $cacheBuster ?>" rel="stylesheet">
           <link href="<?= htmlspecialchars($base) ?>/assets/css/app.css?v=<?= $cacheBuster ?>" rel="stylesheet">
-          <link href="<?= htmlspecialchars($base) ?>/assets/css/forms.css?v=<?= $cacheBuster ?>" rel="stylesheet">
+          <!-- Removed missing forms.css to avoid 404 -->
           <?= $headExtras ?? '' ?>
 </head>
 
@@ -43,6 +43,7 @@ if (!empty($bodyAttributes)) {
           </div>
 
           <script src="https://code.jquery.com/jquery-3.7.1.min.js?v=<?= $cacheBuster ?>"></script>
+          <script src="<?= htmlspecialchars($base) ?>/assets/js/components.js?v=<?= $cacheBuster ?>"></script>
           <script src="<?= htmlspecialchars($base) ?>/assets/js/app.js?v=<?= $cacheBuster ?>"></script>
           
           <?= $footerScripts ?? '' ?>

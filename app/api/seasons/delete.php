@@ -25,11 +25,9 @@ if (empty($input) && $raw) {
 }
 
 $clubId = isset($input['club_id']) ? (int)$input['club_id'] : 0;
-$name = isset($input['name']) ? trim((string)$input['name']) : '';
-$startDate = isset($input['start_date']) && $input['start_date'] !== '' ? (string)$input['start_date'] : null;
-$endDate = isset($input['end_date']) && $input['end_date'] !== '' ? (string)$input['end_date'] : null;
+$seasonId = isset($input['id']) ? (int)$input['id'] : 0;
 
-if ($clubId <= 0 || $name === '') {
+if ($clubId <= 0 || $seasonId <= 0) {
           respond_json(422, ['ok' => false, 'error' => 'Invalid input']);
 }
 
@@ -45,14 +43,25 @@ if (!$isPlatformAdmin && (!isset($user['club_id']) || (int)$user['club_id'] !== 
           respond_json(403, ['ok' => false, 'error' => 'Unauthorized']);
 }
 
+if (!is_season_in_club($seasonId, $clubId)) {
+          respond_json(404, ['ok' => false, 'error' => 'Season not found for this club']);
+}
+
+if (season_has_matches($seasonId)) {
+          respond_json(422, ['ok' => false, 'error' => 'Cannot delete season with matches']);
+}
+
+if (season_has_competitions($seasonId)) {
+          respond_json(422, ['ok' => false, 'error' => 'Cannot delete season while competitions reference it']);
+}
+
 try {
-          $seasonId = create_season_for_club($clubId, $name, $startDate, $endDate);
-          respond_json(200, ['ok' => true, 'season' => [
-                    'id' => $seasonId,
-                    'name' => $name,
-                    'start_date' => $startDate,
-                    'end_date' => $endDate,
-          ]]);
+          $ok = delete_season_for_club($seasonId, $clubId);
+          if (!$ok) {
+                    respond_json(500, ['ok' => false, 'error' => 'Unable to delete season']);
+          }
+
+          respond_json(200, ['ok' => true]);
 } catch (\Throwable $e) {
-          respond_json(500, ['ok' => false, 'error' => 'Unable to create season']);
+          respond_json(500, ['ok' => false, 'error' => 'Unable to delete season']);
 }

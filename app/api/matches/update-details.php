@@ -60,6 +60,40 @@ if ($homeTeamId === $awayTeamId) {
     exit;
 }
 
+// Season validation
+if ($seasonId !== null) {
+    $seasonCheck = db()->prepare('SELECT id FROM seasons WHERE id = :id AND club_id = :club_id LIMIT 1');
+    $seasonCheck->execute(['id' => $seasonId, 'club_id' => (int)$match['club_id']]);
+    if (!$seasonCheck->fetch()) {
+        $_SESSION['match_form_error'] = 'Invalid season for this club';
+        redirect('/matches/' . $matchId . '/edit');
+        exit;
+    }
+}
+
+// Competition validation + season alignment
+if ($competitionId !== null) {
+    $competitionCheck = db()->prepare('SELECT id, season_id FROM competitions WHERE id = :id AND club_id = :club_id LIMIT 1');
+    $competitionCheck->execute(['id' => $competitionId, 'club_id' => (int)$match['club_id']]);
+    $competitionRow = $competitionCheck->fetch();
+    if (!$competitionRow) {
+        $_SESSION['match_form_error'] = 'Invalid competition for this club';
+        redirect('/matches/' . $matchId . '/edit');
+        exit;
+    }
+
+    $competitionSeasonId = (int)$competitionRow['season_id'];
+    if ($seasonId !== null && $competitionSeasonId !== $seasonId) {
+        $_SESSION['match_form_error'] = 'Competition must belong to the selected season';
+        redirect('/matches/' . $matchId . '/edit');
+        exit;
+    }
+
+    if ($seasonId === null) {
+        $seasonId = $competitionSeasonId;
+    }
+}
+
 // Update match
 try {
     $stmt = db()->prepare('

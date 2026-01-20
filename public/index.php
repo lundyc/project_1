@@ -65,6 +65,16 @@ route('/admin/users', function () {
           require __DIR__ . '/../app/views/pages/admin/users.php';
 });
 
+route('/admin/seasons', function () {
+          require_admin();
+          require __DIR__ . '/../app/views/pages/admin/seasons.php';
+});
+
+route('/admin/competitions', function () {
+          require_admin();
+          require __DIR__ . '/../app/views/pages/admin/competitions.php';
+});
+
 route('/api/admin/clubs/create', function () {
           require_role('platform_admin');
           require __DIR__ . '/../app/api/admin/create_club.php';
@@ -131,6 +141,11 @@ route('/api/stats/player-performance', function () {
           require __DIR__ . '/../app/api/stats/player-performance.php';
 });
 
+route('/api/stats/matches', function () {
+          require_auth();
+          require __DIR__ . '/../app/api/stats/matches.php';
+});
+
 route('/api/stats/match/overview', function () {
           require_auth();
           require __DIR__ . '/../app/api/stats/match/overview.php';
@@ -160,10 +175,34 @@ route('/api/seasons/create', function () {
           require_auth();
           require __DIR__ . '/../app/api/seasons/create.php';
 });
+route('/api/seasons/update', function () {
+          require_auth();
+          require __DIR__ . '/../app/api/seasons/update.php';
+});
+route('/api/seasons/delete', function () {
+          require_auth();
+          require __DIR__ . '/../app/api/seasons/delete.php';
+});
 
 route('/api/competitions/create', function () {
           require_auth();
           require __DIR__ . '/../app/api/competitions/create.php';
+});
+route('/api/competitions/update', function () {
+          require_auth();
+          require __DIR__ . '/../app/api/competitions/update.php';
+});
+route('/api/competitions/delete', function () {
+          require_auth();
+          require __DIR__ . '/../app/api/competitions/delete.php';
+});
+route('/api/competitions/add-team', function () {
+          require_auth();
+          require __DIR__ . '/../app/api/competitions/add_team.php';
+});
+route('/api/competitions/remove-team', function () {
+          require_auth();
+          require __DIR__ . '/../app/api/competitions/remove_team.php';
 });
 route('/api/match-players/list', function () {
           require_auth();

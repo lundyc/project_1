@@ -58,10 +58,11 @@ class StatsService
      * we need to identify which team's stats should be tracked. This method finds
      * the team that has played the most matches in the competition.
      * 
-     * @return int The team ID of the primary team
+     * @return int|null The team ID of the primary team, or null if no team found
      */
-    private function determinePrimaryTeam(): int
+    private function determinePrimaryTeam(): ?int
     {
+        // First, try to find a team with matches
         $stmt = $this->pdo->prepare('
             SELECT 
                 t.id,
@@ -80,11 +81,38 @@ class StatsService
         $stmt->execute(['club_id' => $this->clubId]);
         $result = $stmt->fetch();
         
-        if (!$result || empty($result['id'])) {
-            throw new \Exception('No primary team found for club');
+        if ($result && !empty($result['id'])) {
+            return (int)$result['id'];
         }
         
-        return (int)$result['id'];
+        // If no team with matches found, try to find any team for this club
+        $stmt = $this->pdo->prepare('
+            SELECT id 
+            FROM teams 
+            WHERE club_id = :club_id 
+            AND team_type = "club"
+            ORDER BY id ASC
+            LIMIT 1
+        ');
+        $stmt->execute(['club_id' => $this->clubId]);
+        $result = $stmt->fetch();
+        
+        if ($result && !empty($result['id'])) {
+            return (int)$result['id'];
+        }
+        
+        // No team found at all - return null to indicate no data
+        return null;
+    }
+
+    /**
+     * Check if the service has valid team data to work with
+     * 
+     * @return bool True if a primary team exists, false otherwise
+     */
+    private function hasValidTeam(): bool
+    {
+        return $this->primaryTeamId !== null;
     }
 
     /**
@@ -96,16 +124,37 @@ class StatsService
      * @return array Associative array with keys: total_matches, wins, draws, losses, 
      *               goals_for, goals_against, goal_difference, clean_sheets, average_goals_per_game
      */
-    public function getOverviewStats(): array
+    public function getOverviewStats(?int $seasonId = null, ?string $type = null): array
     {
-        // Get total matches for the club (Fourth Division only)
+        // Return empty stats if no team is configured
+        if (!$this->hasValidTeam()) {
+            return $this->getEmptyOverviewStats();
+        }
+
+        // Build filtering query
+        $where = ['m.club_id = :club_id', 'm.status = "ready"'];
+        $params = ['club_id' => $this->clubId];
+        
+        if ($seasonId !== null) {
+            $where[] = 'm.season_id = :season_id';
+            $params['season_id'] = $seasonId;
+        }
+        
+        if ($type !== null) {
+            $where[] = 'c.type = :type';
+            $params['type'] = $type;
+        }
+        
+        $whereClause = implode(' AND ', $where);
+
+        // Get total matches for the club
         $matchStmt = $this->pdo->prepare('
             SELECT COUNT(*) as total_matches
             FROM matches m
             LEFT JOIN competitions c ON c.id = m.competition_id
-            WHERE m.club_id = :club_id AND m.status = "ready" AND c.name = "Fourth Division"
-        ');
-        $matchStmt->execute(['club_id' => $this->clubId]);
+            WHERE ' . $whereClause
+        );
+        $matchStmt->execute($params);
         $matchResult = $matchStmt->fetch();
         $totalMatches = (int)($matchResult['total_matches'] ?? 0);
 
@@ -114,22 +163,22 @@ class StatsService
         }
 
         // Count goals scored by our club's teams
-        $goalsFor = $this->countGoalsForClub();
+        $goalsFor = $this->countGoalsForClub($seasonId, $type);
 
         // Count goals scored against our club (by opponent teams)
-        $goalsAgainst = $this->countGoalsAgainstClub();
+        $goalsAgainst = $this->countGoalsAgainstClub($seasonId, $type);
 
         // Goal difference
         $goalDifference = $goalsFor - $goalsAgainst;
 
         // Calculate wins, draws, losses
-        $results = $this->computeMatchResults();
+        $results = $this->computeMatchResults($seasonId, $type);
         $wins = (int)($results['wins'] ?? 0);
         $draws = (int)($results['draws'] ?? 0);
         $losses = $totalMatches - $wins - $draws;
 
         // Count clean sheets
-        $cleanSheets = $this->countCleanSheets();
+        $cleanSheets = $this->countCleanSheets($seasonId, $type);
 
         // Average goals per game
         $avgGoalsPerGame = $totalMatches > 0 ? round($goalsFor / $totalMatches, 2) : 0;
@@ -318,12 +367,26 @@ class StatsService
      * 
      * @return array Array of player performance data
      */
-    public function getPlayerPerformanceForClub(): array
+    public function getPlayerPerformanceForClub(?int $seasonId = null, ?string $type = null): array
     {
         // Get event type IDs
         $goalTypeId = $this->getGoalEventTypeId();
         $yellowCardTypeId = $this->getEventTypeIdByKey('yellow_card');
         $redCardTypeId = $this->getEventTypeIdByKey('red_card');
+        
+        $where = ['m.club_id = :club_id', 'm.status = "ready"', 'p.club_id = :club_id'];
+        $params = ['club_id' => $this->clubId];
+        
+        if ($seasonId !== null) {
+            $where[] = 'm.season_id = :season_id';
+            $params['season_id'] = $seasonId;
+        }
+        if ($type !== null) {
+            $where[] = 'c.type = :type';
+            $params['type'] = $type;
+        }
+        
+        $whereClause = implode(' AND ', $where);
 
                 // Get all match_players for the club's matches, grouped by player (minutes computed below)
                 $sql = '
@@ -337,18 +400,17 @@ class StatsService
                         FROM players p
                         INNER JOIN match_players mp ON mp.player_id = p.id
                         INNER JOIN matches m ON m.id = mp.match_id
-                        WHERE m.club_id = :club_id 
-                            AND m.status = "ready"
-                            AND p.club_id = :club_id
+                        LEFT JOIN competitions c ON c.id = m.competition_id
+                        WHERE ' . $whereClause . '
                         GROUP BY p.id, p.display_name, p.primary_position
                 ';
         
                 $stmt = $this->pdo->prepare($sql);
-                $stmt->execute(['club_id' => $this->clubId]);
+                $stmt->execute($params);
                 $players = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
                 // Compute minutes using substitutions (fallback: starters 90, unused subs 0, subs that came on get actual minutes)
-                $minutesByPlayer = $this->computeMinutesPlayedForClub();
+                $minutesByPlayer = $this->computeMinutesPlayedForClub($seasonId, $type);
 
         // Now get event stats for each player
         // Note: Events can have player_id directly OR via match_player_id
@@ -360,20 +422,31 @@ class StatsService
             FROM events e
             INNER JOIN matches m ON m.id = e.match_id
             LEFT JOIN match_players mp ON mp.id = e.match_player_id
+            LEFT JOIN competitions c ON c.id = m.competition_id
             WHERE m.club_id = :club_id 
               AND m.status = "ready"
               AND (e.player_id IS NOT NULL OR mp.player_id IS NOT NULL)
-              AND e.event_type_id IN (:goal_id, :yellow_id, :red_id)
+              AND e.event_type_id IN (:goal_id, :yellow_id, :red_id)' .
+              ($seasonId !== null ? ' AND m.season_id = :season_id' : '') .
+              ($type !== null ? ' AND c.type = :type' : '') . '
             GROUP BY COALESCE(e.player_id, mp.player_id), e.event_type_id
         ';
         
-        $eventStmt = $this->pdo->prepare($eventSql);
-        $eventStmt->execute([
+        $eventParams = [
             'club_id' => $this->clubId,
             'goal_id' => $goalTypeId,
             'yellow_id' => $yellowCardTypeId,
             'red_id' => $redCardTypeId,
-        ]);
+        ];
+        if ($seasonId !== null) {
+            $eventParams['season_id'] = $seasonId;
+        }
+        if ($type !== null) {
+            $eventParams['type'] = $type;
+        }
+        
+        $eventStmt = $this->pdo->prepare($eventSql);
+        $eventStmt->execute($eventParams);
         $events = $eventStmt->fetchAll(\PDO::FETCH_ASSOC);
 
         // Build event map by player
@@ -443,15 +516,31 @@ class StatsService
      *
      * @return array player_id => minutes_played
      */
-    private function computeMinutesPlayedForClub(): array
+    private function computeMinutesPlayedForClub(?int $seasonId = null, ?string $type = null): array
     {
         $matchLength = 90;
+        
+        $where = ['m.club_id = :club_id', 'm.status = "ready"'];
+        $params = ['club_id' => $this->clubId];
+        
+        if ($seasonId !== null) {
+            $where[] = 'm.season_id = :season_id';
+            $params['season_id'] = $seasonId;
+        }
+        if ($type !== null) {
+            $where[] = 'c.type = :type';
+            $params['type'] = $type;
+        }
+        
+        $whereClause = implode(' AND ', $where);
 
         // Collect ready match IDs for this club
         $matchStmt = $this->pdo->prepare('
-            SELECT id FROM matches WHERE club_id = :club_id AND status = "ready"
-        ');
-        $matchStmt->execute(['club_id' => $this->clubId]);
+            SELECT m.id FROM matches m
+            LEFT JOIN competitions c ON c.id = m.competition_id
+            WHERE ' . $whereClause
+        );
+        $matchStmt->execute($params);
         $matchIds = array_map('intval', $matchStmt->fetchAll(\PDO::FETCH_COLUMN));
         if (empty($matchIds)) {
             return [];
@@ -462,9 +551,10 @@ class StatsService
             SELECT mp.id as match_player_id, mp.match_id, mp.player_id, mp.is_starting
             FROM match_players mp
             INNER JOIN matches m ON m.id = mp.match_id
-            WHERE m.club_id = :club_id AND m.status = "ready"
-        ');
-        $mpStmt->execute(['club_id' => $this->clubId]);
+            LEFT JOIN competitions c ON c.id = m.competition_id
+            WHERE ' . $whereClause
+        );
+        $mpStmt->execute($params);
         $matchPlayers = $mpStmt->fetchAll(\PDO::FETCH_ASSOC);
 
         // Group match players by match and map match_player_id → player_id
@@ -704,8 +794,26 @@ class StatsService
      * 
      * @return int Total goals scored by our primary team
      */
-    private function countGoalsForClub(): int
+    private function countGoalsForClub(?int $seasonId = null, ?string $type = null): int
     {
+        if (!$this->hasValidTeam()) {
+            return 0;
+        }
+        
+        $where = ['m.club_id = :club_id', 'm.status = "ready"'];
+        $params = ['club_id' => $this->clubId, 'team_id' => $this->primaryTeamId];
+        
+        if ($seasonId !== null) {
+            $where[] = 'm.season_id = :season_id';
+            $params['season_id'] = $seasonId;
+        }
+        if ($type !== null) {
+            $where[] = 'c.type = :type';
+            $params['type'] = $type;
+        }
+        
+        $whereClause = implode(' AND ', $where);
+        
         $stmt = $this->pdo->prepare('
             SELECT COUNT(*) as goals
             FROM events e
@@ -715,9 +823,7 @@ class StatsService
                 WHEN e.team_side = "home" THEN m.home_team_id
                 WHEN e.team_side = "away" THEN m.away_team_id
             END
-            WHERE m.club_id = :club_id 
-            AND m.status = "ready"
-            AND c.name = "Fourth Division"
+            WHERE ' . $whereClause . '
             AND scoring_team.id = :team_id
             AND e.event_type_id = (
                 SELECT id FROM event_types 
@@ -725,10 +831,7 @@ class StatsService
                 LIMIT 1
             )
         ');
-        $stmt->execute([
-            'club_id' => $this->clubId,
-            'team_id' => $this->primaryTeamId
-        ]);
+        $stmt->execute($params);
         $result = $stmt->fetch();
         return (int)($result['goals'] ?? 0);
     }
@@ -741,8 +844,26 @@ class StatsService
      * 
      * @return int Total goals conceded by our primary team
      */
-    private function countGoalsAgainstClub(): int
+    private function countGoalsAgainstClub(?int $seasonId = null, ?string $type = null): int
     {
+        if (!$this->hasValidTeam()) {
+            return 0;
+        }
+        
+        $where = ['m.club_id = :club_id', "m.status = 'ready'"];
+        $params = ['club_id' => $this->clubId, 'team_id' => $this->primaryTeamId];
+        
+        if ($seasonId !== null) {
+            $where[] = 'm.season_id = :season_id';
+            $params['season_id'] = $seasonId;
+        }
+        if ($type !== null) {
+            $where[] = 'c.type = :type';
+            $params['type'] = $type;
+        }
+        
+        $whereClause = implode(' AND ', $where);
+        
         $stmt = $this->pdo->prepare('
             SELECT COUNT(*) as goals
             FROM events e
@@ -752,9 +873,7 @@ class StatsService
                 WHEN e.team_side = "home" THEN m.home_team_id
                 WHEN e.team_side = "away" THEN m.away_team_id
             END
-            WHERE m.club_id = :club_id 
-            AND m.status = "ready"
-            AND c.name = "Fourth Division"
+            WHERE ' . $whereClause . '
             AND scoring_team.id != :team_id
             AND e.event_type_id = (
                 SELECT id FROM event_types 
@@ -762,10 +881,7 @@ class StatsService
                 LIMIT 1
             )
         ');
-        $stmt->execute([
-            'club_id' => $this->clubId,
-            'team_id' => $this->primaryTeamId
-        ]);
+        $stmt->execute($params);
         $result = $stmt->fetch();
         return (int)($result['goals'] ?? 0);
     }
@@ -778,9 +894,27 @@ class StatsService
      * 
      * @return array Array with 'wins' and 'draws' keys
      */
-    private function computeMatchResults(): array
+    private function computeMatchResults(?int $seasonId = null, ?string $type = null): array
     {
-        // Get all Fourth Division matches for this club
+        if (!$this->hasValidTeam()) {
+            return ['wins' => 0, 'draws' => 0];
+        }
+        
+        $where = ['m.club_id = :club_id', "m.status = 'ready'"];
+        $params = ['club_id' => $this->clubId];
+        
+        if ($seasonId !== null) {
+            $where[] = 'm.season_id = :season_id';
+            $params['season_id'] = $seasonId;
+        }
+        if ($type !== null) {
+            $where[] = 'c.type = :type';
+            $params['type'] = $type;
+        }
+        
+        $whereClause = implode(' AND ', $where);
+        
+        // Get all matches for this club with filters
         $stmt = $this->pdo->prepare('
             SELECT 
                 m.id,
@@ -800,11 +934,9 @@ class StatsService
                 ) as away_goals
             FROM matches m
             LEFT JOIN competitions c ON c.id = m.competition_id
-            WHERE m.club_id = :club_id 
-            AND m.status = "ready" 
-            AND c.name = "Fourth Division"
-        ');
-        $stmt->execute(['club_id' => $this->clubId]);
+            WHERE ' . $whereClause
+        );
+        $stmt->execute($params);
         $matches = $stmt->fetchAll();
         
         $wins = 0;
@@ -844,15 +976,32 @@ class StatsService
      * 
      * @return int Clean sheet count for our primary team
      */
-    private function countCleanSheets(): int
+    private function countCleanSheets(?int $seasonId = null, ?string $type = null): int
     {
+        if (!$this->hasValidTeam()) {
+            return 0;
+        }
+        
+        $where = ['m.club_id = :club_id', 'm.status = "ready"'];
+        $params = ['club_id' => $this->clubId, 'team_id' => $this->primaryTeamId];
+        
+        if ($seasonId !== null) {
+            $where[] = 'm.season_id = :season_id';
+            $params['season_id'] = $seasonId;
+        }
+        
+        if ($type !== null) {
+            $where[] = 'c.type = :type';
+            $params['type'] = $type;
+        }
+        
+        $whereClause = implode(' AND ', $where);
+        
         $stmt = $this->pdo->prepare('
             SELECT COUNT(*) as clean_sheets
             FROM matches m
             LEFT JOIN competitions c ON c.id = m.competition_id
-            WHERE m.club_id = :club_id 
-            AND m.status = "ready" 
-            AND c.name = "Fourth Division"
+            WHERE ' . $whereClause . '
             AND (
                 (m.home_team_id = :team_id AND (
                     SELECT COUNT(*) 
@@ -871,10 +1020,7 @@ class StatsService
                 ) = 0)
             )
         ');
-        $stmt->execute([
-            'club_id' => $this->clubId,
-            'team_id' => $this->primaryTeamId
-        ]);
+        $stmt->execute($params);
         $result = $stmt->fetch();
         return (int)($result['clean_sheets'] ?? 0);
     }
@@ -984,6 +1130,10 @@ class StatsService
 
     private function resolveClubVenueSide(array $match): ?string
     {
+        if (!$this->hasValidTeam()) {
+            return null;
+        }
+        
         $homeTeamId = isset($match['home_team_id']) ? (int)$match['home_team_id'] : 0;
         $awayTeamId = isset($match['away_team_id']) ? (int)$match['away_team_id'] : 0;
         
@@ -1039,9 +1189,23 @@ class StatsService
         return isset($map[$typeKey]) ? (int)$map[$typeKey] : 0;
     }
 
-    public function getTeamPerformanceStats(): array
+    public function getTeamPerformanceStats(?int $seasonId = null, ?string $type = null): array
     {
         $goalTypeId = $this->getGoalEventTypeId();
+        
+        $where = ['m.club_id = :club_id', 'm.status = "ready"'];
+        $params = ['club_id' => $this->clubId, 'goal_type_id' => $goalTypeId];
+        
+        if ($seasonId !== null) {
+            $where[] = 'm.season_id = :season_id';
+            $params['season_id'] = $seasonId;
+        }
+        if ($type !== null) {
+            $where[] = 'c.type = :type';
+            $params['type'] = $type;
+        }
+        
+        $whereClause = implode(' AND ', $where);
 
         $stmt = $this->pdo->prepare('
             SELECT
@@ -1050,6 +1214,7 @@ class StatsService
                 m.home_team_id,
                 m.away_team_id,
                 c.name AS competition_name,
+                c.type AS competition_type,
                 ht.name AS home_team_name,
                 at.name AS away_team_name,
                 COALESCE((
@@ -1068,14 +1233,10 @@ class StatsService
             LEFT JOIN competitions c ON c.id = m.competition_id
             LEFT JOIN teams ht ON ht.id = m.home_team_id
             LEFT JOIN teams at ON at.id = m.away_team_id
-            WHERE m.club_id = :club_id
-              AND m.status = "ready"
+            WHERE ' . $whereClause . '
             ORDER BY m.kickoff_at DESC, m.id DESC
         ');
-        $stmt->execute([
-            'club_id' => $this->clubId,
-            'goal_type_id' => $goalTypeId,
-        ]);
+        $stmt->execute($params);
 
         $matches = $stmt->fetchAll(\PDO::FETCH_ASSOC);
         $matchesPlayed = count($matches);
@@ -1098,8 +1259,8 @@ class StatsService
             $clubGoals = $venue === 'home' ? (int)($match['home_goals'] ?? 0) : (int)($match['away_goals'] ?? 0);
             $opponentGoals = $venue === 'home' ? (int)($match['away_goals'] ?? 0) : (int)($match['home_goals'] ?? 0);
             $result = $this->formatMatchResult($clubGoals, $opponentGoals);
-            $competition = trim((string)($match['competition_name'] ?? ''));
-            $isLeague = $competition === 'Fourth Division';
+            $competitionType = trim((string)($match['competition_type'] ?? ''));
+            $isLeague = $competitionType === 'league';
 
             if ($result === 'W') {
                 $wins++;
@@ -1160,7 +1321,7 @@ class StatsService
         }
 
         // Calculate clean sheets per competition
-        $leagueCleanSheets = $this->countCleanSheetsByCompetition('Fourth Division');
+        $leagueCleanSheets = $this->countCleanSheetsByCompetitionType('league');
         $cupCleanSheets = $this->countCleanSheets() - $leagueCleanSheets;
         
         $leagueStats['clean_sheets'] = $leagueCleanSheets;
@@ -1188,20 +1349,24 @@ class StatsService
     }
     
     /**
-     * Count clean sheets for a specific competition
+     * Count clean sheets for competitions of a specific type (league|cup)
      * 
-     * @param string $competitionName Competition name to filter by
+     * @param string $competitionType Competition type to filter by
      * @return int Clean sheet count
      */
-    private function countCleanSheetsByCompetition(string $competitionName): int
+    private function countCleanSheetsByCompetitionType(string $competitionType): int
     {
+        if (!$this->hasValidTeam()) {
+            return 0;
+        }
+        
         $stmt = $this->pdo->prepare('
             SELECT COUNT(*) as clean_sheets
             FROM matches m
             LEFT JOIN competitions c ON c.id = m.competition_id
             WHERE m.club_id = :club_id 
             AND m.status = "ready" 
-            AND c.name = :competition_name
+            AND c.type = :competition_type
             AND (
                 (m.home_team_id = :team_id AND (
                     SELECT COUNT(*) 
@@ -1223,7 +1388,7 @@ class StatsService
         $stmt->execute([
             'club_id' => $this->clubId,
             'team_id' => $this->primaryTeamId,
-            'competition_name' => $competitionName
+            'competition_type' => $competitionType
         ]);
         $result = $stmt->fetch();
         return (int)($result['clean_sheets'] ?? 0);

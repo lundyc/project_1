@@ -11,7 +11,7 @@ ob_start();
           Logged in as <strong><?= htmlspecialchars(current_user()['display_name']) ?></strong>
 </p>
 
-<a href="<?= base_path() ?>/logout" class="btn btn-sm btn-outline-light">Logout</a>
+<a href="<?= base_path() ?>/logout" class="inline-flex items-center rounded-lg px-4 py-2 text-sm border border-gray-300 bg-transparent text-white hover:bg-gray-700 transition">Logout</a>
 <?php
 $content = ob_get_clean();
 require __DIR__ . '/../layout.php';

@@ -65,7 +65,7 @@ $action = $isEdit ? $base . '/admin/players/' . $playerId : $base . '/admin/play
 
 ob_start();
 ?>
-<div class="d-flex align-items-center justify-content-between mb-4">
+<div class="flex items-center justify-between mb-6">
           <div>
                     <h1 class="mb-1"><?= htmlspecialchars($title) ?></h1>
                     <p class="text-muted-alt text-sm mb-0">Maintain player info like positions, assignments, and status.</p>
@@ -79,30 +79,30 @@ ob_start();
 
 <div class="panel p-4">
           <form method="post" action="<?= htmlspecialchars($action) ?>">
-                    <div class="row g-3">
-                              <div class="col-md-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
                                         <label class="form-label">Display name</label>
-                                        <input type="text" name="display_name" value="<?= htmlspecialchars($values['display_name']) ?>" class="form-control input-dark" required>
+                                        <input type="text" name="display_name" value="<?= htmlspecialchars($values['display_name']) ?>" class="input-dark w-full" required>
                               </div>
-                              <div class="col-md-6">
+                              <div>
                                         <label class="form-label">Primary position</label>
-                                        <input type="text" name="primary_position" value="<?= htmlspecialchars($values['primary_position']) ?>" class="form-control input-dark">
+                                        <input type="text" name="primary_position" value="<?= htmlspecialchars($values['primary_position']) ?>" class="input-dark w-full">
                               </div>
-                              <div class="col-md-6">
+                              <div>
                                         <label class="form-label">First name</label>
-                                        <input type="text" name="first_name" value="<?= htmlspecialchars($values['first_name']) ?>" class="form-control input-dark">
+                                        <input type="text" name="first_name" value="<?= htmlspecialchars($values['first_name']) ?>" class="input-dark w-full">
                               </div>
-                              <div class="col-md-6">
+                              <div>
                                         <label class="form-label">Last name</label>
-                                        <input type="text" name="last_name" value="<?= htmlspecialchars($values['last_name']) ?>" class="form-control input-dark">
+                                        <input type="text" name="last_name" value="<?= htmlspecialchars($values['last_name']) ?>" class="input-dark w-full">
                               </div>
-                              <div class="col-md-6">
+                              <div>
                                         <label class="form-label">Date of birth</label>
-                                        <input type="date" name="dob" value="<?= htmlspecialchars($values['dob']) ?>" class="form-control input-dark">
+                                        <input type="date" name="dob" value="<?= htmlspecialchars($values['dob']) ?>" class="input-dark w-full">
                               </div>
-                              <div class="col-md-6">
+                              <div>
                                         <label class="form-label">Team (optional)</label>
-                                        <select name="team_id" class="form-select select-dark">
+                                        <select name="team_id" class="select-dark w-full">
                                                   <option value="">Unassigned</option>
                                                   <?php foreach ($teams as $team): ?>
                                                             <option value="<?= (int)$team['id'] ?>" <?= $values['team_id'] !== '' && (int)$team['id'] === (int)$values['team_id'] ? 'selected' : '' ?>>
@@ -113,7 +113,7 @@ ob_start();
                               </div>
                     </div>
 
-                    <div class="form-check form-switch mt-3">
+                    <div class="form-check mt-4">
                               <input type="hidden" name="is_active" value="0">
                               <input class="form-check-input" type="checkbox" id="isActive" name="is_active" value="1" <?= (int)$values['is_active'] === 1 ? 'checked' : '' ?>>
                               <label class="form-check-label" for="isActive">Active player</label>
