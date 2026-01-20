@@ -2364,7 +2364,7 @@
                         selectedId = null;
                         $eventId.val('');
                         updateTimeFromSeconds(0);
-                        const teamSide = 'home';
+                        const teamSide = currentTeam || 'home';
                         $teamSide.val(teamSide);
                         $editorPanel.find('.team-selector-btn').removeClass('selected');
                         $editorPanel.find(`.team-selector-btn[data-team="${teamSide}"]`).addClass('selected');
@@ -2489,13 +2489,15 @@
             $minute.val(minuteValue);
             const minuteExtraValue = Math.max(0, parseInt($minuteExtra.val(), 10) || 0);
             $minuteExtra.val(minuteExtraValue);
+            const teamSide = ($teamSide.val() || '').trim() || currentTeam || 'home';
+            $teamSide.val(teamSide);
             return {
                   match_id: cfg.matchId,
                   event_id: $eventId.val(),
                   match_second: matchSecond,
                   minute: minuteValue,
                   minute_extra: minuteExtraValue,
-                  team_side: $teamSide.val(),
+                  team_side: teamSide,
                   period_id: $periodId.val(),
                   event_type_id: $eventTypeId.val(),
                   match_player_id: $matchPlayerId.val(),

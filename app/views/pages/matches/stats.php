@@ -8,6 +8,24 @@ $title = 'Match Stats';
 $flashSuccess = $_SESSION['stats_flash_success'] ?? null;
 unset($_SESSION['stats_flash_success']);
 
+// Set default values for match display variables
+$competition = $match['competition'] ?? ($match['competition_name'] ?? 'Competition');
+$matchStatusLabel = $match['status'] ?? 'Scheduled';
+
+// Build match score from available score fields
+$matchScore = null;
+$scorePairs = [
+    ['home_score', 'away_score'],
+    ['home_team_score', 'away_team_score'],
+    ['home_goals', 'away_goals'],
+];
+foreach ($scorePairs as [$homeKey, $awayKey]) {
+    if (isset($match[$homeKey], $match[$awayKey]) && $match[$homeKey] !== null && $match[$awayKey] !== null) {
+        $matchScore = sprintf('%s - %s', $match[$homeKey], $match[$awayKey]);
+        break;
+    }
+}
+
 $byType = $derivedStats['by_type_team'] ?? [];
 $totals = $derivedStats['totals'] ?? [];
 
@@ -174,6 +192,94 @@ $phase2Buckets = $phase2['per_15_minute'] ?? [];
 
 $headExtras = <<<HTML
 <style>
+.match-hero {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          padding: 16px 20px;
+          border: 1px solid #1e2b40;
+          border-radius: 12px;
+          background: linear-gradient(135deg, #0f1c33 0%, #0b172b 100%);
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+.match-hero-left {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+}
+.match-hero-eyebrow {
+          font-size: 0.75rem;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: #8fa4c7;
+          font-weight: 600;
+}
+.match-hero-title {
+          font-size: 1.75rem;
+          font-weight: 800;
+          color: #f8fafc;
+          line-height: 1.2;
+}
+.match-hero-separator {
+          color: #8fa4c7;
+          font-weight: 600;
+}
+.match-hero-subtitle {
+          color: #cbd5e1;
+          font-size: 0.95rem;
+}
+.match-hero-right {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 10px;
+}
+.match-hero-meta {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 4px;
+}
+.match-hero-meta-label {
+          font-size: 0.75rem;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: #8fa4c7;
+}
+.match-hero-score {
+          font-size: 1.8rem;
+          font-weight: 800;
+          color: #f8fafc;
+}
+.match-hero-status {
+          font-size: 0.85rem;
+          color: #cbd5e1;
+}
+.match-hero-actions {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+}
+@media (max-width: 768px) {
+          .match-hero {
+                    flex-direction: column;
+                    align-items: flex-start;
+          }
+          .match-hero-right {
+                    align-items: flex-start;
+                    width: 100%;
+          }
+          .match-hero-actions {
+                    width: 100%;
+                    gap: 10px;
+          }
+          .match-hero-actions .btn {
+                    flex: 1;
+                    text-align: center;
+          }
+}
+
 .summary-timeline {
           display: flex;
           flex-direction: column;
@@ -976,15 +1082,26 @@ $deskUrlBase = $base . '/matches/' . (int)$match['id'] . '/desk';
 
 ob_start();
 ?>
-<div class="d-flex align-items-center justify-content-between mb-4">
-          <div>
-                    <div class="text-muted-alt text-sm">Match Stats</div>
-                    <h1 class="mb-1"><?= htmlspecialchars($match['home_team']) ?> <span class="text-muted-alt">vs</span> <?= htmlspecialchars($match['away_team']) ?></h1>
-                    <div class="text-muted-alt text-sm"><?= $match['kickoff_at'] ? htmlspecialchars(date('M j, Y · H:i', strtotime($match['kickoff_at']))) : 'Date TBD' ?></div>
+<div class="match-hero mb-4">
+          <div class="match-hero-left">
+                    <div class="match-hero-eyebrow">Match Stats</div>
+                    <div class="match-hero-title">
+                              <?= htmlspecialchars($match['home_team']) ?> <span class="match-hero-separator">vs</span> <?= htmlspecialchars($match['away_team']) ?>
+                    </div>
+                    <div class="match-hero-subtitle">
+                              <?= $match['kickoff_at'] ? htmlspecialchars(date('M j, Y · H:i', strtotime($match['kickoff_at']))) : 'Date TBD' ?> · <?= htmlspecialchars($competition) ?>
+                    </div>
           </div>
-          <div class="d-flex align-items-center gap-2">
-                    <a href="<?= htmlspecialchars($base) ?>/matches" class="btn btn-secondary-soft btn-sm">Back to Matches</a>
-                    <a href="<?= htmlspecialchars($deskUrlBase) ?>" class="btn btn-primary-soft btn-sm">Analyse</a>
+          <div class="match-hero-right">
+                    <div class="match-hero-meta">
+                              <span class="match-hero-meta-label">Score</span>
+                              <span class="match-hero-score"><?= htmlspecialchars($matchScore ?? '—') ?></span>
+                              <span class="match-hero-status text-uppercase"><?= htmlspecialchars($matchStatusLabel) ?></span>
+                    </div>
+                    <div class="match-hero-actions">
+                              <a href="<?= htmlspecialchars($base) ?>/matches" class="btn btn-secondary-soft btn-sm">Back to Matches</a>
+                              <a href="<?= htmlspecialchars($deskUrlBase) ?>" class="btn btn-primary-soft btn-sm">Analyse</a>
+                    </div>
           </div>
 </div>
 

@@ -13,6 +13,7 @@ $currentPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?? '/';
 $navBase = $base ?: '';
 $dashboardHref = $navBase . '/';
 $matchesHref = $navBase . '/matches';
+$statsHref = $navBase . '/stats';
 $playersHref = $navBase . '/admin/players';
 $adminHref = $navBase . '/admin';
 $settingsHref = $navBase . '/settings';
@@ -20,6 +21,7 @@ $logoutHref = $navBase . '/logout';
 
 $dashboardActive = $currentPath === $dashboardHref || $currentPath === rtrim($navBase, '/');
 $matchesActive = str_starts_with($currentPath, $matchesHref);
+$statsActive = str_starts_with($currentPath, $statsHref);
 $playersActive = str_starts_with($currentPath, $playersHref);
 $adminActive = str_starts_with($currentPath, $adminHref) && !$playersActive;
 
@@ -35,7 +37,11 @@ foreach ($nameParts as $part) {
 }
 $initials = $initials ?: 'U';
 
-$navLinks = [
+/*
+ * Primary navigation items for all logged-in users.
+ * Adding Stats here ensures the section renders alongside Dashboard/Matches.
+ */
+$primaryNavLinks = [
           [
                     'label' => 'Dashboard',
                     'href' => $dashboardHref,
@@ -46,7 +52,14 @@ $navLinks = [
                     'href' => $matchesHref,
                     'active' => $matchesActive,
           ],
+          [
+                    'label' => 'Stats',
+                    'href' => $statsHref,
+                    'active' => $statsActive,
+          ],
 ];
+
+$navLinks = $primaryNavLinks;
 
 if ($canViewPlayers) {
           $navLinks[] = [

@@ -207,11 +207,13 @@ function get_match(int $id): ?array
                     'SELECT m.*,
                             ht.name AS home_team,
                             at.name AS away_team,
+                            c.name AS competition,
                             mv.id AS video_id,
                             ' . $videoSelect . '
              FROM matches m
              JOIN teams ht ON ht.id = m.home_team_id
              JOIN teams at ON at.id = m.away_team_id
+             LEFT JOIN competitions c ON c.id = m.competition_id
              LEFT JOIN match_videos mv ON mv.match_id = m.id
              WHERE m.id = :id
              ORDER BY mv.id DESC

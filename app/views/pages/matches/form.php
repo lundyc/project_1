@@ -115,6 +115,26 @@ $footerScripts = '<script>window.MatchWizardConfig = ' . json_encode($wizardConf
 $footerScripts .= '<script>window.MatchWizardSetupConfig = ' . json_encode($setupConfig) . ';</script>';
 $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/match-setup.js?v=' . time() . '"></script>';
 $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/match-wizard.js?v=' . time() . '"></script>';
+$footerScripts .= '<script>
+// Handle optional fields toggle
+document.addEventListener("DOMContentLoaded", function() {
+    const toggleBtn = document.querySelector("[data-bs-toggle=\'collapse\']");
+    const optionalFields = document.getElementById("optionalFields");
+    if (toggleBtn && optionalFields) {
+        toggleBtn.addEventListener("click", function(e) {
+            e.preventDefault();
+            const isExpanded = toggleBtn.getAttribute("aria-expanded") === "true";
+            if (isExpanded) {
+                optionalFields.classList.remove("show");
+                toggleBtn.setAttribute("aria-expanded", "false");
+            } else {
+                optionalFields.classList.add("show");
+                toggleBtn.setAttribute("aria-expanded", "true");
+            }
+        });
+    }
+});
+</script>';
 
 ob_start();
 ?>
@@ -204,131 +224,136 @@ ob_start();
                                         <?php if (empty($teams)): ?>
                                                   <div class="alert alert-info mb-3 text-light">No teams yet -- create them below to continue.</div>
                                         <?php endif; ?>
-                                        <div class="row g-3">
-                                                  <?php if ($isPlatformAdmin): ?>
-                                                            <div class="col-md-6">
-                                                                      <label class="form-label text-light">Club</label>
-                                                                      <select name="club_id" class="form-select select-dark" <?= $isEdit ? 'disabled' : '' ?>>
-                                                                                <?php foreach ($clubs as $club): ?>
-                                                                                          <option value="<?= (int)$club['id'] ?>" <?= (int)$club['id'] === $selectedClubId ? 'selected' : '' ?>>
-                                                                                                    <?= htmlspecialchars($club['name']) ?>
+                                        <!-- Club Selection (Admin only) -->
+                                        <?php if ($isPlatformAdmin): ?>
+                                                  <div class="mb-3">
+                                                            <label class="form-label text-light fw-semibold d-block mb-2">Club</label>
+                                                            <select name="club_id" class="form-select select-dark" <?= $isEdit ? 'disabled' : '' ?>>
+                                                                      <?php foreach ($clubs as $club): ?>
+                                                                                <option value="<?= (int)$club['id'] ?>" <?= (int)$club['id'] === $selectedClubId ? 'selected' : '' ?>>
+                                                                                          <?= htmlspecialchars($club['name']) ?>
+                                                                                </option>
+                                                                      <?php endforeach; ?>
+                                                            </select>
+                                                            <?php if ($isEdit): ?>
+                                                                      <input type="hidden" name="club_id" value="<?= $selectedClubId ?>">
+                                                            <?php endif; ?>
+                                        </div>
+                                        <?php else: ?>
+                                                  <input type="hidden" name="club_id" value="<?= $selectedClubId ?>">
+                                        <?php endif; ?>
+
+                                        <!-- Teams Section -->
+                                        <div class="form-section mb-4">
+                                                  <div class="form-section-title text-light fw-semibold mb-3 pb-2 border-bottom border-secondary">Teams</div>
+                                                  <div class="row g-3">
+                                                            <div class="col-lg-5">
+                                                                      <div class="d-flex align-items-center justify-content-between mb-2">
+                                                                                <label class="form-label text-light mb-0">Home team</label>
+                                                                                <button type="button" class="btn btn-link btn-sm text-decoration-none text-primary-soft" data-add-team="home">
+                                                                                          + Add
+                                                                                </button>
+                                                                      </div>
+                                                                      <select name="home_team_id" class="form-select select-dark" required <?= empty($teams) ? 'disabled' : '' ?>>
+                                                                                <?php foreach ($teams as $team): ?>
+                                                                                          <option value="<?= (int)$team['id'] ?>" <?= $matchHomeId == $team['id'] ? 'selected' : '' ?>>
+                                                                                                    <?= htmlspecialchars($team['name']) ?>
                                                                                           </option>
                                                                                 <?php endforeach; ?>
                                                                       </select>
-                                                                      <?php if ($isEdit): ?>
-                                                                                <input type="hidden" name="club_id" value="<?= $selectedClubId ?>">
-                                                                      <?php endif; ?>
                                                             </div>
-                                                  <?php else: ?>
-                                                            <input type="hidden" name="club_id" value="<?= $selectedClubId ?>">
-                                                  <?php endif; ?>
-
-                                                  <div class="col-12">
-                                                            <div class="d-flex flex-wrap gap-3 align-items-end">
-                                                                      <div class="flex-fill">
-                                                                                <div class="d-flex align-items-center justify-content-between mb-1">
-                                                                                          <label class="form-label text-light mb-0">Home team</label>
-                                                                                          <button type="button" class="btn btn-link btn-sm text-decoration-none text-light" data-add-team="home">
-                                                                                                    + Add team
-                                                                                          </button>
-                                                                                </div>
-                                                                                <select name="home_team_id" class="form-select select-dark" required <?= empty($teams) ? 'disabled' : '' ?>>
-                                                                                          <?php foreach ($teams as $team): ?>
-                                                                                                    <option value="<?= (int)$team['id'] ?>" <?= $matchHomeId == $team['id'] ? 'selected' : '' ?>>
-                                                                                                              <?= htmlspecialchars($team['name']) ?>
-                                                                                                    </option>
-                                                                                          <?php endforeach; ?>
-                                                                                </select>
+                                                            <div class="col-lg-2 d-flex align-items-end justify-content-center mb-3">
+                                                                      <div class="text-light opacity-50 fw-semibold fs-5">vs</div>
+                                                            </div>
+                                                            <div class="col-lg-5">
+                                                                      <div class="d-flex align-items-center justify-content-between mb-2">
+                                                                                <label class="form-label text-light mb-0">Away team</label>
+                                                                                <button type="button" class="btn btn-link btn-sm text-decoration-none text-primary-soft" data-add-team="away">
+                                                                                          + Add
+                                                                                </button>
                                                                       </div>
-                                                                      <div class="text-light opacity-75 fw-semibold">vs</div>
-                                                                      <div class="flex-fill">
-                                                                                <div class="d-flex align-items-center justify-content-between mb-1">
-                                                                                          <label class="form-label text-light mb-0">Away team</label>
-                                                                                          <button type="button" class="btn btn-link btn-sm text-decoration-none text-light" data-add-team="away">
-                                                                                                    + Add team
-                                                                                          </button>
-                                                                                </div>
-                                                                                <select name="away_team_id" class="form-select select-dark" required <?= empty($teams) ? 'disabled' : '' ?>>
-                                                                                          <?php foreach ($teams as $team): ?>
-                                                                                                    <option value="<?= (int)$team['id'] ?>" <?= $matchAwayId == $team['id'] ? 'selected' : '' ?>>
-                                                                                                              <?= htmlspecialchars($team['name']) ?>
-                                                                                                    </option>
-                                                                                          <?php endforeach; ?>
-                                                                                </select>
-                                                                      </div>
+                                                                      <select name="away_team_id" class="form-select select-dark" required <?= empty($teams) ? 'disabled' : '' ?>>
+                                                                                <?php foreach ($teams as $team): ?>
+                                                                                          <option value="<?= (int)$team['id'] ?>" <?= $matchAwayId == $team['id'] ? 'selected' : '' ?>>
+                                                                                                    <?= htmlspecialchars($team['name']) ?>
+                                                                                          </option>
+                                                                                <?php endforeach; ?>
+                                                                      </select>
                                                             </div>
                                                   </div>
+                                        </div>
 
-                                                  <div class="col-md-6">
-                                                            <label class="form-label text-light">Kickoff</label>
-                                                            <input type="datetime-local" name="kickoff_at" class="form-control input-dark" value="<?= htmlspecialchars($kickoffValue) ?>">
-                                                  </div>
-
-                                                  <div class="col-md-6">
-                                                            <label class="form-label text-light">Status</label>
-                                                            <select name="status" class="form-select select-dark">
-                                                                      <?php $status = $matchStatus; ?>
-                                                                      <option value="draft" <?= $status === 'draft' ? 'selected' : '' ?>>Draft</option>
-                                                                      <option value="ready" <?= $status === 'ready' ? 'selected' : '' ?>>Ready</option>
-                                                            </select>
-                                                  </div>
-
-                                                  <div class="col-12">
-                                                            <button class="btn btn-secondary-soft btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#optionalFields" aria-expanded="false" aria-controls="optionalFields">
-                                                                      Optional fields
-                                                            </button>
-                                                  </div>
-
-                                                  <div class="collapse" id="optionalFields">
-                                                            <div class="row g-3 mt-1">
-                                                                      <div class="col-md-6">
-                                                                                <div class="d-flex align-items-center justify-content-between mb-1">
-                                                                                          <label class="form-label text-light mb-0">Season</label>
-                                                                                          <button type="button" class="btn btn-link btn-sm text-decoration-none text-light" data-add-season>+ Add season</button>
-                                                                                </div>
-                                                                                <select name="season_id" class="form-select select-dark">
-                                                                                          <option value="">None</option>
-                                                                                          <?php foreach ($seasons as $season): ?>
-                                                                                                    <option value="<?= (int)$season['id'] ?>" <?= $matchSeasonId == $season['id'] ? 'selected' : '' ?>>
-                                                                                                              <?= htmlspecialchars($season['name']) ?>
-                                                                                                    </option>
-                                                                                          <?php endforeach; ?>
-                                                                                </select>
-                                                                                <div class="form-text text-secondary">Optional context for competitions.</div>
-                                                                      </div>
-
-                                                                      <div class="col-md-6">
-                                                                                <div class="d-flex align-items-center justify-content-between mb-1">
-                                                                                          <label class="form-label text-light mb-0">Competition</label>
-                                                                                          <button type="button" class="btn btn-link btn-sm text-decoration-none text-light" data-add-competition>+ Add competition</button>
-                                                                                </div>
-                                                                                <select name="competition_id" class="form-select select-dark">
-                                                                                          <option value="">None</option>
-                                                                                          <?php foreach ($competitions as $competition): ?>
-                                                                                                    <option value="<?= (int)$competition['id'] ?>" <?= $matchCompetitionId == $competition['id'] ? 'selected' : '' ?>>
-                                                                                                              <?= htmlspecialchars($competition['name']) ?>
-                                                                                                    </option>
-                                                                                          <?php endforeach; ?>
-                                                                                </select>
-                                                                                <div class="form-text text-secondary">Optional league or tournament.</div>
-                                                                      </div>
-
-                                                                      <div class="col-md-6">
-                                                                                <label class="form-label text-light">Venue</label>
-                                                                                <input type="text" name="venue" class="form-control input-dark" value="<?= htmlspecialchars($matchVenue) ?>">
-                                                                      </div>
-
-                                                                      <div class="col-md-6">
-                                                                                <label class="form-label text-light">Referee</label>
-                                                                                <input type="text" name="referee" class="form-control input-dark" value="<?= htmlspecialchars($matchReferee) ?>">
-                                                                      </div>
-
-                                                                      <div class="col-md-6">
-                                                                                <label class="form-label text-light">Attendance</label>
-                                                                                <input type="number" name="attendance" class="form-control input-dark" min="0" step="1" value="<?= $matchAttendance !== null ? htmlspecialchars((string)$matchAttendance) : '' ?>">
-                                                                      </div>
+                                        <!-- Essential Details Section -->
+                                        <div class="form-section mb-4">
+                                                  <div class="form-section-title text-light fw-semibold mb-3 pb-2 border-bottom border-secondary">Details</div>
+                                                  <div class="row g-3">
+                                                            <div class="col-md-6">
+                                                                      <label class="form-label text-light">Kickoff</label>
+                                                                      <input type="datetime-local" name="kickoff_at" class="form-control input-dark" value="<?= htmlspecialchars($kickoffValue) ?>">
+                                                            </div>
+                                                            <div class="col-md-6">
+                                                                      <label class="form-label text-light">Status</label>
+                                                                      <select name="status" class="form-select select-dark">
+                                                                                <?php $status = $matchStatus; ?>
+                                                                                <option value="draft" <?= $status === 'draft' ? 'selected' : '' ?>>Draft</option>
+                                                                                <option value="ready" <?= $status === 'ready' ? 'selected' : '' ?>>Ready</option>
+                                                                      </select>
                                                             </div>
                                                   </div>
+                                        </div>
+
+                                        <!-- Optional Details Section -->
+                                        <div class="form-section mb-4">
+                                                  <div class="form-section-title text-light fw-semibold mb-3 pb-2 border-bottom border-secondary d-flex align-items-center gap-2">
+                                                            <span>Additional info</span>
+                                                            <span class="badge bg-secondary-soft text-light font-sm">Optional</span>
+                                                  </div>
+                                                  <div class="row g-3">
+                                                            <div class="col-md-6">
+                                                                      <div class="d-flex align-items-center justify-content-between mb-2">
+                                                                                <label class="form-label text-light mb-0">Season</label>
+                                                                                <button type="button" class="btn btn-link btn-sm text-decoration-none text-primary-soft" data-add-season>+ Add</button>
+                                                                      </div>
+                                                                      <select name="season_id" class="form-select select-dark">
+                                                                                <option value="">None</option>
+                                                                                <?php foreach ($seasons as $season): ?>
+                                                                                          <option value="<?= (int)$season['id'] ?>" <?= $matchSeasonId == $season['id'] ? 'selected' : '' ?>>
+                                                                                                    <?= htmlspecialchars($season['name']) ?>
+                                                                                          </option>
+                                                                                <?php endforeach; ?>
+                                                                      </select>
+                                                            </div>
+
+                                                            <div class="col-md-6">
+                                                                      <div class="d-flex align-items-center justify-content-between mb-2">
+                                                                                <label class="form-label text-light mb-0">Competition</label>
+                                                                                <button type="button" class="btn btn-link btn-sm text-decoration-none text-primary-soft" data-add-competition>+ Add</button>
+                                                                      </div>
+                                                                      <select name="competition_id" class="form-select select-dark">
+                                                                                <option value="">None</option>
+                                                                                <?php foreach ($competitions as $competition): ?>
+                                                                                          <option value="<?= (int)$competition['id'] ?>" <?= $matchCompetitionId == $competition['id'] ? 'selected' : '' ?>>
+                                                                                                    <?= htmlspecialchars($competition['name']) ?>
+                                                                                          </option>
+                                                                                <?php endforeach; ?>
+                                                                      </select>
+                                                            </div>
+
+                                                            <div class="col-md-6">
+                                                                      <label class="form-label text-light">Venue</label>
+                                                                      <input type="text" name="venue" class="form-control input-dark" placeholder="e.g., Home Park" value="<?= htmlspecialchars($matchVenue) ?>">
+                                                            </div>
+
+                                                            <div class="col-md-6">
+                                                                      <label class="form-label text-light">Referee</label>
+                                                                      <input type="text" name="referee" class="form-control input-dark" placeholder="Referee name" value="<?= htmlspecialchars($matchReferee) ?>">
+                                                            </div>
+
+                                                            <div class="col-md-6">
+                                                                      <label class="form-label text-light">Attendance</label>
+                                                                      <input type="number" name="attendance" class="form-control input-dark" placeholder="0" min="0" step="1" value="<?= $matchAttendance !== null ? htmlspecialchars((string)$matchAttendance) : '' ?>">
+                                                            </div>
+                                        </div>
                                         </div>
                                         <div class="d-flex justify-content-end mt-3 gap-2">
                                                   <?php if ($isEdit): ?>

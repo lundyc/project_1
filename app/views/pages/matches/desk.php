@@ -12,6 +12,7 @@ require_once __DIR__ . '/../../../lib/event_action_stack.php';
 require_once __DIR__ . '/../../../lib/match_period_repository.php';
 require_once __DIR__ . '/../../../lib/match_stats_service.php';
 require_once __DIR__ . '/../../../lib/csrf.php';
+require_once __DIR__ . '/../../../lib/phase3.php';
 
 $user = current_user();
 $roles = $_SESSION['roles'] ?? [];
@@ -86,37 +87,56 @@ $title = 'Analysis Desk';
 $headExtras = '<link href="' . htmlspecialchars($base) . '/assets/css/desk.css?v=' . time() . '" rel="stylesheet">';
 $headExtras .= '<link href="' . htmlspecialchars($base) . '/assets/css/toast.css?v=' . time() . '" rel="stylesheet">';
 $headExtras .= '<script>window.ANNOTATIONS_ENABLED = true;</script>';
+$videoLabEnabled = phase3_is_enabled();
+$headExtras .= '<script>window.VIDEO_LAB_ENABLED = ' . ($videoLabEnabled ? 'true' : 'false') . ';</script>';
 $projectRoot = realpath(__DIR__ . '/../../../../');
 $isVeo = (($match['video_source_type'] ?? '') === 'veo');
-$standardRelative = '/videos/matches/match_' . $matchId . '/source/veo/standard/match_' . $matchId . '_standard.mp4';
-$standardAbsolute = $projectRoot
-    ? $projectRoot . DIRECTORY_SEPARATOR . 'videos' . DIRECTORY_SEPARATOR . 'matches' . DIRECTORY_SEPARATOR . 'match_' . $matchId . DIRECTORY_SEPARATOR . 'source' . DIRECTORY_SEPARATOR . 'veo' . DIRECTORY_SEPARATOR . 'standard' . DIRECTORY_SEPARATOR . 'match_' . $matchId . '_standard.mp4'
-    : '';
-$standardReady = $standardAbsolute && is_file($standardAbsolute);
+
+// Check if match has video from match_videos table
+$matchVideoStmt = $db->prepare('SELECT source_path, download_status FROM match_videos WHERE match_id = :match_id LIMIT 1');
+$matchVideoStmt->execute(['match_id' => $matchId]);
+$matchVideoRow = $matchVideoStmt->fetch();
+$dbSourcePath = $matchVideoRow ? ($matchVideoRow['source_path'] ?? '') : '';
+$dbDownloadStatus = $matchVideoRow ? ($matchVideoRow['download_status'] ?? '') : '';
+$isVideoDownloadComplete = in_array($dbDownloadStatus, ['completed', 'complete', 'ready'], true);
+
+// Use database path if available, otherwise fall back to conventional path
+$standardRelative = $dbSourcePath ? '/' . ltrim($dbSourcePath, '/') : '/videos/matches/match_' . $matchId . '/source/veo/standard/match_' . $matchId . '_standard.mp4';
+$standardAbsolute = $projectRoot && $dbSourcePath
+    ? $projectRoot . DIRECTORY_SEPARATOR . ltrim(str_replace('/', DIRECTORY_SEPARATOR, $dbSourcePath), DIRECTORY_SEPARATOR)
+    : ($projectRoot ? $projectRoot . DIRECTORY_SEPARATOR . 'videos' . DIRECTORY_SEPARATOR . 'matches' . DIRECTORY_SEPARATOR . 'match_' . $matchId . DIRECTORY_SEPARATOR . 'source' . DIRECTORY_SEPARATOR . 'veo' . DIRECTORY_SEPARATOR . 'standard' . DIRECTORY_SEPARATOR . 'match_' . $matchId . '_standard.mp4' : '');
+$standardReady = $standardAbsolute && is_file($standardAbsolute) && $isVideoDownloadComplete;
+
 $panoramicRelative = '/videos/matches/match_' . $matchId . '/source/veo/panoramic/match_' . $matchId . '_panoramic.mp4';
 $panoramicAbsolute = $projectRoot
     ? $projectRoot . DIRECTORY_SEPARATOR . 'videos' . DIRECTORY_SEPARATOR . 'matches' . DIRECTORY_SEPARATOR . 'match_' . $matchId . DIRECTORY_SEPARATOR . 'source' . DIRECTORY_SEPARATOR . 'veo' . DIRECTORY_SEPARATOR . 'panoramic' . DIRECTORY_SEPARATOR . 'match_' . $matchId . '_panoramic.mp4'
     : '';
 $panoramicReady = $panoramicAbsolute && is_file($panoramicAbsolute);
-$videoReady = $isVeo ? (bool)$standardReady : $standardReady;
-$videoPath = $videoReady ? $standardRelative : ($match['video_source_path'] ?? '');
-$videoSrc = $isVeo ? $standardRelative : ($videoReady ? $standardRelative : '');
-
+$videoReady = false;
+$videoPath = '';
+$videoSrc = '';
 $videoFormats = [];
 $defaultFormatId = null;
 $placeholderMessage = 'Video will appear once the download completes.';
-if ($isVeo) {
-    $defaultFormatId = 'standard';
-    $placeholderMessage = 'This VEO standard video is downloading; it will appear once ready.';
-    $videoFormats = [
-        [
-            'id' => 'standard',
-            'label' => 'Standard',
-            'relative_path' => $standardRelative,
-            'ready' => (bool)$standardReady,
-            'placeholder' => $placeholderMessage,
-        ],
-    ];
+
+if ($videoLabEnabled) {
+    $videoReady = $isVeo ? (bool)$standardReady : $standardReady;
+    $videoPath = $videoReady ? $standardRelative : ($match['video_source_path'] ?? '');
+    $videoSrc = $isVeo ? $standardRelative : ($videoReady ? $standardRelative : '');
+
+    if ($isVeo) {
+        $defaultFormatId = 'standard';
+        $placeholderMessage = 'This VEO standard video is downloading; it will appear once ready.';
+        $videoFormats = [
+            [
+                'id' => 'standard',
+                'label' => 'Standard',
+                'relative_path' => $standardRelative,
+                'ready' => (bool)$standardReady,
+                'placeholder' => $placeholderMessage,
+            ],
+        ];
+    }
 }
 
 $csrfToken = get_csrf_token();
@@ -179,36 +199,61 @@ $deskConfig = [
             'annotationsUpdate' => $base . '/api/matches/' . (int)$match['id'] . '/annotations/update',
             'annotationsDelete' => $base . '/api/matches/' . (int)$match['id'] . '/annotations/delete',
     ],
+    'videoLabEnabled' => $videoLabEnabled,
 ];
 
 $footerScripts = '<script>window.DeskConfig = ' . json_encode($deskConfig) . ';</script>';
 $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/toast.js?v=' . time() . '"></script>';
 $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-events.js?v=' . time() . '"></script>';
 $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-annotations.js?v=' . time() . '"></script>';
-$footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-video-controls.js?v=' . time() . '"></script>';
-$footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-video-interactive.js?v=' . time() . '"></script>';
-$footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/timeline-markers.js?v=' . time() . '"></script>';
-$videoProgressConfig = [
-    'matchId' => $matchId,
-    'progressUrl' => $base . '/api/match-video/progress?match_id=' . $matchId,
-    'retryUrl' => $base . '/api/match-video/retry',
-    'standardPath' => $standardRelative,
-    'videoReady' => $videoReady,
-    'defaultFormatId' => $defaultFormatId,
-    'videoFormats' => $videoFormats,
-    'csrfToken' => $csrfToken,
-];
-$footerScripts .= '<script>window.MatchVideoDeskConfig = ' . json_encode($videoProgressConfig) . ';</script>';
-$footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/panoramic-player.js?v=' . time() . '"></script>';
-$footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/match-video-progress.js?v=' . time() . '"></script>';
+if ($videoLabEnabled) {
+    $videoProgressConfig = [
+        'matchId' => $matchId,
+        'progressUrl' => $base . '/api/match-video/progress?match_id=' . $matchId,
+        'retryUrl' => $base . '/api/match-video/retry',
+        'standardPath' => $standardRelative,
+        'videoReady' => $videoReady,
+        'defaultFormatId' => $defaultFormatId,
+        'videoFormats' => $videoFormats,
+        'csrfToken' => $csrfToken,
+    ];
+    $footerScripts .= '<script>window.MatchVideoDeskConfig = ' . json_encode($videoProgressConfig) . ';</script>';
+    $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-video-controls.js?v=' . time() . '"></script>';
+    $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-video-interactive.js?v=' . time() . '"></script>';
+    $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/timeline-markers.js?v=' . time() . '"></script>';
+    $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/panoramic-player.js?v=' . time() . '"></script>';
+    $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/match-video-progress.js?v=' . time() . '"></script>';
+}
 
 ob_start();
 ?>
 <div id="deskRoot" data-base-path="<?= htmlspecialchars($base) ?>" data-match-id="<?= (int)$match['id'] ?>"></div>
 <div id="deskError" class="desk-toast desk-toast-error" style="display:none;"></div>
 
-<div class="desk-shell">
-    <?php if (empty($match['video_source_path'])): ?>
+<div class="desk-shell<?= $videoLabEnabled ? '' : ' desk-shell--video-disabled' ?>">
+    <?php if (!$videoLabEnabled): ?>
+        <style>
+            .desk-shell--video-disabled .video-header,
+            .desk-shell--video-disabled .desk-video,
+            .desk-shell--video-disabled .panoramic-shell,
+            .desk-shell--video-disabled .custom-video-controls,
+            .desk-shell--video-disabled #deskVideoProgressPanel,
+            .desk-shell--video-disabled .video-actions,
+            .desk-shell--video-disabled .video-format-toggle,
+            .desk-shell--video-disabled .playlist-panel-controls .playlist-control-buttons {
+                display: none !important;
+            }
+            .desk-shell--video-disabled .desk-playlists-section {
+                opacity: 0.6;
+                pointer-events: none;
+            }
+        </style>
+        <div class="alert alert-warning mb-3">
+            <strong>Video Lab disabled</strong> – Video playback, clip review, and timeline scrubbing are hidden while the feature is offline. All match information and tagging tools remain available.
+        </div>
+    <?php endif; ?>
+
+    <?php if ($videoLabEnabled && empty($match['video_source_path'])): ?>
         <div class="desk-alert">No video available for this match.</div>
     <?php endif; ?>
 
@@ -898,6 +943,7 @@ ob_start();
                 <input type="hidden" id="match_second" value="0">
                 <input type="hidden" id="minute" value="0">
                 <input type="hidden" id="minute_extra" value="0">
+                <input type="hidden" class="desk-editable" id="team_side" value="home">
                 <div class="editor-tabs-row">
                     <div class="editor-tabs" role="tablist">
                         <button id="editorTabDetails" class="editor-tab is-active" data-panel="details" role="tab" aria-controls="editorTabpanelDetails" aria-selected="true">Details</button>

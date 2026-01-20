@@ -56,20 +56,24 @@ $homeShotsTotal = (int)($shotTotals['home'] ?? 0);
 $awayShotsTotal = (int)($shotTotals['away'] ?? 0);
 ?>
 
-<div class="summary-score d-flex align-items-center justify-content-center mb-3">
-          <div class="summary-team text-end me-3">
-                    <div class="text-muted-alt text-sm">Home</div>
-                    <div class="fw-semibold"><?= htmlspecialchars($match['home_team'] ?? 'Home') ?></div>
+<div class="summary-score summary-score-card mb-3">
+          <div class="summary-team summary-team-home">
+                    <div class="summary-team-label">Home</div>
+                    <div class="summary-team-name"><?= htmlspecialchars($match['home_team'] ?? 'Home') ?></div>
           </div>
-          <div class="summary-scoreline text-center">
-                    <div class="score-number"><?= $homeScore ?> : <?= $awayScore ?></div>
+          <div class="summary-scoreline">
+                    <div class="summary-score-digits">
+                              <span class="score-number"><?= $homeScore ?></span>
+                              <span class="score-separator">:</span>
+                              <span class="score-number"><?= $awayScore ?></span>
+                    </div>
                     <?php if ($competitionLabel !== ''): ?>
                               <div class="text-muted-alt text-xs"><?= htmlspecialchars($competitionLabel) ?></div>
                     <?php endif; ?>
           </div>
-          <div class="summary-team text-start ms-3">
-                    <div class="text-muted-alt text-sm">Away</div>
-                    <div class="fw-semibold"><?= htmlspecialchars($match['away_team'] ?? 'Away') ?></div>
+          <div class="summary-team summary-team-away text-end">
+                    <div class="summary-team-label text-end">Away</div>
+                    <div class="summary-team-name"><?= htmlspecialchars($match['away_team'] ?? 'Away') ?></div>
           </div>
 </div>
 

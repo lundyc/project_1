@@ -1,0 +1,29 @@
+{
+  "name": "project_1",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "build:tailwind": "tailwindcss -i ./resources/css/tailwind.css -o ./public/assets/css/tailwind.css --minify",
+    "dev:tailwind": "tailwindcss -i ./resources/css/tailwind.css -o ./public/assets/css/tailwind.css --watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lundyc/project_1.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/lundyc/project_1/issues"
+  },
+  "homepage": "https://github.com/lundyc/project_1#readme",
+  "devDependencies": {
+    "autoprefixer": "^10.4.23",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.13"
+  }
+}

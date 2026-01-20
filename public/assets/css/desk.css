@@ -1046,13 +1046,59 @@ body {
 }
 
 .desk-summary-panel .summary-score {
-  border-color: rgba(255, 255, 255, 0.12);
-  padding-bottom: 12px;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 14px 16px;
   margin-bottom: 12px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
+}
+
+.desk-summary-panel .summary-scoreline {
+  min-width: 120px;
 }
 
 .desk-summary-panel .summary-scoreline .score-number {
-  font-size: 1.8rem;
+  font-size: 1.9rem;
+}
+
+.summary-score-digits {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.summary-scoreline {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.score-separator {
+  color: rgba(255, 255, 255, 0.65);
+  font-weight: 700;
+}
+
+.summary-team {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.desk-summary-panel .summary-team-name {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.desk-summary-panel .summary-team-label {
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 700;
 }
 
 .desk-summary-panel .comparison-row {
@@ -4073,9 +4119,9 @@ select.input-dark {
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: normal;
 }
 
 .team-selector-btn:hover {

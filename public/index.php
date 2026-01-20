@@ -4,6 +4,7 @@ error_reporting(E_ALL);
 
 require_once __DIR__ . '/../app/lib/auth.php';
 require_once __DIR__ . '/../app/lib/router.php';
+require_once __DIR__ . '/../app/lib/phase3.php';
 require_once __DIR__ . '/../app/middleware/require_admin.php';
 
 auth_boot();
@@ -84,33 +85,9 @@ route('/api/videos/browse', function () {
           require __DIR__ . '/../app/api/videos/browse.php';
 });
 
+/* Video Lab APIs temporarily disabled
 route('/api/video_status', function () {
           require __DIR__ . '/../app/api/matches/video_status.php';
-});
-
-route('/api/events/undo', function () {
-          require_auth();
-          require __DIR__ . '/../app/api/events/undo.php';
-});
-
-route('/api/events/redo', function () {
-          require_auth();
-          require __DIR__ . '/../app/api/events/redo.php';
-});
-
-route('/api/teams/create-json', function () {
-          require_auth();
-          require __DIR__ . '/../app/api/teams/create-json.php';
-});
-
-route('/api/seasons/create', function () {
-          require_auth();
-          require __DIR__ . '/../app/api/seasons/create.php';
-});
-
-route('/api/competitions/create', function () {
-          require_auth();
-          require __DIR__ . '/../app/api/competitions/create.php';
 });
 
 route('/api/match-video/progress', function () {
@@ -127,7 +104,67 @@ route('/api/match-video/start', function () {
           require_auth();
           require __DIR__ . '/../app/api/matches/video_veo.php';
 });
+*/
 
+route('/api/events/undo', function () {
+          require_auth();
+          require __DIR__ . '/../app/api/events/undo.php';
+});
+
+route('/api/events/redo', function () {
+          require_auth();
+          require __DIR__ . '/../app/api/events/redo.php';
+});
+
+route('/api/stats/overview', function () {
+          require_auth();
+          require __DIR__ . '/../app/api/stats/overview.php';
+});
+
+route('/api/stats/team-performance', function () {
+          require_auth();
+          require __DIR__ . '/../app/api/stats/team-performance.php';
+});
+
+route('/api/stats/player-performance', function () {
+          require_auth();
+          require __DIR__ . '/../app/api/stats/player-performance.php';
+});
+
+route('/api/stats/match/overview', function () {
+          require_auth();
+          require __DIR__ . '/../app/api/stats/match/overview.php';
+});
+
+route('/api/stats/match/team-performance', function () {
+          require_auth();
+          require __DIR__ . '/../app/api/stats/match/team-performance.php';
+});
+
+route('/api/stats/match/player-performance', function () {
+          require_auth();
+          require __DIR__ . '/../app/api/stats/match/player-performance.php';
+});
+
+route('/api/stats/match/visuals', function () {
+          require_auth();
+          require __DIR__ . '/../app/api/stats/match/visuals.php';
+});
+
+route('/api/teams/create-json', function () {
+          require_auth();
+          require __DIR__ . '/../app/api/teams/create-json.php';
+});
+
+route('/api/seasons/create', function () {
+          require_auth();
+          require __DIR__ . '/../app/api/seasons/create.php';
+});
+
+route('/api/competitions/create', function () {
+          require_auth();
+          require __DIR__ . '/../app/api/competitions/create.php';
+});
 route('/api/match-players/list', function () {
           require_auth();
           require __DIR__ . '/../app/api/match-players/list.php';
@@ -177,6 +214,18 @@ route('/api/players/create', function () {
           require __DIR__ . '/../app/api/players/create.php';
 });
 
+route('/stats', function () {
+          require_auth();
+          require_once __DIR__ . '/../app/controllers/StatsController.php';
+          StatsController::dashboard();
+});
+
+route('/stats/match/{id}', function () {
+          require_auth();
+          require_once __DIR__ . '/../app/controllers/StatsController.php';
+          StatsController::match((int)($_GET['id'] ?? 0));
+});
+
 route('/', function () {
           require_auth();
           require __DIR__ . '/../app/views/pages/dashboard.php';
@@ -223,6 +272,7 @@ function render_match_stats(int $matchId): bool
           return true;
 }
 
+/* Video Lab helpers temporarily disabled
 function resolve_video_progress_file(int $matchId): ?string
 {
           $storageDir = realpath(__DIR__ . '/../storage');
@@ -250,6 +300,7 @@ function is_video_progress_completed(int $matchId): bool
           $status = strtolower(trim((string)($decoded['status'] ?? '')));
           return $status === 'completed';
 }
+*/
 
 function handle_dynamic_match_routes(string $path): bool
 {
@@ -257,7 +308,7 @@ function handle_dynamic_match_routes(string $path): bool
                     require_auth();
                     require_once __DIR__ . '/../app/lib/match_repository.php';
                     require_once __DIR__ . '/../app/lib/match_permissions.php';
-                    require_once __DIR__ . '/../app/lib/match_stats_service.php';
+                    // require_once __DIR__ . '/../app/lib/match_stats_service.php'; // Video Lab disabled
 
                     $matchId = (int)$m[1];
                     $match = get_match($matchId);
@@ -277,6 +328,7 @@ function handle_dynamic_match_routes(string $path): bool
                               return true;
                     }
 
+                    /*
                     $videoStatus = $match['video_download_status'] ?? null;
                     $videoProgress = (int)($match['video_download_progress'] ?? 0);
                     $progressCompleted = is_video_progress_completed($matchId);
@@ -303,16 +355,7 @@ function handle_dynamic_match_routes(string $path): bool
                                         $match['video_source_type'] = 'veo';
                               }
                     }
-
-                    if (!$videoReady) {
-                              http_response_code(409);
-                              $pendingStatus = $videoStatus ?: 'pending';
-                              $pendingError = $match['video_error_message'] ?? null;
-                              $veoUrl = $match['video_source_url'] ?? null;
-                              $pendingProgress = $videoProgress;
-                              require __DIR__ . '/../app/views/pages/matches/video_pending.php';
-                              return true;
-                     }
+                    */
 
                     require __DIR__ . '/../app/views/pages/matches/desk.php';
                     return true;
@@ -485,9 +528,48 @@ function handle_dynamic_match_routes(string $path): bool
                               return true;
                     }
 
-                    require __DIR__ . '/../app/views/pages/matches/form.php';
+                    require __DIR__ . '/../app/views/pages/matches/edit_step1.php';
                     return true;
+              }
+
+              if (preg_match('#^/matches/(\d+)/video$#', $path, $m)) {
+                        require_auth();
+                        require_once __DIR__ . '/../app/lib/match_repository.php';
+                        require_once __DIR__ . '/../app/lib/match_permissions.php';
+
+                        $matchId = (int)$m[1];
+                        $match = get_match($matchId);
+
+                        if (!$match) {
+                                  http_response_code(404);
+                                  echo '404 Not Found';
+                                  return true;
+                        }
+
+                        $user = current_user();
+                        $roles = $_SESSION['roles'] ?? [];
+
+                        if (!can_manage_match_for_club($user, $roles, (int)$match['club_id'])) {
+                                  http_response_code(403);
+                                  echo '403 Forbidden';
+                                  return true;
+                        }
+
+                        require __DIR__ . '/../app/views/pages/matches/edit_step2.php';
+                        return true;
           }
+
+              if (preg_match('#^/api/matches/(\d+)/update-details$#', $path, $m)) {
+                        $matchId = (int)$m[1];
+                        require __DIR__ . '/../app/api/matches/update-details.php';
+                        return true;
+              }
+
+              if (preg_match('#^/api/matches/(\d+)/update-video$#', $path, $m)) {
+                        $matchId = (int)$m[1];
+                        require __DIR__ . '/../app/api/matches/update-video.php';
+                        return true;
+              }
 
           if (preg_match('#^/api/matches/(\d+)/lock/acquire$#', $path, $m)) {
                     $matchId = (int)$m[1];

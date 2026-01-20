@@ -13,7 +13,7 @@ $success = $_SESSION['match_form_success'] ?? null;
 $error = $_SESSION['match_form_error'] ?? null;
 unset($_SESSION['match_form_success'], $_SESSION['match_form_error']);
 
-$title = 'Matches library';
+$title = 'Matches';
 
 $searchQuery = trim((string)($_GET['q'] ?? ''));
 $statusFilter = strtolower(trim((string)($_GET['status'] ?? '')));
@@ -128,9 +128,8 @@ ob_start();
 <div class="library-layout">
           <header class="library-layout__header">
                     <div>
-                              <p class="library-layout__eyebrow">Video library</p>
                               <h1 class="library-layout__title">Matches</h1>
-                              <p class="library-layout__description">Review upcoming footage, check statuses, and keep every match aligned with your workflow.</p>
+                              <p class="library-layout__description">Review upcoming matches and check statuses.</p>
                     </div>
           </header>
 
@@ -184,7 +183,7 @@ ob_start();
                               <?php foreach ($filteredMatches as $match): ?>
                                         <?php
                                                   $matchId = (int)$match['id'];
-                                                  $matchUrl = htmlspecialchars($base . '/matches/' . $matchId.'/desk/');
+                                                  $matchUrl = htmlspecialchars($base . '/matches/' . $matchId . '/desk');
                                                   $title = trim(($match['home_team'] ?? '') . ' vs ' . ($match['away_team'] ?? ''));
                                                   if ($title === '') {
                                                             $title = 'Untitled match';
@@ -200,79 +199,28 @@ ob_start();
                                                   $statusClass = $normalizeStatusClass($status);
                                                   $competition = $match['competition'] ?? '';
                                                   $clubName = $match['club_name'] ?? '';
-                                                  $sourceType = $match['video_source_type'] ?? 'unknown';
-                                                  $downloadPath = trim((string)($match['video_source_path'] ?? ''));
-                                                 $durationSeconds = isset($match['video_duration_seconds']) ? (int)$match['video_duration_seconds'] : null;
-                                                 $durationLabel = $formatDuration($durationSeconds);
-                                                 $hasVideo = $downloadPath !== '';
-                                                  $thumbnailRelativePath = '';
-                                                  $thumbnailFsPath = '';
-                                                  $hasThumbnail = false;
-                                                  $downloadFilename = $hasVideo ? $buildDownloadFilename($title, $kickoffTs) : null;
-                                                  $dbThumbnail = trim((string)($match['video_thumbnail_path'] ?? ''));
-                                                  if ($dbThumbnail !== '') {
-                                                            $dbThumbnail = '/' . ltrim($dbThumbnail, '/');
-                                                            $thumbnailRelativePath = $dbThumbnail;
-                                                            $thumbnailFsPath = $_SERVER['DOCUMENT_ROOT'] . $thumbnailRelativePath;
-                                                            $hasThumbnail = is_file($thumbnailFsPath);
-                                                  }
-                                                  if (!$hasThumbnail) {
-                                                            $thumbnailRelativePath = '/storage/matches/' . $matchId . '/thumbnail.jpg';
-                                                            $thumbnailFsPath = $_SERVER['DOCUMENT_ROOT'] . $thumbnailRelativePath;
-                                                            $hasThumbnail = is_file($thumbnailFsPath);
-                                                  }
-                                                  if (!$hasThumbnail) {
-                                                            $altThumbnailRelative = '/videos/matches/match_' . $matchId . '/source/veo/standard/thumbnail.jpg';
-                                                            $altThumbnailFs = $_SERVER['DOCUMENT_ROOT'] . $altThumbnailRelative;
-                                                            if (is_file($altThumbnailFs)) {
-                                                                      $thumbnailRelativePath = $altThumbnailRelative;
-                                                                      $hasThumbnail = true;
-                                                            }
-                                                  }
                                         ?>
                                         <div class="library-row" data-match-id="<?= htmlspecialchars((string)$matchId) ?>">
                                                   <div class="library-row__main">
                                                             <a href="<?= $matchUrl ?>" class="library-row__link" aria-label="Open <?= htmlspecialchars($title) ?>">
-                                                                      <div class="library-row__thumbnail">
-                                                                                <?php if ($hasThumbnail): ?>
-                                                                                          <img
-                                                                                                    src="<?= htmlspecialchars($thumbnailRelativePath) ?>"
-                                                                                                    alt="<?= htmlspecialchars($title) ?> thumbnail"
-                                                                                                    loading="lazy"
-                                                                                          >
-                                                                                <?php elseif ($hasVideo): ?>
-                                                                                          <span class="library-row__placeholder">Processing</span>
-                                                                                <?php else: ?>
-                                                                                          <span class="library-row__placeholder">No preview</span>
-                                                                                <?php endif; ?>
-
-                                                                                <?php if ($durationSeconds): ?>
-                                                                                          <span class="library-row__duration"><?= htmlspecialchars($durationLabel) ?></span>
-                                                                                <?php endif; ?>
-                                                                      </div>
-
                                                                       <div class="library-row__details">
                                                                                 <div class="library-row__title">
                                                                                           <h3><?= htmlspecialchars($title) ?></h3>
                                                                                           <span class="status-badge status-badge--<?= htmlspecialchars($statusClass) ?>"><?= htmlspecialchars($statusLabel) ?></span>
                                                                                 </div>
-                                                                                <p class="library-row__meta">
-                                                                                          <span><?= htmlspecialchars($dateLabel) ?> · <?= htmlspecialchars($timeLabel) ?></span>
-                                                                                          <?php if ($competition !== ''): ?>
-                                                                                                    <span class="library-row__meta-separator"> · </span>
-                                                                                                    <span><?= htmlspecialchars($competition) ?></span>
-                                                                                          <?php endif; ?>
-                                                                                </p>
-                                                                                <p class="library-row__meta library-row__meta--muted">
-                                                                                          <?= $clubName !== '' ? htmlspecialchars($clubName) : 'Club unknown' ?>
-                                                                                          <?php if (!empty($match['venue'])): ?>
-                                                                                                    <span class="library-row__meta-venue"><?= htmlspecialchars($match['venue']) ?></span>
-                                                                                          <?php endif; ?>
-                                                                                </p>
-                                                                                <p class="library-row__meta library-row__meta--muted">
-                                                                                          <span class="library-row__label">Source</span>
-                                                                                          <span class="library-row__value"><?= htmlspecialchars(strtoupper($sourceType)) ?></span>
-                                                                                </p>
+                                                                               <p class="library-row__meta">
+                                                                                         <span><?= htmlspecialchars($dateLabel) ?> · <?= htmlspecialchars($timeLabel) ?></span>
+                                                                                         <?php if ($competition !== ''): ?>
+                                                                                                   <span class="library-row__meta-separator"> · </span>
+                                                                                                   <span><?= htmlspecialchars($competition) ?></span>
+                                                                                         <?php endif; ?>
+                                                                               </p>
+                                                                               <p class="library-row__meta library-row__meta--muted">
+                                                                                         <?= $clubName !== '' ? htmlspecialchars($clubName) : 'Club unknown' ?>
+                                                                                         <?php if (!empty($match['venue'])): ?>
+                                                                                                   <span class="library-row__meta-venue"><?= htmlspecialchars($match['venue']) ?></span>
+                                                                                         <?php endif; ?>
+                                                                               </p>
                                                                       </div>
                                                             </a>
                                                   </div>
@@ -303,14 +251,6 @@ ob_start();
                                                                                                     </button>
                                                                                           </form>
                                                                                 </li>
-                                                                                <?php if ($hasVideo): ?>
-                                                                                          <li>
-                                                                                                    <a class="dropdown-item" href="<?= htmlspecialchars($downloadPath) ?>" download="<?= htmlspecialchars($downloadFilename) ?>">
-                                                                                                              <i class="fa-solid fa-download"></i>
-                                                                                                              Download
-                                                                                                    </a>
-                                                                                          </li>
-                                                                                <?php endif; ?>
                                                                       </ul>
                                                             </div>
                                                   </div>

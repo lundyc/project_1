@@ -12,9 +12,10 @@ auth_boot();
           <?php $cacheBuster = time(); ?>
           <meta name="base-path" content="<?= htmlspecialchars($base ?: '') ?>">
 
-          <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css?v=<?= $cacheBuster ?>" rel="stylesheet">
           <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css?v=<?= $cacheBuster ?>" rel="stylesheet">
+          <link href="<?= htmlspecialchars($base) ?>/assets/css/tailwind.css?v=<?= $cacheBuster ?>" rel="stylesheet">
           <link href="<?= htmlspecialchars($base) ?>/assets/css/app.css?v=<?= $cacheBuster ?>" rel="stylesheet">
+          <link href="<?= htmlspecialchars($base) ?>/assets/css/forms.css?v=<?= $cacheBuster ?>" rel="stylesheet">
           <?= $headExtras ?? '' ?>
 </head>
 
@@ -42,8 +43,8 @@ if (!empty($bodyAttributes)) {
           </div>
 
           <script src="https://code.jquery.com/jquery-3.7.1.min.js?v=<?= $cacheBuster ?>"></script>
-          <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js?v=<?= $cacheBuster ?>"></script>
           <script src="<?= htmlspecialchars($base) ?>/assets/js/app.js?v=<?= $cacheBuster ?>"></script>
+          
           <?= $footerScripts ?? '' ?>
 </body>
 
