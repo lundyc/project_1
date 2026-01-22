@@ -25,12 +25,11 @@ $base = base_path();
 
 ob_start();
 ?>
-<div class="flex items-center justify-between mb-6">
-          <div>
-                    <h1 class="mb-1">Leagues &amp; Cups</h1>
-                    <p class="text-muted-alt text-sm mb-0">Manage competitions, types, seasons, and participating teams.</p>
-          </div>
-</div>
+<?php
+    $pageTitle = 'Leagues & Cups';
+    $pageDescription = 'Manage competitions, types, seasons, and participating teams.';
+    include __DIR__ . '/../../partials/club_context_header.php';
+?>
 
 <div class="panel panel-dark p-4 mb-4">
           <h5 class="text-light mb-3">Create competition</h5>

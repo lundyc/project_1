@@ -4,6 +4,7 @@ require_once __DIR__ . '/../../lib/auth.php';
 require_once __DIR__ . '/../../lib/match_permissions.php';
 require_once __DIR__ . '/../../lib/match_substitution_repository.php';
 require_once __DIR__ . '/../../lib/api_response.php';
+require_once __DIR__ . '/../../lib/player_name_helper.php';
 
 header('Content-Type: application/json');
 
@@ -85,9 +86,11 @@ try {
                ms.player_off_match_player_id, ms.player_on_match_player_id, ms.reason, 
                ms.created_by, ms.created_at,
                mp_off.shirt_number AS player_off_shirt,
-               COALESCE(pl_off.display_name, \'\') AS player_off_name,
+               pl_off.first_name AS player_off_first_name,
+               pl_off.last_name AS player_off_last_name,
                mp_on.shirt_number AS player_on_shirt,
-               COALESCE(pl_on.display_name, \'\') AS player_on_name
+               pl_on.first_name AS player_on_first_name,
+               pl_on.last_name AS player_on_last_name
         FROM match_substitutions ms
         LEFT JOIN match_players mp_off ON mp_off.id = ms.player_off_match_player_id
         LEFT JOIN players pl_off ON pl_off.id = mp_off.player_id
@@ -97,6 +100,12 @@ try {
     ');
     $getStmt->execute([$subId]);
     $substitution = $getStmt->fetch(PDO::FETCH_ASSOC);
+
+    // Compute display names
+    if ($substitution) {
+        $substitution['player_off_name'] = build_full_name($substitution['player_off_first_name'], $substitution['player_off_last_name']);
+        $substitution['player_on_name'] = build_full_name($substitution['player_on_first_name'], $substitution['player_on_last_name']);
+    }
 
     echo json_encode([
         'ok' => true,

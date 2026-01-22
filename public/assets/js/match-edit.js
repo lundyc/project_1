@@ -1218,7 +1218,6 @@
        const goalEventIdInput = document.getElementById('goal-event-id');
        const goalEventTypeIdInput = document.getElementById('goal-event-type-id');
        const goalSubmitLabel = goalForm?.querySelector('.goal-submit-label');
-       const goalOwnGoalInput = document.getElementById('goal-own-goal');
        const cardEventIdInput = document.getElementById('card-event-id');
        const cardEventTypeIdInput = document.getElementById('card-event-type-id');
        const cardSubmitLabel = cardForm?.querySelector('.card-submit-label');
@@ -1318,7 +1317,9 @@
        }
 
        function refreshGoalPlayerInput(teamSide) {
-              const targetTeam = goalOwnGoalInput?.checked ? getOppositeTeam(teamSide) : teamSide;
+              const ownGoalBtn = goalForm?.querySelector('[data-goal-type="own_goal"]');
+              const isOwnGoal = ownGoalBtn?.classList.contains('active');
+              const targetTeam = isOwnGoal ? getOppositeTeam(teamSide) : teamSide;
               const players = getMatchPlayersByTeam(targetTeam);
               createSearchablePlayerInput(players, 'goal-player', 'goal-player-select-wrapper', true);
               return players;
@@ -1671,7 +1672,15 @@
                      goalForm.reset();
                      if (goalEventIdInput) goalEventIdInput.value = '';
                      if (goalEventTypeIdInput) goalEventTypeIdInput.value = EVENT_TYPE_IDS.goal;
-                     if (goalOwnGoalInput) goalOwnGoalInput.checked = false;
+
+                     // Reset goal type toggle buttons
+                     const ownGoalBtn = goalForm.querySelector('[data-goal-type="own_goal"]');
+                     const penaltyBtn = goalForm.querySelector('[data-goal-type="penalty"]');
+                     if (ownGoalBtn) ownGoalBtn.classList.remove('active');
+                     if (penaltyBtn) penaltyBtn.classList.remove('active');
+                     document.getElementById('goal-own-goal-hidden').value = '0';
+                     document.getElementById('goal-is-penalty-hidden').value = '0';
+
                      document.getElementById('goal-form-error').classList.add('hidden');
 
                      // Set initial team and show players
@@ -1696,27 +1705,43 @@
 
        setupTeamToggleButtons(goalForm, 'goal');
 
-       if (goalOwnGoalInput) {
-              goalOwnGoalInput.addEventListener('change', () => {
-                     const teamHiddenInput = goalForm.querySelector('input[name="team_side"]');
-                     const teamSide = teamHiddenInput?.value || 'home';
+       // Setup goal type toggle buttons (Own Goal and Penalty)
+       document.querySelectorAll('[name="goal_type_btn"]').forEach(btn => {
+              btn.addEventListener('click', (e) => {
+                     e.preventDefault();
+                     const goalType = btn.dataset.goalType;
+                     const hiddenInputId = goalType === 'own_goal' ? 'goal-own-goal-hidden' : 'goal-is-penalty-hidden';
+                     const hiddenInput = document.getElementById(hiddenInputId);
 
-                     // Store the current player selection before refreshing
-                     const hiddenInput = goalForm.querySelector('input[id="goal-player-value"]');
-                     const currentPlayerId = hiddenInput?.value;
-                     const searchInput = goalForm.querySelector('input[id="goal-player-search"]');
-                     const currentSearchValue = searchInput?.value;
+                     if (hiddenInput) {
+                            const isActive = btn.classList.contains('active');
+                            if (isActive) {
+                                   btn.classList.remove('active');
+                                   hiddenInput.value = '0';
+                            } else {
+                                   btn.classList.add('active');
+                                   hiddenInput.value = '1';
+                            }
 
-                     // Refresh the player list (will toggle between teams based on own goal status)
-                     refreshGoalPlayerInput(teamSide);
+                            // If toggling own goal, refresh player list
+                            if (goalType === 'own_goal') {
+                                   const teamHiddenInput = goalForm.querySelector('input[name="team_side"]');
+                                   const teamSide = teamHiddenInput?.value || 'home';
+                                   const hiddenPlayerInput = goalForm.querySelector('input[id="goal-player-value"]');
+                                   const currentPlayerId = hiddenPlayerInput?.value;
+                                   const searchInput = goalForm.querySelector('input[id="goal-player-search"]');
+                                   const currentSearchValue = searchInput?.value;
 
-                     // Restore the player selection if it exists
-                     if (currentPlayerId && hiddenInput) {
-                            hiddenInput.value = currentPlayerId;
-                            if (searchInput) searchInput.value = currentSearchValue;
+                                   refreshGoalPlayerInput(teamSide);
+
+                                   if (currentPlayerId && hiddenPlayerInput) {
+                                          hiddenPlayerInput.value = currentPlayerId;
+                                          if (searchInput) searchInput.value = currentSearchValue;
+                                   }
+                            }
                      }
               });
-       }
+       });
 
        // Edit Goal
        document.querySelectorAll('[data-edit-goal]').forEach(btn => {
@@ -1730,8 +1755,31 @@
                      const eventId = dataset.eventId || '';
                      const eventTypeId = dataset.eventTypeId || EVENT_TYPE_IDS.goal;
                      const outcome = dataset.outcome || '';
+                     const isPenalty = dataset.isPenalty === '1' || dataset.isPenalty === 1;
 
-                     if (goalOwnGoalInput) goalOwnGoalInput.checked = outcome === 'own_goal';
+                     // Set toggle button states
+                     const ownGoalBtn = goalForm.querySelector('[data-goal-type="own_goal"]');
+                     const penaltyBtn = goalForm.querySelector('[data-goal-type="penalty"]');
+
+                     if (ownGoalBtn) {
+                            if (outcome === 'own_goal') {
+                                   ownGoalBtn.classList.add('active');
+                                   document.getElementById('goal-own-goal-hidden').value = '1';
+                            } else {
+                                   ownGoalBtn.classList.remove('active');
+                                   document.getElementById('goal-own-goal-hidden').value = '0';
+                            }
+                     }
+
+                     if (penaltyBtn) {
+                            if (isPenalty) {
+                                   penaltyBtn.classList.add('active');
+                                   document.getElementById('goal-is-penalty-hidden').value = '1';
+                            } else {
+                                   penaltyBtn.classList.remove('active');
+                                   document.getElementById('goal-is-penalty-hidden').value = '0';
+                            }
+                     }
 
                      if (goalEventIdInput) goalEventIdInput.value = eventId;
                      if (goalEventTypeIdInput) goalEventTypeIdInput.value = eventTypeId;
@@ -1778,8 +1826,12 @@
               const playerIdInput = goalForm.querySelector('input[id="goal-player-value"]');
               const playerValue = playerIdInput?.value;
 
+              const ownGoalBtn = goalForm.querySelector('[data-goal-type="own_goal"]');
+              const penaltyBtn = goalForm.querySelector('[data-goal-type="penalty"]');
+              const isOwnGoal = ownGoalBtn?.classList.contains('active');
+              const isPenalty = penaltyBtn?.classList.contains('active');
+
               const isEdit = Boolean(goalEventIdInput?.value);
-              const isOwnGoal = Boolean(goalOwnGoalInput?.checked);
               let teamSide = formData.get('team_side');
 
               // For own goals, flip the team_side because the selected team is the benefiting team,
@@ -1795,6 +1847,7 @@
                      minute: parseInt(formData.get('minute')),
                      minute_extra: parseInt(formData.get('minute_extra')) || 0,
                      outcome: isOwnGoal ? 'own_goal' : null,
+                     is_penalty: isPenalty ? 1 : 0,
               };
 
               if (playerValue && playerValue !== 'unknown') {
@@ -2376,19 +2429,24 @@
               inner.className = 'flex items-center gap-2';
               subWrapper.appendChild(inner);
 
+              // Create a vertical container for emoji and time
+              const emojiTimeContainer = document.createElement('div');
+              emojiTimeContainer.className = 'flex flex-col items-center gap-1';
+              inner.appendChild(emojiTimeContainer);
+
               const emoji = document.createElement('span');
               emoji.className = 'text-lg';
               emoji.textContent = '🔄';
-              inner.appendChild(emoji);
+              emojiTimeContainer.appendChild(emoji);
+
+              const minuteEl = document.createElement('div');
+              minuteEl.className = 'text-xs text-slate-400 font-semibold leading-none';
+              minuteEl.textContent = `${minute}'`;
+              emojiTimeContainer.appendChild(minuteEl);
 
               const content = document.createElement('div');
               content.className = 'flex-1 min-w-0';
               inner.appendChild(content);
-
-              const minuteEl = document.createElement('div');
-              minuteEl.className = 'text-xs text-slate-400 mb-1';
-              minuteEl.textContent = `${minute}'`;
-              content.appendChild(minuteEl);
 
               const details = document.createElement('div');
               details.className = 'text-xs space-y-0.5';
@@ -2417,6 +2475,7 @@
               deleteBtn.dataset.deleteSubstitution = sub.id;
               deleteBtn.innerHTML = '<i class="fa-solid fa-trash"></i>';
               inner.appendChild(deleteBtn);
+
 
               // Attach delete handler
               deleteBtn.addEventListener('click', async function () {

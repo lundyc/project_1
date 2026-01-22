@@ -58,7 +58,7 @@ $success = $_SESSION['match_form_success'] ?? null;
 unset($_SESSION['match_form_error']);
 unset($_SESSION['match_form_success']);
 
-$title = 'Edit Match';
+$title = 'Edit Match EEEEEEEE';
 $kickoffValue = !empty($match['kickoff_at']) ? date('Y-m-d\TH:i', strtotime($match['kickoff_at'])) : '';
 $matchSeasonId = $match['season_id'] ?? null;
 $matchCompetitionId = $match['competition_id'] ?? null;
@@ -157,15 +157,6 @@ $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/match-
 
 // Remove padding and background from layout wrapper for full-width page
 $headExtras = '<style>
-    .app-main { 
-        padding: 0 !important; 
-        background: transparent !important; 
-        max-width: none !important;
-    }
-    .app-shell {
-        max-width: none !important;
-    }
-    
     /* Alert Animations */
     @keyframes slideInDown {
         from {
@@ -209,20 +200,8 @@ $headExtras = '<style>
     textarea:invalid:focus {
         border-color: rgb(239, 68, 68) !important;
         ring: 2px rgb(239, 68, 68) !important;
-    }
-    
-    input:valid,
-    select:valid,
-    textarea:valid {
-        border-color: rgb(16, 185, 129) !important;
-    }
-    
-    input:valid:focus,
-    select:valid:focus,
-    textarea:valid:focus {
-        border-color: rgb(16, 185, 129) !important;
-    }
-    
+    }   
+  
     /* Sticky Button Container */
     .sticky-button-container {
         box-shadow: 0 -2px 15px rgba(0, 0, 0, 0.3);
@@ -257,26 +236,32 @@ $headExtras = '<style>
 ob_start();
 ?>
 
-<div class="w-full mt-4 text-slate-200">
-    <div class="w-full max-w-screen-2xl mx-auto">
-        <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 px-4 md:px-6 mb-6">
-                <div>
-                    <h1 class="text-3xl font-bold tracking-tight text-white">Edit Match</h1>
-                    <p class="text-slate-400 text-sm">Manual entry for <?= htmlspecialchars($homeTeamName) ?> vs <?= htmlspecialchars($awayTeamName) ?>.</p>
-                </div>
-                <div class="flex items-center gap-3">
-                    <a href="<?= htmlspecialchars($base) ?>/matches" class="px-4 py-2 text-sm font-medium rounded-lg border bg-slate-800/40 border-white/10 text-slate-300 hover:bg-slate-700/50 hover:border-white/20 transition-all duration-200">← Back to matches</a>
-                    <a href="<?= htmlspecialchars($base) ?>/matches/<?= $nextMatchId ?>/edit" class="px-4 py-2 text-sm font-semibold rounded-lg border border-blue-500/40 bg-blue-500/15 text-blue-100 hover:bg-blue-500/25 hover:border-blue-400/60 transition-all duration-200 flex items-center gap-2">
-                        <span>Next Match</span>
-                        <span aria-hidden="true">→</span>
-                    </a>
-                    <span class="px-3 py-1 rounded-full text-xs font-medium <?= $matchStatus === 'ready' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-700 text-slate-300' ?>">
-                        <?= htmlspecialchars(ucfirst($matchStatus)) ?>
-                    </span>
-                </div>
-            </header>
+        <?php
+            $matchTitle = 'Edit Match';
+            $homeTeamName = isset($homeTeamName) ? $homeTeamName : ($match['home_team'] ?? 'Home');
+            $awayTeamName = isset($awayTeamName) ? $awayTeamName : ($match['away_team'] ?? 'Away');
+            $matchDescription = 'Manual entry for ' . htmlspecialchars($homeTeamName) . ' vs ' . htmlspecialchars($awayTeamName) . '.';
+            $clubContextName = $selectedClub['name'] ?? 'Saltcoats Victoria F.C.';
+            $showClubSelector = true;
+            include __DIR__ . '/../../partials/match_context_header.php';
+        ?>
+        <div class="flex items-center justify-end gap-2 mb-6">
+            <a href="<?= htmlspecialchars($base) ?>/matches" class="inline-flex items-center rounded-md bg-slate-700/60 px-2 py-1 text-xs text-slate-200 hover:bg-slate-700/80 transition" aria-label="Back to matches">
+                ← Back to matches
+            </a>
+            <?php if (isset($nextMatchId) && $nextMatchId): ?>
+            <a href="<?= htmlspecialchars($base) ?>/matches/<?= $nextMatchId ?>/edit" class="inline-flex items-center rounded-md bg-indigo-700/60 px-2 py-1 text-xs text-white hover:bg-indigo-700 transition" aria-label="Next Match">
+                Next Match <span aria-hidden="true">→</span>
+            </a>
+            <?php endif; ?>
+            <?php if (isset($matchStatus)): ?>
+            <span class="inline-flex items-center rounded-md bg-slate-700/60 px-2 py-1 text-xs text-slate-200" aria-label="Match Status">
+                Status: <?= htmlspecialchars(ucfirst($matchStatus)) ?>
+            </span>
+            <?php endif; ?>
+        </div>
 
-            <div class="px-4 md:px-6 lg:px-8">
+<div class="px-4 md:px-6 lg:px-8">
                 <?php if ($error): ?>
                     <div id="alert-error" class="fixed top-6 right-6 max-w-md z-50 rounded-lg border border-rose-500 bg-rose-950/95 px-4 py-3 text-sm text-rose-100 shadow-lg backdrop-blur-sm animate-slide-in">
                         <div class="flex items-start gap-3">
@@ -319,6 +304,9 @@ ob_start();
                             <div id="section-progress-bar" class="h-full w-1/4 bg-blue-500 transition-all duration-300"></div>
                         </div>
                         <p class="text-xs text-slate-400 mt-2" id="section-name">Match Details</p>
+                        <?php if ($homeTeamName || $awayTeamName): ?>
+                            <p class="text-xs text-slate-300 mt-2 font-medium"><?= htmlspecialchars($homeTeamName) ?> vs <?= htmlspecialchars($awayTeamName) ?></p>
+                        <?php endif; ?>
                     </div>
                     
                     <nav class="flex flex-col gap-2 mb-3" role="tablist" aria-label="Match edit sections">
@@ -1579,23 +1567,16 @@ ob_start();
                     <i class="fa-solid fa-times"></i>
                 </button>
             </div>
+            <div class="px-6 pt-3 pb-2">
+                <div class="text-xs text-slate-400">
+                    <i class="fa-solid fa-keyboard mr-1"></i>
+                    <span class="font-medium">Tip:</span> Press <kbd class="px-1.5 py-0.5 bg-slate-700 rounded text-xs">ESC</kbd> to close this dialog
+                </div>
+            </div>
             <form id="addGoalForm">
                 <input type="hidden" id="goal-event-id" name="event_id" value="">
                 <input type="hidden" id="goal-event-type-id" name="event_type_id" value="16">
                 <div class="modal-body space-y-4">
-                    <div class="mb-3 p-3 bg-blue-900/30 border border-blue-700 rounded-lg text-sm text-blue-200">
-                        <i class="fa-solid fa-keyboard mr-2"></i>
-                        <span class="font-medium">Tip:</span> Press <kbd class="px-1.5 py-0.5 bg-slate-700 rounded text-xs">ESC</kbd> to close this dialog
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-slate-300 mb-2">
-                            Scorer <span class="text-rose-400">*</span>
-                        </label>
-                        <div id="goal-player-select-wrapper">
-                            <!-- Populated dynamically -->
-                        </div>
-                    </div>
 
                     <div>
                         <label class="block text-sm font-medium text-slate-300 mb-2">
@@ -1612,30 +1593,36 @@ ob_start();
                         </div>
                     </div>
 
-                    <div class="flex items-start gap-3 p-3 rounded-lg bg-amber-900/10 border border-amber-700/40">
-                        <div class="pt-1">
-                            <input type="checkbox" id="goal-own-goal" name="own_goal" class="w-4 h-4 text-amber-400 rounded border-slate-600 bg-slate-800 focus:ring-amber-400">
-                        </div>
-                        <label for="goal-own-goal" class="flex-1 text-sm text-slate-200 leading-relaxed cursor-pointer">
-                            <span class="font-semibold text-amber-300">Own goal</span>
-                            <span class="block text-slate-400 text-xs mt-1">Select the benefiting team above; when checked, the scorer list switches to the opposite team.</span>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-300 mb-2">
+                            Scorer <span class="text-rose-400">*</span>
                         </label>
+                        <div id="goal-player-select-wrapper">
+                            <!-- Populated dynamically -->
+                        </div>
                     </div>
 
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-slate-300 mb-2" for="goal-minute">
-                                Minute <span class="text-rose-400">*</span>
-                            </label>
-                            <input type="number" id="goal-minute" name="minute" required min="0" max="120"
-                                   class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-slate-300 mb-2" for="goal-minute-extra">
-                                Extra Time
-                            </label>
-                            <input type="number" id="goal-minute-extra" name="minute_extra" min="0" max="15" placeholder="0"
-                                   class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-300 mb-2" for="goal-minute">
+                            Minute <span class="text-rose-400">*</span>
+                        </label>
+                        <input type="number" id="goal-minute" name="minute" required min="0" max="120"
+                               class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-300 mb-2">
+                            Goal Type
+                        </label>
+                        <div class="flex gap-2">
+                            <button type="button" class="team-toggle-btn" data-goal-type="own_goal" name="goal_type_btn">
+                                <i class="fa-solid fa-warning mr-2"></i>Own Goal
+                            </button>
+                            <button type="button" class="team-toggle-btn" data-goal-type="penalty" name="goal_type_btn">
+                                <i class="fa-solid fa-futbol mr-2"></i>Penalty
+                            </button>
+                            <input type="hidden" name="goal_type_own_goal" id="goal-own-goal-hidden" value="0">
+                            <input type="hidden" name="goal_type_penalty" id="goal-is-penalty-hidden" value="0">
                         </div>
                     </div>
 
@@ -1671,15 +1658,6 @@ ob_start();
                     
                     <div>
                         <label class="block text-sm font-medium text-slate-300 mb-2">
-                            Player <span class="text-rose-400">*</span>
-                        </label>
-                        <div id="card-player-select-wrapper">
-                            <!-- Populated dynamically -->
-                        </div>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-slate-300 mb-2">
                             Team <span class="text-rose-400">*</span>
                         </label>
                         <div class="flex gap-2">
@@ -1694,28 +1672,28 @@ ob_start();
                     </div>
 
                     <div>
+                        <label class="block text-sm font-medium text-slate-300 mb-2">
+                            Player <span class="text-rose-400">*</span>
+                        </label>
+                        <div id="card-player-select-wrapper">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-300 mb-2" for="card-minute">
+                            Minute <span class="text-rose-400">*</span>
+                        </label>
+                        <input type="number" id="card-minute" name="minute" required min="0" max="120"
+                               class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
+                    </div>
+
+                    <div>
                         <label class="block text-sm font-medium text-slate-300 mb-2" for="card-notes">
                             Notes
                         </label>
                         <input type="text" id="card-notes" name="notes" placeholder="Reason or context"
                                class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none">
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-slate-300 mb-2" for="card-minute">
-                                Minute <span class="text-rose-400">*</span>
-                            </label>
-                            <input type="number" id="card-minute" name="minute" required min="0" max="120"
-                                   class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-slate-300 mb-2" for="card-minute-extra">
-                                Extra Time
-                            </label>
-                            <input type="number" id="card-minute-extra" name="minute_extra" min="0" max="15" placeholder="0"
-                                   class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
-                        </div>
                     </div>
 
                     <div id="card-form-error" class="hidden text-sm text-rose-400 p-3 bg-rose-900/20 rounded-lg border border-rose-700/50"></div>

@@ -14,12 +14,13 @@ $title = 'Manage Clubs';
 
 ob_start();
 ?>
-<div class="d-flex align-items-start justify-content-between mb-4 gap-3">
-          <div>
-                    <h1 class="mb-1">Clubs</h1>
-                    <p class="text-muted-alt text-sm mb-0">Create clubs for analysts to use.</p>
-          </div>
-          <button type="button" class="btn btn-primary-soft btn-sm">+ Club</button>
+<?php
+    $pageTitle = 'Clubs';
+    $pageDescription = 'Create clubs for analysts to use.';
+    include __DIR__ . '/../../partials/club_context_header.php';
+?>
+<div class="flex items-center justify-end mb-6">
+    <button type="button" class="btn btn-primary-soft btn-sm">+ Club</button>
 </div>
 
 <?php if ($error): ?>

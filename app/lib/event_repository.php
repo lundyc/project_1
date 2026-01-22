@@ -224,9 +224,9 @@ function event_create(int $matchId, array $data, array $tagIds, int $userId, boo
 
                     $stmt = $pdo->prepare(
                               'INSERT INTO events
-                     (match_id, period_id, match_second, minute, minute_extra, team_side, event_type_id, importance, phase, match_player_id, opponent_detail, outcome, zone, notes, created_by)
+                     (match_id, period_id, match_second, minute, minute_extra, team_side, event_type_id, importance, phase, is_penalty, match_player_id, opponent_detail, outcome, zone, notes, created_by)
                      VALUES
-                     (:match_id, :period_id, :match_second, :minute, :minute_extra, :team_side, :event_type_id, :importance, :phase, :match_player_id, :opponent_detail, :outcome, :zone, :notes, :created_by)'
+                     (:match_id, :period_id, :match_second, :minute, :minute_extra, :team_side, :event_type_id, :importance, :phase, :is_penalty, :match_player_id, :opponent_detail, :outcome, :zone, :notes, :created_by)'
                     );
 
                     $stmt->execute([
@@ -239,6 +239,7 @@ function event_create(int $matchId, array $data, array $tagIds, int $userId, boo
                               'event_type_id' => $normalized['event_type_id'],
                               'importance' => $normalized['importance'],
                               'phase' => $normalized['phase'],
+                              'is_penalty' => $normalized['is_penalty'],
                               'match_player_id' => $normalized['match_player_id'],
                               'opponent_detail' => $normalized['opponent_detail'],
                               'outcome' => $normalized['outcome'],
@@ -286,6 +287,7 @@ function event_update(int $eventId, array $data, array $tagIds, int $userId): vo
                          event_type_id = :event_type_id,
                          importance = :importance,
                          phase = :phase,
+                         is_penalty = :is_penalty,
                          match_player_id = :match_player_id,
                          opponent_detail = :opponent_detail,
                          outcome = :outcome,
@@ -303,6 +305,7 @@ function event_update(int $eventId, array $data, array $tagIds, int $userId): vo
                               'event_type_id' => $normalized['event_type_id'],
                               'importance' => $normalized['importance'],
                               'phase' => $normalized['phase'],
+                              'is_penalty' => $normalized['is_penalty'],
                               'match_player_id' => $normalized['match_player_id'],
                               'opponent_detail' => $normalized['opponent_detail'],
                               'outcome' => $normalized['outcome'],

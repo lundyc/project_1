@@ -90,6 +90,9 @@ function normalize_event_payload(array $data): array
           $phase = isset($data['phase']) && $data['phase'] !== '' ? (string)$data['phase'] : 'unknown';
           $phase = in_array($phase, ['unknown', 'build_up', 'transition', 'defensive_block', 'set_piece'], true) ? $phase : 'unknown';
 
+          $isPenalty = isset($data['is_penalty']) ? (int)$data['is_penalty'] : 0;
+          $isPenalty = $isPenalty ? 1 : 0;
+
           return [
                     'period_id' => isset($data['period_id']) && $data['period_id'] !== '' ? (int)$data['period_id'] : null,
                     'match_second' => $matchSecond,
@@ -99,6 +102,7 @@ function normalize_event_payload(array $data): array
                     'event_type_id' => $eventTypeId,
                     'importance' => $importance,
                     'phase' => $phase,
+                    'is_penalty' => $isPenalty,
                     'match_player_id' => isset($data['match_player_id']) && $data['match_player_id'] !== '' ? (int)$data['match_player_id'] : null,
                     'opponent_detail' => $data['opponent_detail'] ?? null,
                     'outcome' => $data['outcome'] ?? null,

@@ -7,12 +7,11 @@ $base = base_path();
 
 ob_start();
 ?>
-<div class="flex items-center justify-between mb-6">
-          <div>
-                    <h1 class="mb-1">Platform Admin</h1>
-                    <p class="text-muted-alt text-sm mb-0">Manage platform-level data for clubs and users.</p>
-          </div>
-</div>
+<?php
+    $pageTitle = 'Platform Admin';
+    $pageDescription = 'Manage platform-level data for clubs and users.';
+    include __DIR__ . '/../../partials/club_context_header.php';
+?>
 
 <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           <div>

@@ -180,7 +180,7 @@ class StatsService
         $draws = (int)($results['draws'] ?? 0);
         $losses = $totalMatches - $wins - $draws;
 
-        // Count clean sheets
+        // Count clean sheets (respect filters)
         $cleanSheets = $this->countCleanSheets($seasonId, $type);
 
         // Average goals per game
@@ -541,6 +541,7 @@ class StatsService
                                 p.first_name,
                                 p.last_name,
                                 p.primary_position as position,
+                        p.is_active as is_active,
                                 COUNT(DISTINCT mp.match_id) as appearances,
                                 SUM(CASE WHEN mp.is_starting = 1 THEN 1 ELSE 0 END) as starts,
                                 SUM(CASE WHEN mp.is_starting = 0 THEN 1 ELSE 0 END) as sub_appearances
@@ -549,7 +550,7 @@ class StatsService
                         INNER JOIN matches m ON m.id = mp.match_id
                         LEFT JOIN competitions c ON c.id = m.competition_id
                         WHERE ' . $whereClause . '
-                        GROUP BY p.id, p.first_name, p.last_name, p.primary_position
+                    GROUP BY p.id, p.first_name, p.last_name, p.primary_position, p.is_active
                 ';
         
                 $stmt = $this->pdo->prepare($sql);
@@ -636,6 +637,7 @@ class StatsService
                 'player_id' => $playerId,
                 'name' => trim($player['name'] ?? ''),
                 'position' => trim($player['position'] ?? 'N/A'),
+                'is_active' => (bool)($player['is_active'] ?? false),
                 'appearances' => (int)($player['appearances'] ?? 0),
                 'starts' => (int)($player['starts'] ?? 0),
                 'sub_appearances' => (int)($player['sub_appearances'] ?? 0),
@@ -1156,7 +1158,8 @@ class StatsService
         }
         
         $whereClause = implode(' AND ', $where);
-        
+
+        $goalTypeId = $this->getGoalEventTypeId();
         $stmt = $this->pdo->prepare('
             SELECT COUNT(*) as clean_sheets
             FROM matches m
@@ -1168,7 +1171,7 @@ class StatsService
                     FROM events e 
                     WHERE e.match_id = m.id 
                     AND e.team_side = "away"
-                    AND e.event_type_id = (SELECT id FROM event_types WHERE type_key = "goal" LIMIT 1)
+                    AND e.event_type_id = :goal_type_id
                 ) = 0)
                 OR
                 (m.away_team_id = :team_id AND (
@@ -1176,11 +1179,15 @@ class StatsService
                     FROM events e 
                     WHERE e.match_id = m.id 
                     AND e.team_side = "home"
-                    AND e.event_type_id = (SELECT id FROM event_types WHERE type_key = "goal" LIMIT 1)
+                    AND e.event_type_id = :goal_type_id
                 ) = 0)
             )
         ');
-        $stmt->execute($params);
+        foreach ($params as $key => $val) {
+            $stmt->bindValue(':' . $key, $val, is_int($val) ? \PDO::PARAM_INT : \PDO::PARAM_STR);
+        }
+        $stmt->bindValue(':goal_type_id', $goalTypeId, \PDO::PARAM_INT);
+        $stmt->execute();
         $result = $stmt->fetch();
         return (int)($result['clean_sheets'] ?? 0);
     }
@@ -1493,12 +1500,16 @@ class StatsService
             unset($targetRecord, $competitionRecord);
         }
 
-        // Calculate clean sheets per competition
-        $leagueCleanSheets = $this->countCleanSheetsByCompetitionType('league');
-        $cupCleanSheets = $this->countCleanSheets() - $leagueCleanSheets;
+        // Calculate clean sheets (respect filters)
+        $leagueCleanSheets = $this->countCleanSheets($seasonId, 'league');
+        $cupCleanSheets = $this->countCleanSheets($seasonId, 'cup');
+        $filteredCleanSheets = $type === 'league' ? $leagueCleanSheets : ($type === 'cup' ? $cupCleanSheets : ($leagueCleanSheets + $cupCleanSheets));
         
         $leagueStats['clean_sheets'] = $leagueCleanSheets;
         $cupStats['clean_sheets'] = $cupCleanSheets;
+
+        // Build clean sheet matches list
+        $cleanSheetMatches = $this->getCleanSheetMatches($seasonId, $type);
 
         return [
             'matches_played' => $matchesPlayed,
@@ -1508,7 +1519,8 @@ class StatsService
             'goals_for' => $leagueStats['goals_for'] + $cupStats['goals_for'],
             'goals_against' => $leagueStats['goals_against'] + $cupStats['goals_against'],
             'goal_difference' => ($leagueStats['goals_for'] + $cupStats['goals_for']) - ($leagueStats['goals_against'] + $cupStats['goals_against']),
-            'clean_sheets' => $leagueCleanSheets + $cupCleanSheets,
+            'clean_sheets' => $filteredCleanSheets,
+            'clean_sheets_matches' => $cleanSheetMatches,
             'home_away' => [
                 'home' => $homeRecord,
                 'away' => $awayRecord,
@@ -1519,6 +1531,131 @@ class StatsService
             ],
             'form' => $form,
         ];
+    }
+
+    /**
+     * Get list of clean sheet matches for the primary team
+     *
+     * @param int|null $seasonId Optional season filter
+     * @param string|null $type Optional competition type filter ('league'|'cup')
+     * @return array List of matches with id, date, opponent, venue, score
+     */
+    public function getCleanSheetMatches(?int $seasonId = null, ?string $type = null): array
+    {
+        if (!$this->hasValidTeam()) {
+            return [];
+        }
+
+        $goalTypeId = $this->getGoalEventTypeId();
+        $where = ['m.club_id = :club_id', 'm.status = "ready"'];
+        $params = [
+            'club_id' => $this->clubId,
+            'team_id' => $this->primaryTeamId,
+            'goal_type_id' => $goalTypeId,
+        ];
+
+        if ($seasonId !== null) {
+            $where[] = 'm.season_id = :season_id';
+            $params['season_id'] = $seasonId;
+        }
+        if ($type !== null) {
+            $where[] = 'c.type = :type';
+            $params['type'] = $type;
+        }
+        $whereClause = implode(' AND ', $where);
+
+                $sql = '
+            SELECT
+                m.id,
+                m.kickoff_at,
+                m.home_team_id,
+                m.away_team_id,
+                ht.name AS home_team_name,
+                at.name AS away_team_name,
+                COALESCE((
+                    SELECT COUNT(*) FROM events e
+                    WHERE e.match_id = m.id
+                      AND e.team_side = "home"
+                      AND e.event_type_id = :goal_type_id
+                ), 0) AS home_goals,
+                COALESCE((
+                    SELECT COUNT(*) FROM events e
+                    WHERE e.match_id = m.id
+                      AND e.team_side = "away"
+                      AND e.event_type_id = :goal_type_id
+                                ), 0) AS away_goals,
+                                COALESCE(
+                                        (
+                                                SELECT CONCAT_WS(" ", p.first_name, p.last_name)
+                                                FROM match_players mp
+                                                JOIN players p ON p.id = mp.player_id
+                                                WHERE mp.match_id = m.id
+                                                    AND mp.is_starting = 1
+                                                    AND mp.position_label = "GK"
+                                                    AND (
+                                                        (m.home_team_id = :team_id AND mp.team_side = "home") OR
+                                                        (m.away_team_id = :team_id AND mp.team_side = "away")
+                                                    )
+                                                LIMIT 1
+                                        ),
+                                        (
+                                                SELECT CONCAT_WS(" ", p2.first_name, p2.last_name)
+                                                FROM match_players mp2
+                                                JOIN players p2 ON p2.id = mp2.player_id
+                                                WHERE mp2.match_id = m.id
+                                                    AND mp2.is_starting = 1
+                                                    AND COALESCE(mp2.shirt_number, 0) = 1
+                                                    AND (
+                                                        (m.home_team_id = :team_id AND mp2.team_side = "home") OR
+                                                        (m.away_team_id = :team_id AND mp2.team_side = "away")
+                                                    )
+                                                LIMIT 1
+                                        )
+                                ) AS gk_name
+            FROM matches m
+            LEFT JOIN competitions c ON c.id = m.competition_id
+            LEFT JOIN teams ht ON ht.id = m.home_team_id
+            LEFT JOIN teams at ON at.id = m.away_team_id
+            WHERE ' . $whereClause . '
+              AND (
+                (m.home_team_id = :team_id AND (
+                    SELECT COUNT(*) FROM events e
+                    WHERE e.match_id = m.id AND e.team_side = "away" AND e.event_type_id = :goal_type_id
+                ) = 0)
+                OR
+                (m.away_team_id = :team_id AND (
+                    SELECT COUNT(*) FROM events e
+                    WHERE e.match_id = m.id AND e.team_side = "home" AND e.event_type_id = :goal_type_id
+                ) = 0)
+              )
+            ORDER BY m.kickoff_at DESC, m.id DESC
+        ';
+
+        $stmt = $this->pdo->prepare($sql);
+        foreach ($params as $key => $val) {
+            $typeParam = is_int($val) ? \PDO::PARAM_INT : \PDO::PARAM_STR;
+            $stmt->bindValue(':' . $key, $val, $typeParam);
+        }
+        $stmt->execute();
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        $out = [];
+        foreach ($rows as $row) {
+            $venue = $this->resolveClubVenueSide($row);
+            if ($venue === null) continue;
+            $clubGoals = $venue === 'home' ? (int)($row['home_goals'] ?? 0) : (int)($row['away_goals'] ?? 0);
+            $oppGoals = $venue === 'home' ? (int)($row['away_goals'] ?? 0) : (int)($row['home_goals'] ?? 0);
+            $out[] = [
+                'match_id' => (int)$row['id'],
+                'date' => $row['kickoff_at'] ?? null,
+                'venue' => ucfirst($venue),
+                'opponent' => $this->resolveOpponentName($row, $venue),
+                'score' => $clubGoals . '-' . $oppGoals,
+                'gk' => trim((string)($row['gk_name'] ?? '')),
+            ];
+        }
+
+        return $out;
     }
     
     /**

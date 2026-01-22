@@ -14,6 +14,18 @@ $error = $_SESSION['match_form_error'] ?? null;
 unset($_SESSION['match_form_success'], $_SESSION['match_form_error']);
 
 $title = 'Matches';
+$isPlatformAdmin = function_exists('user_has_role') ? user_has_role('platform_admin') : false;
+$selectedClubId = isset($_GET['club_id']) ? (int)$_GET['club_id'] : ($selectedClubId ?? 0);
+$availableClubs = $availableClubs ?? [];
+$selectedClub = null;
+foreach ($availableClubs as $club) {
+    if ((int)$club['id'] === (int)$selectedClubId) {
+        $selectedClub = $club;
+        break;
+    }
+}
+$clubContextName = $selectedClub['name'] ?? 'Saltcoats Victoria F.C.';
+$showClubSelector = true;
 
 $searchQuery = trim((string)($_GET['q'] ?? ''));
 $statusFilter = strtolower(trim((string)($_GET['status'] ?? '')));
@@ -21,371 +33,258 @@ $statusFilter = strtolower(trim((string)($_GET['status'] ?? '')));
 $totalMatches = count($matches);
 $statusCounts = [];
 foreach ($matches as $match) {
-          $matchStatus = strtolower(trim((string)($match['status'] ?? '')));
-          if ($matchStatus === '') {
-                    $matchStatus = 'draft';
-          }
-          $statusCounts[$matchStatus] = ($statusCounts[$matchStatus] ?? 0) + 1;
+    $matchStatus = strtolower(trim((string)($match['status'] ?? '')));
+    if ($matchStatus === '') {
+        $matchStatus = 'draft';
+    }
+    $statusCounts[$matchStatus] = ($statusCounts[$matchStatus] ?? 0) + 1;
 }
 
 $statusOrder = ['ready', 'draft'];
 $orderedStatuses = [];
 foreach ($statusOrder as $statusKey) {
-          if (isset($statusCounts[$statusKey])) {
-                    $orderedStatuses[$statusKey] = $statusCounts[$statusKey];
-          }
+    if (isset($statusCounts[$statusKey])) {
+        $orderedStatuses[$statusKey] = $statusCounts[$statusKey];
+    }
 }
 foreach ($statusCounts as $status => $count) {
-          if (isset($orderedStatuses[$status])) {
-                    continue;
-          }
-          $orderedStatuses[$status] = $count;
+    if (isset($orderedStatuses[$status])) {
+        continue;
+    }
+    $orderedStatuses[$status] = $count;
 }
 
 $searchNormalized = strtolower($searchQuery);
 $filteredMatches = array_values(
-          array_filter($matches, function (array $match) use ($searchNormalized, $statusFilter) {
-                    if ($statusFilter !== '') {
-                              $matchStatus = strtolower(trim((string)($match['status'] ?? '')));
-                              if ($matchStatus === '') {
-                                        $matchStatus = 'draft';
-                              }
-                              if ($matchStatus !== $statusFilter) {
-                                        return false;
-                              }
-                    }
-
-                    if ($searchNormalized === '') {
-                              return true;
-                    }
-
-                    $haystack = strtolower(implode(' ', [
-                              $match['home_team'] ?? '',
-                              $match['away_team'] ?? '',
-                              $match['competition'] ?? '',
-                              $match['venue'] ?? '',
-                              $match['notes'] ?? '',
-                    ]));
-
-                    return str_contains($haystack, $searchNormalized);
-          })
+    array_filter($matches, function (array $match) use ($searchNormalized, $statusFilter) {
+        if ($statusFilter !== '') {
+            $matchStatus = strtolower(trim((string)($match['status'] ?? '')));
+            if ($matchStatus === '') {
+                $matchStatus = 'draft';
+            }
+            if ($matchStatus !== $statusFilter) {
+                return false;
+            }
+        }
+        if ($searchNormalized === '') {
+            return true;
+        }
+        $haystack = strtolower(implode(' ', [
+            $match['home_team'] ?? '',
+            $match['away_team'] ?? '',
+            $match['competition'] ?? '',
+            $match['venue'] ?? '',
+            $match['notes'] ?? '',
+        ]));
+        return str_contains($haystack, $searchNormalized);
+    })
 );
 $displayedMatches = count($filteredMatches);
 $tabBasePath = ($base ?: '') . '/matches';
 
-$formatDuration = static function (?int $seconds): string {
-          if ($seconds === null || $seconds <= 0) {
-                    return '—';
-          }
-          if ($seconds >= 3600) {
-                    return gmdate('G:i:s', $seconds);
-          }
-          return gmdate('i:s', $seconds);
+$formatStatusLabel = static function (string $status): string {
+    if ($status === '') {
+        return 'Unknown';
+    }
+    return ucwords(str_replace('_', ' ', $status));
 };
 
 $normalizeStatusClass = static function (string $status): string {
-          $clean = preg_replace('/[^a-z0-9_-]+/i', '', strtolower($status));
-          return $clean ?: 'status';
-};
-
-$formatStatusLabel = static function (string $status): string {
-          if ($status === '') {
-                    return 'Unknown';
-          }
-          return ucwords(str_replace('_', ' ', $status));
+    $clean = preg_replace('/[^a-z0-9_-]+/i', '', strtolower($status));
+    return $clean ?: 'status';
 };
 
 $buildTabUrl = static function (?string $status) use ($tabBasePath, $searchQuery) {
-          $params = [];
-          if ($searchQuery !== '') {
-                    $params['q'] = $searchQuery;
-          }
-          if ($status !== null && $status !== '') {
-                    $params['status'] = $status;
-          }
-          $query = http_build_query($params);
-          return $tabBasePath . ($query ? ('?' . $query) : '');
-};
-
-$buildDownloadFilename = static function (string $title, ?int $kickoffTs): string {
-          $slug = preg_replace('/[^A-Za-z0-9]+/', '_', $title);
-          $slug = preg_replace('/_+/', '_', trim($slug, '_'));
-          if ($slug === '') {
-                    $slug = 'match';
-          }
-
-          if ($kickoffTs === null || $kickoffTs === false) {
-                    $timestamp = 'unknown';
-          } else {
-                    $timestamp = date('Y-m-d_H-i', (int)$kickoffTs);
-          }
-
-          return $slug . '_' . $timestamp . '.mp4';
+    $params = [];
+    if ($searchQuery !== '') {
+        $params['q'] = $searchQuery;
+    }
+    if ($status !== null && $status !== '') {
+        $params['status'] = $status;
+    }
+    $query = http_build_query($params);
+    return $tabBasePath . ($query ? ('?' . $query) : '');
 };
 
 ob_start();
 ?>
-<div class="library-layout">
-          <header class="library-layout__header">
-                    <div>
-                              <h1 class="library-layout__title">Matches</h1>
-                              <p class="library-layout__description">Review upcoming matches and check statuses.</p>
+<div class="stats-page w-full mt-4 text-slate-200">
+    <div class="max-w-full">
+        <?php
+            $pageTitle = 'Matches';
+            $pageDescription = 'Review upcoming matches and check statuses.';
+            include __DIR__ . '/../../partials/club_context_header.php';
+        ?>
+        <div class="stats-three-col grid grid-cols-12 gap-2 px-4 md:px-6 lg:px-8 w-full">
+            <!-- Left Sidebar -->
+            <aside class="stats-col-left col-span-2 space-y-4 min-w-0">
+                <div class="rounded-xl bg-slate-900/80 border border-white/10 p-3">
+                    <?php if ($canManage): ?>
+                        <a href="<?= htmlspecialchars($base) ?>/matches/create" class="stats-tab w-full justify-start text-left px-4 py-2.5 text-sm font-medium rounded-lg border transition-all duration-200 bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20 mb-4 flex">Create Match</a>
+                    <?php endif; ?>
+                    <div class="rounded-xl bg-slate-900/80 border border-white/10 p-3 mt-4">
+                        <h6 class="text-slate-300 text-xs font-semibold mb-2">Filters</h6>
+                        <form method="get" class="flex flex-col gap-3" role="search">
+                            <div>
+                                <label class="block text-slate-400 text-xs mb-1" for="matches-search">Search matches</label>
+                                <input id="matches-search" name="q" type="search" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-white/30" placeholder="Search teams, competition, venue, or notes" value="<?= htmlspecialchars($searchQuery) ?>">
+                                <?php if ($statusFilter !== ''): ?>
+                                    <input type="hidden" name="status" value="<?= htmlspecialchars($statusFilter) ?>">
+                                <?php endif; ?>
+                            </div>
+                        </form>
+                        <div class="mt-4 flex flex-col gap-2">
+                            <a class="stats-tab w-full text-left px-4 py-2.5 text-sm font-medium rounded-lg border transition-all duration-200 <?= $statusFilter === '' ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'bg-slate-800/40 border-white/10 text-slate-300 hover:bg-slate-700/50 hover:border-white/20' ?>" role="tab" href="<?= htmlspecialchars($buildTabUrl('')) ?>">
+                                All <span class="ml-2 inline-block rounded-full bg-slate-700/60 px-2 py-0.5 text-xs font-semibold text-slate-200 align-middle"><?= htmlspecialchars((string)$totalMatches) ?></span>
+                            </a>
+                            <?php foreach ($orderedStatuses as $status => $count): ?>
+                                <?php $statusLabel = $formatStatusLabel($status); ?>
+                                <a class="stats-tab w-full text-left px-4 py-2.5 text-sm font-medium rounded-lg border transition-all duration-200 <?= $statusFilter === $status ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'bg-slate-800/40 border-white/10 text-slate-300 hover:bg-slate-700/50 hover:border-white/20' ?>" role="tab" href="<?= htmlspecialchars($buildTabUrl($status)) ?>">
+                                    <?= htmlspecialchars($statusLabel) ?>
+                                    <span class="ml-2 inline-block rounded-full bg-slate-700/60 px-2 py-0.5 text-xs font-semibold text-slate-200 align-middle"><?= htmlspecialchars((string)$count) ?></span>
+                                </a>
+                            <?php endforeach; ?>
+                        </div>
+                        <div class="mt-4 text-xs text-slate-400 bg-slate-800/40 border border-white/10 rounded-lg px-3 py-2">
+                            Showing <?= htmlspecialchars((string)$displayedMatches) ?> of <?= htmlspecialchars((string)$totalMatches) ?> matches
+                        </div>
                     </div>
-          </header>
-
-          <div class="library-tabs-row">
-                    <nav class="library-tabs" role="tablist">
-                              <a class="library-tab <?= $statusFilter === '' ? 'library-tab--active' : '' ?>"
-                                        role="tab" href="<?= htmlspecialchars($buildTabUrl('')) ?>">
-                                        All <span class="library-tab__count"><?= htmlspecialchars((string)$totalMatches) ?></span>
-                              </a>
-                              <?php foreach ($orderedStatuses as $status => $count): ?>
-                                        <?php $statusLabel = $formatStatusLabel($status); ?>
-                                        <a class="library-tab <?= $statusFilter === $status ? 'library-tab--active' : '' ?>"
-                                                  role="tab" href="<?= htmlspecialchars($buildTabUrl($status)) ?>">
-                                                  <?= htmlspecialchars($statusLabel) ?>
-                                                  <span class="library-tab__count"><?= htmlspecialchars((string)$count) ?></span>
-                                        </a>
-                              <?php endforeach; ?>
-                    </nav>
-                    <div class="library-tabs-row__right">
-                              <form method="get" class="library-search library-search--tabs" role="search">
-                                        <label class="visually-hidden" for="matches-search">Search matches</label>
-                                        <input id="matches-search" name="q" type="search" placeholder="Search teams, competition, venue, or notes" value="<?= htmlspecialchars($searchQuery) ?>">
-                                        <?php if ($statusFilter !== ''): ?>
-                                                  <input type="hidden" name="status" value="<?= htmlspecialchars($statusFilter) ?>">
-                                        <?php endif; ?>
-                                        <button type="submit" class="library-search__submit">Filter</button>
-                              </form>
-                              <?php if ($canManage): ?>
-                                        <a href="<?= htmlspecialchars($base) ?>/matches/create" class="btn btn-primary-soft btn-sm library-create-button">Create match</a>
-                              <?php endif; ?>
+                </div>
+            </aside>
+            <!-- Main Content -->
+            <main class="stats-col-main col-span-7 space-y-4 min-w-0">
+                <div class="rounded-xl bg-slate-900/80 border border-white/10 p-3">
+                    <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-2 mb-2">
+                        <h4 class="mb-0">Matches</h4>
                     </div>
-          </div>
-
-          <p class="library-summary">Showing <?= htmlspecialchars((string)$displayedMatches) ?> of <?= htmlspecialchars((string)$totalMatches) ?> matches</p>
-
-          <?php if ($error): ?>
-                    <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
-          <?php elseif ($success): ?>
-                    <div class="alert alert-success"><?= htmlspecialchars($success) ?></div>
-          <?php endif; ?>
-
-          <?php if ($displayedMatches === 0): ?>
-                    <div class="library-empty-state">
-                              <p>No matches found for the current view.</p>
-                              <?php if ($canManage): ?>
-                                        <a href="<?= htmlspecialchars($base) ?>/matches/create" class="btn btn-primary-soft btn-sm">Create first match</a>
-                              <?php endif; ?>
+                    <?php if ($error): ?>
+                        <div class="rounded-lg bg-red-900/80 border border-red-700 text-red-200 px-4 py-3 mb-4 text-sm"><?= htmlspecialchars($error) ?></div>
+                    <?php elseif ($success): ?>
+                        <div class="rounded-lg bg-emerald-900/80 border border-emerald-700 text-emerald-200 px-4 py-3 mb-4 text-sm"><?= htmlspecialchars($success) ?></div>
+                    <?php endif; ?>
+                    <?php if ($displayedMatches === 0): ?>
+                        <div class="rounded-xl border border-white/10 bg-slate-800/40 p-4 text-slate-400 text-sm">No matches found for the current view.</div>
+                    <?php else: ?>
+                        <table class="min-w-full text-sm text-slate-200">
+                            <thead class="bg-slate-900/90 text-slate-100 uppercase tracking-wider">
+                                <tr>
+                                    <th class="px-3 py-2">Match</th>
+                                    <th class="px-3 py-2 text-center">Date</th>
+                                    <th class="px-3 py-2 text-center">Time</th>
+                                    <th class="px-3 py-2 text-center">Competition</th>
+                                    <th class="px-3 py-2 text-center">Status</th>
+                                    <th class="px-3 py-2 text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($filteredMatches as $match): ?>
+                                    <?php
+                                        $matchId = (int)$match['id'];
+                                        $matchUrl = htmlspecialchars($base . '/matches/' . $matchId . '/desk');
+                                        $homeTeam = trim($match['home_team'] ?? '');
+                                        $awayTeam = trim($match['away_team'] ?? '');
+                                        $title = ($homeTeam !== '' || $awayTeam !== '') ? $homeTeam . ' vs ' . $awayTeam : 'Untitled match';
+                                        $kickoffTs = $match['kickoff_at'] ? strtotime($match['kickoff_at']) : null;
+                                        $dateLabel = $kickoffTs ? date('d/m/Y', $kickoffTs) : 'TBD';
+                                        $timeLabel = $kickoffTs ? date('H:i', $kickoffTs) : 'TBD';
+                                        $status = strtolower(trim((string)($match['status'] ?? '')));
+                                        if ($status === '') {
+                                            $status = 'draft';
+                                        }
+                                        $statusLabel = $formatStatusLabel($status);
+                                        $statusClass = $normalizeStatusClass($status);
+                                        $competition = $match['competition'] ?? '';
+                                        $displayCompetition = $competition;
+                                        if ($competition !== '') {
+                                            $displayCompetition = preg_replace('/\b(Planning|Financial)\b.*?(Cup)?$/i', '', $competition);
+                                            $displayCompetition = trim($displayCompetition);
+                                            if (stripos($competition, 'Cup') !== false) {
+                                                $displayCompetition .= ' Cup';
+                                            }
+                                        }
+                                        $venue = $match['venue'] ?? '';
+                                    ?>
+                                    <tr>
+                                        <td class="px-3 py-3 whitespace-nowrap font-semibold text-slate-100 text-sm">
+                                            <a href="<?= $matchUrl ?>" class="hover:underline">
+                                                <?= htmlspecialchars($title) ?>
+                                                <?php if ($venue !== ''): ?>
+                                                    <br><span class="text-xs text-slate-400">@ <?= htmlspecialchars($venue) ?></span>
+                                                <?php endif; ?>
+                                            </a>
+                                        </td>
+                                        <td class="px-3 py-3 whitespace-nowrap text-slate-200 text-xs font-medium text-center">
+                                            <span class="inline-block bg-slate-800/60 rounded px-2 py-1">
+                                                <?= htmlspecialchars($dateLabel) ?>
+                                            </span>
+                                        </td>
+                                        <td class="px-3 py-3 whitespace-nowrap text-slate-200 text-xs font-medium text-center">
+                                            <span class="inline-block bg-slate-800/60 rounded px-2 py-1">
+                                                <?= htmlspecialchars($timeLabel) ?>
+                                            </span>
+                                        </td>
+                                        <td class="px-3 py-3 whitespace-pre-line text-slate-200 text-xs font-medium text-center">
+                                            <?php if ($displayCompetition !== ''): ?>
+                                                <?= htmlspecialchars($displayCompetition) ?>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td class="px-3 py-3 whitespace-nowrap text-center">
+                                            <?php if ($status === 'ready'): ?>
+                                                <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-600/80 text-white border border-white/10" title="Ready"><i class="fa-solid fa-circle-check"></i></span>
+                                            <?php elseif ($status === 'draft'): ?>
+                                                <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-500/80 text-white border border-white/10" title="Draft"><i class="fa-solid fa-pencil"></i></span>
+                                            <?php else: ?>
+                                                <span class="status-badge status-badge--<?= htmlspecialchars($statusClass) ?> text-xs px-2 py-1 rounded-full bg-slate-700/40 text-slate-300 border border-white/10">
+                                                    <?= htmlspecialchars($statusLabel) ?>
+                                                </span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td class="px-3 py-3 whitespace-nowrap text-center">
+                                            <div class="flex justify-center">
+                                                <a href="<?= $matchUrl ?>" class="inline-flex items-center rounded-md bg-slate-700/60 px-2 py-1 text-xs text-slate-200 hover:bg-slate-700/80 transition" aria-label="View match">
+                                                    <i class="fa-solid fa-eye"></i>
+                                                </a>
+                                                <a href="<?= htmlspecialchars($base . '/matches/' . $matchId . '/edit') ?>" class="inline-flex items-center rounded-md bg-indigo-700/60 px-2 py-1 text-xs text-white hover:bg-indigo-700 transition" aria-label="Edit match">
+                                                    <i class="fa-solid fa-pen"></i>
+                                                </a>
+                                                <form method="post" action="<?= htmlspecialchars($base . '/api/matches/' . $matchId . '/delete') ?>" class="inline" onsubmit="return confirm('Delete this match?');">
+                                                    <button type="submit" class="inline-flex items-center rounded-md bg-red-700/60 px-2 py-1 text-xs text-white hover:bg-red-800 transition" aria-label="Delete match">
+                                                        <i class="fa-solid fa-trash"></i>
+                                                    </button>
+                                                    <input type="hidden" name="match_id" value="<?= htmlspecialchars((string)$matchId) ?>">
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    <?php endif; ?>
+                </div>
+            </main>
+            <!-- Right Sidebar -->
+            <aside class="stats-col-right col-span-3 min-w-0">
+                <div class="rounded-xl bg-slate-900/80 border border-white/10 p-4">
+                    <h5 class="text-slate-200 font-semibold mb-1">Match Stats</h5>
+                    <div class="text-slate-400 text-xs mb-4">Overview of matches</div>
+                    <div class="space-y-3">
+                        <article class="rounded-lg border border-white/10 bg-slate-800/40 px-3 py-3">
+                            <div class="text-xs font-semibold text-slate-300 mb-2 text-center">Total Matches</div>
+                            <div class="text-2xl font-bold text-slate-100 text-center"><?= $totalMatches ?></div>
+                        </article>
+                        <div class="border-t border-white/10"></div>
+                        <?php foreach ($orderedStatuses as $status => $count): ?>
+                            <article class="rounded-lg border border-white/10 bg-slate-800/40 px-3 py-3">
+                                <div class="text-xs font-semibold text-slate-300 mb-2 text-center"><?= htmlspecialchars($formatStatusLabel($status)) ?></div>
+                                <div class="text-xl font-bold text-indigo-400 text-center"><?= $count ?></div>
+                            </article>
+                        <?php endforeach; ?>
                     </div>
-          <?php else: ?>
-                    <div class="library-list" role="list">
-                              <?php foreach ($filteredMatches as $match): ?>
-                                        <?php
-                                                  $matchId = (int)$match['id'];
-                                                  $matchUrl = htmlspecialchars($base . '/matches/' . $matchId . '/desk');
-                                                  $title = trim(($match['home_team'] ?? '') . ' vs ' . ($match['away_team'] ?? ''));
-                                                  if ($title === '') {
-                                                            $title = 'Untitled match';
-                                                  }
-                                                  $kickoffTs = $match['kickoff_at'] ? strtotime($match['kickoff_at']) : null;
-                                                  $dateLabel = $kickoffTs ? date('M j, Y', $kickoffTs) : 'TBD';
-                                                  $timeLabel = $kickoffTs ? date('H:i', $kickoffTs) : 'TBD';
-                                                  $status = strtolower(trim((string)($match['status'] ?? '')));
-                                                  if ($status === '') {
-                                                            $status = 'draft';
-                                                  }
-                                                  $statusLabel = $formatStatusLabel($status);
-                                                  $statusClass = $normalizeStatusClass($status);
-                                                  $competition = $match['competition'] ?? '';
-                                                  $clubName = $match['club_name'] ?? '';
-                                        ?>
-                                        <div class="library-row" data-match-id="<?= htmlspecialchars((string)$matchId) ?>">
-                                                  <div class="library-row__main">
-                                                            <a href="<?= $matchUrl ?>" class="library-row__link" aria-label="Open <?= htmlspecialchars($title) ?>">
-                                                                      <div class="library-row__details">
-                                                                                <div class="library-row__title">
-                                                                                          <h3><?= htmlspecialchars($title) ?></h3>
-                                                                                          <span class="status-badge status-badge--<?= htmlspecialchars($statusClass) ?>"><?= htmlspecialchars($statusLabel) ?></span>
-                                                                                </div>
-                                                                               <p class="library-row__meta">
-                                                                                         <span><?= htmlspecialchars($dateLabel) ?> · <?= htmlspecialchars($timeLabel) ?></span>
-                                                                                         <?php if ($competition !== ''): ?>
-                                                                                                   <span class="library-row__meta-separator"> · </span>
-                                                                                                   <span><?= htmlspecialchars($competition) ?></span>
-                                                                                         <?php endif; ?>
-                                                                               </p>
-                                                                               <p class="library-row__meta library-row__meta--muted">
-                                                                                         <?= $clubName !== '' ? htmlspecialchars($clubName) : 'Club unknown' ?>
-                                                                                         <?php if (!empty($match['venue'])): ?>
-                                                                                                   <span class="library-row__meta-venue"><?= htmlspecialchars($match['venue']) ?></span>
-                                                                                         <?php endif; ?>
-                                                                               </p>
-                                                                      </div>
-                                                            </a>
-                                                  </div>
-                                                  <div class="library-row__actions">
-                                                            <div class="dropdown">
-                                                                      <button class="library-row__menu" type="button" id="matchMenu-<?= htmlspecialchars((string)$matchId) ?>" data-bs-toggle="dropdown" aria-expanded="false" aria-label="More actions for <?= htmlspecialchars($title) ?>">
-                                                                                <i class="fa-solid fa-ellipsis-vertical"></i>
-                                                                      </button>
-                                                                      <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="matchMenu-<?= htmlspecialchars((string)$matchId) ?>">
-                                                                                <li>
-                                                                                          <a class="dropdown-item" href="<?= htmlspecialchars($base . '/matches/' . $matchId . '/edit') ?>">
-                                                                                                    <i class="fa-solid fa-pen"></i>
-                                                                                                    Edit
-                                                                                          </a>
-                                                                                </li>
-                                                                                <li>
-                                                                                          <button type="button" class="dropdown-item" data-share-match-id="<?= htmlspecialchars((string)$matchId) ?>">
-                                                                                                    <i class="fa-solid fa-share-nodes"></i>
-                                                                                                    Share
-                                                                                          </button>
-                                                                                </li>
-                                                                                <li>
-                                                                                          <form method="post" action="<?= htmlspecialchars($base . '/api/matches/' . $matchId . '/delete') ?>" class="m-0" onsubmit="return confirm('Delete this match?');">
-                                                                                                    <input type="hidden" name="match_id" value="<?= htmlspecialchars((string)$matchId) ?>">
-                                                                                                    <button type="submit" class="dropdown-item dropdown-item-danger">
-                                                                                                              <i class="fa-solid fa-trash"></i>
-                                                                                                              Delete
-                                                                                                    </button>
-                                                                                          </form>
-                                                                                </li>
-                                                                      </ul>
-                                                            </div>
-                                                  </div>
-                                        </div>
-                              <?php endforeach; ?>
-                    </div>
-          <?php endif; ?>
-</div>
-<div class="modal fade" id="matchShareModal" tabindex="-1" aria-labelledby="matchShareModalLabel" style="display:none;">
-          <div class="modal-dialog modal-dialog-centered">
-                    <div class="modal-content">
-                              <div class="modal-header">
-                                        <h5 class="modal-title" id="matchShareModalLabel">Share your best moments</h5>
-                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                              </div>
-                              <div class="modal-body">
-                                        <p class="share-modal__description">Remember to keep the shared match setting on Public, so that everyone can enjoy great action.</p>
-                                        <div class="share-modal__actions">
-                                                  <a class="share-modal__option" href="#" target="_blank" rel="noopener" data-share-modal-whatsapp>
-                                                            <span class="share-modal__icon">
-                                                                      <i class="fa-brands fa-whatsapp"></i>
-                                                            </span>
-                                                            <span>Share via WhatsApp</span>
-                                                  </a>
-                                                  <button type="button" class="share-modal__option share-modal__option--copy" data-share-modal-copy>
-                                                            <span class="share-modal__icon">
-                                                                      <i class="fa-solid fa-link"></i>
-                                                            </span>
-                                                            <span>Copy link</span>
-                                                  </button>
-                                        </div>
-                                        <p class="share-modal__link" data-share-modal-link></p>
-                              </div>
-                    </div>
-          </div>
+                </div>
+            </aside>
+        </div>
+    </div>
 </div>
 <?php
 $content = ob_get_clean();
-    $footerScripts = <<<'HTML'
-<script>
-(function () {
-          console.log('[share-modal] script init');
-          const basePath = document.querySelector('meta[name="base-path"]')?.content || '';
-          const trimmedBasePath = basePath ? basePath.replace(/^\/+|\/+$/g, '') : '';
-          const normalizedBasePath = trimmedBasePath ? '/' + trimmedBasePath : '';
-          const apiMatchesBase = normalizedBasePath + '/api/matches';
-          const modalEl = document.getElementById('matchShareModal');
-          const shareModal = modalEl ? new bootstrap.Modal(modalEl) : null;
-          const shareModalLink = modalEl?.querySelector('[data-share-modal-link]');
-          const shareModalWhatsApp = modalEl?.querySelector('[data-share-modal-whatsapp]');
-          const shareModalCopyBtn = modalEl?.querySelector('[data-share-modal-copy]');
-          let currentShareLink = '';
-
-          const copyLink = (text) => {
-                    if (navigator.clipboard && navigator.clipboard.writeText) {
-                              return navigator.clipboard.writeText(text);
-                    }
-                    return Promise.reject();
-          };
-
-          const buildShareEndpoint = (matchId) => apiMatchesBase + '/' + encodeURIComponent(matchId) + '/share';
-
-          async function fetchShareData(matchId) {
-                    const endpoint = buildShareEndpoint(matchId);
-                    const response = await fetch(endpoint, {
-                              headers: { Accept: 'application/json' },
-                              credentials: 'same-origin',
-                    });
-                    const contentType = response.headers.get('content-type') || '';
-                    if (!contentType.includes('application/json')) {
-                              throw new Error('Expected JSON, received ' + contentType);
-                    }
-                    if (!response.ok) {
-                              throw new Error(`HTTP ${response.status}`);
-                    }
-                    const data = await response.json();
-                    if (!data || typeof data.share_url !== 'string' || data.share_url.trim() === '') {
-                              throw new Error('Invalid share payload');
-                    }
-                    return data;
-          }
-
-          function renderShareModal(data) {
-                    const link = (data.share_url ?? '').trim();
-                    if (!link) {
-                              throw new Error('Missing share URL');
-                    }
-                    currentShareLink = link;
-                    if (shareModalLink) {
-                              shareModalLink.textContent = link;
-                    }
-                    if (shareModalWhatsApp) {
-                              shareModalWhatsApp.href = 'https://wa.me/?text=' + encodeURIComponent(link);
-                              shareModalWhatsApp.setAttribute('target', '_blank');
-                    }
-                    shareModal?.show();
-          }
-
-          async function openShareModal(matchId) {
-                    try {
-                              const data = await fetchShareData(matchId);
-                              renderShareModal(data);
-                    } catch (err) {
-                              console.error('[share-modal]', err);
-                              alert('Unable to load share options.');
-                    }
-          }
-
-          shareModalCopyBtn?.addEventListener('click', () => {
-                    if (!currentShareLink) {
-                              return;
-                    }
-                    copyLink(currentShareLink).then(() => {
-                              alert('Match link copied to clipboard.');
-                    }).catch(() => {
-                              prompt('Copy match link', currentShareLink);
-                    });
-          });
-
-          document.addEventListener('click', (event) => {
-                    const shareTrigger = event.target.closest('[data-share-match-id]');
-                    if (!shareTrigger) {
-                              return;
-                    }
-
-                    event.preventDefault();
-
-                    const matchId = shareTrigger.dataset.shareMatchId?.trim();
-                    if (!matchId) {
-                              return;
-                    }
-
-                    openShareModal(matchId);
-          });
-})();
-</script>
-HTML;
 require __DIR__ . '/../../layout.php';

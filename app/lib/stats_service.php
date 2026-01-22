@@ -151,15 +151,43 @@ function stats_service_get_overview(?int $clubId = null): array
     $draws = (int)($results['draws'] ?? 0);
     $losses = $totalMatches - $wins - $draws;
 
-    // Count clean sheets (matches where we conceded 0 goals)
+    // Count clean sheets (matches where the club conceded 0 goals)
+    // If the club's team is home, opponent goals are 'away' goals; if away, opponent goals are 'home' goals.
     $cleanSheetsStmt = $pdo->prepare('
         SELECT COUNT(DISTINCT m.id) as clean_sheets
         FROM matches m
+        JOIN teams th ON th.id = m.home_team_id
+        JOIN teams ta ON ta.id = m.away_team_id
         WHERE m.club_id = :club_id AND m.status = "ready"
-        AND (SELECT COALESCE(SUM(CASE WHEN e.team_side = "home" THEN 1 ELSE 0 END), 0) FROM events e 
-             WHERE e.match_id = m.id AND e.event_type_id = (SELECT id FROM event_types WHERE type_key = "goal" LIMIT 1)) = 0
-        AND (SELECT COALESCE(SUM(CASE WHEN e.team_side = "away" THEN 1 ELSE 0 END), 0) FROM events e 
-             WHERE e.match_id = m.id AND e.event_type_id = (SELECT id FROM event_types WHERE type_key = "goal" LIMIT 1)) = 0
+        AND (
+            (
+                th.club_id = m.club_id AND
+                (
+                    SELECT COALESCE(SUM(CASE WHEN e.team_side = "away" THEN 1 ELSE 0 END), 0)
+                    FROM events e
+                    WHERE e.match_id = m.id
+                      AND e.event_type_id = (
+                          SELECT id FROM event_types et
+                          WHERE et.type_key = "goal" AND et.club_id = m.club_id
+                          LIMIT 1
+                      )
+                ) = 0
+            )
+            OR
+            (
+                ta.club_id = m.club_id AND
+                (
+                    SELECT COALESCE(SUM(CASE WHEN e.team_side = "home" THEN 1 ELSE 0 END), 0)
+                    FROM events e
+                    WHERE e.match_id = m.id
+                      AND e.event_type_id = (
+                          SELECT id FROM event_types et
+                          WHERE et.type_key = "goal" AND et.club_id = m.club_id
+                          LIMIT 1
+                      )
+                ) = 0
+            )
+        )
     ');
     $cleanSheetsStmt->execute(['club_id' => $clubId]);
     $cleanSheetsResult = $cleanSheetsStmt->fetch();

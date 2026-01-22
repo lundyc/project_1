@@ -17,16 +17,15 @@ $title = 'Manage Users';
 
 ob_start();
 ?>
-<div class="d-flex align-items-start justify-content-between mb-4 gap-3">
-          <div>
-                    <h1 class="mb-1">Users</h1>
-                    <p class="text-muted-alt text-sm mb-0">Create users, assign clubs, and grant roles.</p>
-          </div>
-          <div class="d-flex gap-2 flex-wrap">
-                    <button type="button" class="btn btn-secondary-soft btn-sm">List view</button>
-                    <button type="button" class="btn btn-secondary-soft btn-sm">Segment</button>
-                    <button type="button" class="btn btn-primary-soft btn-sm">+ Add user</button>
-          </div>
+<?php
+    $pageTitle = 'Users';
+    $pageDescription = 'Create users, assign clubs, and grant roles.';
+    include __DIR__ . '/../../partials/club_context_header.php';
+?>
+<div class="flex items-center justify-end mb-6 gap-2 flex-wrap">
+    <button type="button" class="btn btn-secondary-soft btn-sm">List view</button>
+    <button type="button" class="btn btn-secondary-soft btn-sm">Segment</button>
+    <button type="button" class="btn btn-primary-soft btn-sm">+ Add user</button>
 </div>
 
 <?php if ($error): ?>

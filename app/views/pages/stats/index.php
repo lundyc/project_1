@@ -156,29 +156,11 @@ ob_start();
 ?>
 <div class="w-full mt-4 text-slate-200">
     <div class="max-w-full">
-        <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 px-4 md:px-6 mb-6">
-            <div>
-                <h1 class="text-2xl md:text-3xl font-bold tracking-tight">Statistics Dashboard</h1>
-                <p class="text-slate-400 text-sm">View club-wide analytics and performance indicators.</p>
-            </div>
-            <div class="flex items-center gap-3">
-                <p class="text-slate-400 text-xs">
-                    Viewing stats for <span class="font-semibold text-slate-200"><?= htmlspecialchars($clubContextName) ?></span>.
-                </p>
-                <?php if ($showClubSelector): ?>
-                    <div>
-                        <label for="stats-club-selector" class="block text-slate-400 text-xs mb-1">Switch club context</label>
-                        <select id="stats-club-selector" class="block w-48 rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-white/30">
-                            <?php foreach ($availableClubs as $club): ?>
-                                <option value="<?= (int)$club['id'] ?>" <?= (int)$club['id'] === $selectedClubId ? 'selected' : '' ?>>
-                                    <?= htmlspecialchars($club['name'] ?? 'Club') ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                <?php endif; ?>
-            </div>
-        </header>
+        <?php
+            $pageTitle = 'Statistics Dashboard';
+            $pageDescription = 'View club-wide analytics and performance indicators.';
+            include __DIR__ . '/../../partials/club_context_header.php';
+        ?>
 
         <div class="grid grid-cols-12 gap-2 px-4 md:px-6 lg:px-8 w-full">
             <aside class="col-span-2 space-y-4 min-w-0">
@@ -411,6 +393,41 @@ ob_start();
                             </div>
                         </div>
                         <div class="row g-3 mt-3">
+                            <div class="col-12">
+                                <div class="rounded-xl border border-white/10 bg-slate-800/60 p-3">
+                                    <div class="d-flex align-items-center justify-content-between mb-3">
+                                        <h5 class="mb-0 text-light">Clean Sheets</h5>
+                                    </div>
+                                    <div class="overflow-x-auto">
+                                        <table class="min-w-full text-sm">
+                                            <thead class="bg-slate-900/90 text-slate-100 uppercase tracking-wider">
+                                                <tr>
+                                                    <th class="text-left">Date</th>
+                                                    <th class="text-left">Venue</th>
+                                                    <th class="text-left">Opponent</th>
+                                                    <th class="text-left">GK</th>
+                                                    <th class="text-center">Score</th>
+                                                    <th class="text-center">View</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="team-performance-clean-sheets-body" class="text-slate-200">
+                                                <tr>
+                                                    <td colspan="5" class="text-center py-2 text-slate-400">—</td>
+                                                </tr>
+                                            </tbody>
+                                            <tfoot>
+                                                <tr class="bg-slate-900/60">
+                                                    <td colspan="5" class="px-3 py-2 text-right text-slate-200">
+                                                        Total: <span id="team-performance-clean-sheets-total">—</span>
+                                                    </td>
+                                                </tr>
+                                            </tfoot>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row g-3 mt-3">
                             <div class="col-12 col-md-6">
                                 <div class="rounded-xl border border-white/10 bg-slate-800/60 p-3">
                                     <div class="d-flex align-items-center justify-content-between mb-3">
@@ -507,7 +524,7 @@ ob_start();
                                                     <span class="text-xs opacity-50">⇅</span>
                                                 </span>
                                             </th>
-                                            <th class="sortable px-4 py-3 text-center font-semibold uppercase tracking-wide text-slate-300 cursor-pointer hover:text-slate-100" data-sort="minutes">Mins <span class="ml-1 text-xs opacity-50">⇅</span></th>
+                                            <th class="sortable px-4 py-3 text-center font-semibold uppercase tracking-wide text-slate-300 cursor-pointer hover:text-slate-100" data-sort="minutes">Minutes <span class="ml-1 text-xs opacity-50">⇅</span></th>
                                         </tr>
                                     </thead>
                                     <tbody id="player-performance-tbody">
@@ -1012,6 +1029,15 @@ ob_start();
     const apiBase = (basePath ? '/' + basePath : '') + '/api/stats';
     const clubSelector = document.getElementById('stats-club-selector');
 
+    // Shared helper: convert raw minutes into H:MM for display
+    function formatMinutesToHM(minutes) {
+        const total = Number(minutes) || 0;
+        const h = Math.floor(total / 60);
+        const m = total % 60;
+        const mm = m < 10 ? `0${m}` : `${m}`;
+        return `${h}:${mm}`;
+    }
+
     if (clubSelector) {
         clubSelector.addEventListener('change', () => {
             const params = new URLSearchParams(window.location.search);
@@ -1364,6 +1390,8 @@ ob_start();
         const formEmptyEl = document.getElementById('team-performance-form-empty');
         const formCountSelect = document.getElementById('team-performance-form-count');
         const recordBody = document.getElementById('team-performance-home-away');
+        const csBody = document.getElementById('team-performance-clean-sheets-body');
+        const csTotalEl = document.getElementById('team-performance-clean-sheets-total');
         const statElements = document.querySelectorAll('[data-team-stat]');
         let initialized = false;
         let formEntries = [];
@@ -1554,6 +1582,35 @@ ob_start();
             recordBody.innerHTML = rows.join('');
         }
 
+        function renderCleanSheets(list = []) {
+            if (!csBody || !csTotalEl) return;
+            const items = Array.isArray(list) ? list : [];
+            csTotalEl.textContent = items.length.toString();
+            if (!items.length) {
+                csBody.innerHTML = '<tr><td colspan="5" class="text-center py-2 text-slate-400">No clean sheets yet.</td></tr>';
+                return;
+            }
+            const rows = items.map((m) => {
+                const dateLabel = m.date ? new Date(m.date).toLocaleDateString() : 'TBD';
+                const venue = m.venue || 'Home';
+                const opp = m.opponent || 'Opponent';
+                const gk = m.gk || '—';
+                const score = m.score || '—';
+                const viewUrl = (basePath ? '/' + basePath : '') + '/stats/match/' + m.match_id;
+                return `
+                    <tr>
+                        <td class="px-3 py-2">${dateLabel}</td>
+                        <td class="px-3 py-2">${venue}</td>
+                        <td class="px-3 py-2">${opp}</td>
+                        <td class="px-3 py-2">${gk}</td>
+                        <td class="px-3 py-2 text-center">${score}</td>
+                        <td class="px-3 py-2 text-center"><a class="inline-flex items-center px-2.5 py-1 text-xs rounded-md border border-white/20 hover:bg-white/10" href="${viewUrl}">View</a></td>
+                    </tr>
+                `;
+            });
+            csBody.innerHTML = rows.join('');
+        }
+
         function getFormLimit() {
             const val = formCountSelect ? parseInt(formCountSelect.value, 10) : 5;
             return Number.isFinite(val) ? val : 5;
@@ -1636,6 +1693,7 @@ ob_start();
             renderHomeAway(data?.home_away);
             renderLeagueCup(data?.league_cup);
             renderForm(data?.form);
+            renderCleanSheets(data?.clean_sheets_matches);
             if ((data?.matches_played ?? 0) > 0) {
                 showContentState();
             } else {
@@ -2030,9 +2088,14 @@ ob_start();
                 return;
             }
 
-            filteredPlayers.forEach((player, index) => {
+            // Group by active status (active first), then a separator row, then inactive
+            const activePlayers = filteredPlayers.filter(p => p.is_active);
+            const inactivePlayers = filteredPlayers.filter(p => !p.is_active);
+
+            let rowIndex = 0;
+            const renderPlayerRow = (player) => {
                 const row = tbody.insertRow();
-                const isEven = index % 2 === 0;
+                const isEven = rowIndex % 2 === 0;
                 row.className = `border-b border-white/10 ${isEven ? 'bg-slate-800/30' : 'bg-slate-900/20'} hover:bg-slate-800/50 transition-colors`;
                 row.innerHTML = `
                     <td class="px-6 py-3 text-left"><span class="font-bold text-slate-100">${escapeHtml(player.name)}</span></td>
@@ -2044,7 +2107,22 @@ ob_start();
                     <td class="px-4 py-3 text-center text-slate-300">${player.red_cards > 0 ? `<span class="inline-flex items-center gap-1">${player.red_cards}</span>` : '—'}</td>
                     <td class="px-4 py-3 text-center text-slate-300">${player.minutes_played}</td>
                 `;
-            });
+                rowIndex += 1;
+            };
+
+            // Render active players (no header row)
+            activePlayers.forEach(renderPlayerRow);
+
+            // If there are inactive players, insert a separator row then render them
+            if (inactivePlayers.length > 0) {
+                const sep = tbody.insertRow();
+                const cell = sep.insertCell();
+                cell.colSpan = 8;
+                cell.className = 'px-4 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-100 bg-slate-900/90 border-y border-white/20';
+                cell.textContent = 'Inactive Players';
+                // separator row should not toggle zebra index
+                inactivePlayers.forEach(renderPlayerRow);
+            }
         }
 
         function formatCards(yellow, red) {
@@ -2071,6 +2149,9 @@ ob_start();
             const container = document.getElementById('player-top-performers');
             if (!container) return;
             
+            const activePlayers = allPlayers.filter(p => p.is_active);
+            const inactivePlayers = allPlayers.filter(p => !p.is_active);
+
             // Find top goalscorer
             const topScorer = [...allPlayers].sort((a, b) => b.goals - a.goals)[0] || {};
             const totalGoals = allPlayers.reduce((sum, p) => sum + p.goals, 0);
@@ -2078,10 +2159,6 @@ ob_start();
             
             // Find player with most appearances
             const mostUsed = [...allPlayers].sort((a, b) => b.appearances - a.appearances)[0] || {};
-            
-            // Discipline stats
-            const totalYellow = allPlayers.reduce((sum, p) => sum + p.yellow_cards, 0);
-            const totalRed = allPlayers.reduce((sum, p) => sum + p.red_cards, 0);
             
             // Top minute player
             const minuteLeader = [...allPlayers].sort((a, b) => b.minutes_played - a.minutes_played)[0] || {};
@@ -2114,21 +2191,6 @@ ob_start();
                         </div>
                     </div>
                 </article>
-
-                <!-- Discipline -->
-                <article class="rounded-lg border border-white/10 bg-slate-800/40 px-3 py-3">
-                    <div class="text-xs font-semibold text-slate-300 mb-2">Discipline</div>
-                    <div class="grid grid-cols-2 gap-3 text-center">
-                        <div>
-                            <div class="text-xl font-bold text-yellow-500">${totalYellow}</div>
-                            <div class="text-xs text-slate-400">Yellow Cards</div>
-                        </div>
-                        <div>
-                            <div class="text-xl font-bold text-red-500">${totalRed}</div>
-                            <div class="text-xs text-slate-400">Red Cards</div>
-                        </div>
-                    </div>
-                </article>
             `;
         }
         
@@ -2136,36 +2198,46 @@ ob_start();
             const container = document.getElementById('player-squad-summary');
             if (!container) return;
             
-            // Squad size by position
+            const activePlayers = allPlayers.filter(p => p.is_active);
+            const inactivePlayers = allPlayers.filter(p => !p.is_active);
+
+            // Squad size by position (active only)
             const positions = {};
-            allPlayers.forEach(p => {
+            activePlayers.forEach(p => {
                 const pos = p.position || 'N/A';
                 positions[pos] = (positions[pos] || 0) + 1;
             });
             
-            // Total stats
-            const totalGoals = allPlayers.reduce((sum, p) => sum + p.goals, 0);
-            const totalYellow = allPlayers.reduce((sum, p) => sum + p.yellow_cards, 0);
-            const totalRed = allPlayers.reduce((sum, p) => sum + p.red_cards, 0);
-            const totalMinutes = allPlayers.reduce((sum, p) => sum + p.minutes_played, 0);
-            const goalsPerPlayer = allPlayers.length > 0 ? (totalGoals / allPlayers.length).toFixed(2) : '0.00';
-            const avgMinutesPerPlayer = allPlayers.length > 0 ? (totalMinutes / allPlayers.length).toFixed(0) : '0';
+            // Total stats (active only)
+            const totalGoals = activePlayers.reduce((sum, p) => sum + p.goals, 0);
+            const totalYellow = activePlayers.reduce((sum, p) => sum + p.yellow_cards, 0);
+            const totalRed = activePlayers.reduce((sum, p) => sum + p.red_cards, 0);
+            const totalMinutes = activePlayers.reduce((sum, p) => sum + p.minutes_played, 0);
+            const goalsPerPlayer = activePlayers.length > 0 ? (totalGoals / activePlayers.length).toFixed(2) : '0.00';
+            const avgMinutesPerPlayer = activePlayers.length > 0 ? totalMinutes / activePlayers.length : 0;
             
             const positionList = Object.entries(positions)
                 .map(([pos, count]) => `${count} ${pos}`)
                 .join(', ');
-            
+
+            const inactiveCount = inactivePlayers.length;
+            const inactiveGoals = inactivePlayers.reduce((sum, p) => sum + p.goals, 0);
+            const inactiveYellow = inactivePlayers.reduce((sum, p) => sum + p.yellow_cards, 0);
+            const inactiveRed = inactivePlayers.reduce((sum, p) => sum + p.red_cards, 0);
+            const totalYellowAll = totalYellow + inactiveYellow;
+            const totalRedAll = totalRed + inactiveRed;
+
             container.innerHTML = `
                 <!-- Squad core stats grouped -->
                 <article class="rounded-lg border border-white/10 bg-slate-800/40 px-3 py-3">
-                    <div class="text-xs font-semibold text-slate-300 mb-3">Squad Overview</div>
+                    <div class="text-xs font-semibold text-slate-300 mb-3">Squad Overview (Active)</div>
                     <div class="space-y-3">
                         <div class="flex items-center justify-between gap-2">
                             <div>
                                 <div class="text-[10px] uppercase tracking-wide text-slate-400">Squad Size</div>
                                 <div class="text-xs text-slate-500 mt-1">${escapeHtml(positionList)}</div>
                             </div>
-                            <div class="text-2xl font-bold text-slate-100">${allPlayers.length}</div>
+                            <div class="text-2xl font-bold text-slate-100">${activePlayers.length}</div>
                         </div>
                         <div class="flex items-center justify-between gap-2">
                             <div>
@@ -2177,9 +2249,16 @@ ob_start();
                         <div class="flex items-center justify-between gap-2">
                             <div>
                                 <div class="text-[10px] uppercase tracking-wide text-slate-400">Playing Time</div>
-                                <div class="text-xs text-slate-500 mt-1">${avgMinutesPerPlayer} avg per player</div>
+                                <div class="text-xs text-slate-500 mt-1">${Math.round(avgMinutesPerPlayer)} mins avg per player</div>
                             </div>
                             <div class="text-2xl font-bold text-cyan-400">${totalMinutes}</div>
+                        </div>
+                        <div class="flex items-center justify-between gap-2 border-t border-white/10 pt-2 mt-2">
+                            <div>
+                                <div class="text-[10px] uppercase tracking-wide text-slate-400">Inactive Squad</div>
+                                <div class="text-xs text-slate-500 mt-1">${inactiveCount} players · ${inactiveGoals} goals</div>
+                            </div>
+                            <div class="text-2xl font-bold text-slate-300">${inactiveCount}</div>
                         </div>
                     </div>
                 </article>
@@ -2187,14 +2266,30 @@ ob_start();
                 <!-- Discipline Summary -->
                 <article class="rounded-lg border border-white/10 bg-slate-800/40 px-3 py-3">
                     <div class="text-xs font-semibold text-slate-300 mb-2">Discipline</div>
-                    <div class="grid grid-cols-2 gap-3 text-center">
-                        <div>
-                            <div class="text-xl font-bold text-yellow-500">${totalYellow}</div>
-                            <div class="text-xs text-slate-400">Yellow</div>
+                    <div class="overflow-hidden rounded-lg border border-white/10">
+                        <div class="grid grid-cols-3 text-center divide-x divide-white/10 border-b border-white/10 bg-slate-900/60">
+                            <div class="px-3 py-2 text-left"></div>
+                            <div class="px-3 py-2 flex items-center justify-center">
+                                <svg class="h-4 w-3 text-yellow-400 fill-current" aria-hidden="true"><use xlink:href="/assets/svg/incident.svg#card"></use></svg>
+                            </div>
+                            <div class="px-3 py-2 flex items-center justify-center">
+                                <svg class="h-4 w-3 text-red-500 fill-current" aria-hidden="true"><use xlink:href="/assets/svg/incident.svg#card"></use></svg>
+                            </div>
                         </div>
-                        <div>
-                            <div class="text-xl font-bold text-red-500">${totalRed}</div>
-                            <div class="text-xs text-slate-400">Red</div>
+                        <div class="grid grid-cols-3 text-center divide-x divide-white/10">
+                            <div class="px-3 py-2 text-left text-xs font-semibold text-slate-200 bg-slate-900/50">Active</div>
+                            <div class="px-3 py-2 text-sm font-semibold text-slate-50 bg-slate-900/40">${totalYellow}</div>
+                            <div class="px-3 py-2 text-sm font-semibold text-slate-50 bg-slate-900/40">${totalRed}</div>
+                        </div>
+                        <div class="grid grid-cols-3 text-center divide-x divide-white/10 border-t border-white/10">
+                            <div class="px-3 py-2 text-left text-xs font-semibold text-slate-200 bg-slate-900/40">Inactive</div>
+                            <div class="px-3 py-2 text-sm font-semibold text-slate-50 bg-slate-900/30">${inactiveYellow}</div>
+                            <div class="px-3 py-2 text-sm font-semibold text-slate-50 bg-slate-900/30">${inactiveRed}</div>
+                        </div>
+                        <div class="grid grid-cols-3 text-center divide-x divide-white/10 border-t border-white/10">
+                            <div class="px-3 py-2 text-left text-xs font-semibold text-slate-100 bg-slate-900/55">Total</div>
+                            <div class="px-3 py-2 text-sm font-semibold text-slate-50 bg-slate-900/45">${totalYellowAll}</div>
+                            <div class="px-3 py-2 text-sm font-semibold text-slate-50 bg-slate-900/45">${totalRedAll}</div>
                         </div>
                     </div>
                 </article>
