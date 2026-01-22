@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../../lib/auth.php';
 require_once __DIR__ . '/../../lib/match_permissions.php';
 require_once __DIR__ . '/../../lib/db.php';
+require_once __DIR__ . '/../../lib/player_name_helper.php';
 
 auth_boot();
 require_auth();
@@ -36,24 +37,22 @@ if (!can_manage_match_for_club($user, $roles, $clubId)) {
           respond_json(403, ['ok' => false, 'error' => 'Unauthorized']);
 }
 
-$displayName = isset($input['display_name']) ? trim((string)$input['display_name']) : '';
-if ($displayName === '') {
-          respond_json(422, ['ok' => false, 'error' => 'Display name required']);
-}
-
 $firstName = isset($input['first_name']) ? trim((string)$input['first_name']) : null;
 $lastName = isset($input['last_name']) ? trim((string)$input['last_name']) : null;
 $primaryPosition = isset($input['primary_position']) ? trim((string)$input['primary_position']) : null;
 $teamId = isset($input['team_id']) && $input['team_id'] !== '' ? (int)$input['team_id'] : null;
 $isActive = isset($input['is_active']) ? (int)$input['is_active'] : 1;
 
+if (!$firstName && !$lastName) {
+          respond_json(422, ['ok' => false, 'error' => 'First name or last name required']);
+}
+
 $stmt = db()->prepare(
-          'INSERT INTO players (club_id, display_name, first_name, last_name, primary_position, team_id, is_active)
-           VALUES (:club_id, :display_name, :first_name, :last_name, :primary_position, :team_id, :is_active)'
+          'INSERT INTO players (club_id, first_name, last_name, primary_position, team_id, is_active)
+           VALUES (:club_id, :first_name, :last_name, :primary_position, :team_id, :is_active)'
 );
 $stmt->execute([
           'club_id' => $clubId,
-          'display_name' => $displayName,
           'first_name' => $firstName,
           'last_name' => $lastName,
           'primary_position' => $primaryPosition,
@@ -62,12 +61,13 @@ $stmt->execute([
 ]);
 
 $playerId = (int)db()->lastInsertId();
+$fullName = build_full_name($firstName, $lastName);
 
 respond_json(200, [
           'ok' => true,
           'player' => [
                     'id' => $playerId,
-                    'display_name' => $displayName,
+                    'display_name' => $fullName,
                     'primary_position' => $primaryPosition,
           ],
 ]);

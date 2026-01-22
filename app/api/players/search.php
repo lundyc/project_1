@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/../../lib/auth.php';
 require_once __DIR__ . '/../../lib/db.php';
+require_once __DIR__ . '/../../lib/player_name_helper.php';
 
 auth_boot();
 require_auth();
@@ -27,11 +28,11 @@ if (strlen($query) < 2) {
 }
 
 $stmt = db()->prepare(
-          'SELECT id, display_name, first_name, last_name, is_active, primary_position
+          'SELECT id, first_name, last_name, is_active, primary_position
            FROM players
            WHERE club_id = :club_id 
-           AND (display_name LIKE :query OR first_name LIKE :query OR last_name LIKE :query)
-           ORDER BY is_active DESC, display_name ASC
+           AND (first_name LIKE :query OR last_name LIKE :query)
+           ORDER BY is_active DESC, first_name ASC, last_name ASC
            LIMIT 20'
 );
 
@@ -43,10 +44,11 @@ $stmt->execute([
 $results = $stmt->fetchAll();
 
 $players = array_map(function($p) {
+          $fullName = build_full_name($p['first_name'], $p['last_name']);
           return [
                     'id' => (int)$p['id'],
-                    'display_name' => $p['display_name'],
-                    'full_name' => trim($p['first_name'] . ' ' . $p['last_name']),
+                    'display_name' => $fullName,
+                    'full_name' => $fullName,
                     'is_active' => (int)$p['is_active'],
                     'position' => $p['primary_position'],
           ];

@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/player_name_helper.php';
 
 function match_players_supports_captain_column(): bool
 {
@@ -26,7 +27,7 @@ function get_match_players(int $matchId): array
                     $selectColumns .= ', mp.is_captain';
                     $orderSuffix = ', mp.is_captain DESC';
           }
-          $selectColumns .= ', COALESCE(p.display_name, \'\') AS display_name';
+          $selectColumns .= ', COALESCE(p.first_name, \'\') AS first_name, COALESCE(p.last_name, \'\') AS last_name';
           $stmt = db()->prepare(
                     "SELECT {$selectColumns}
              FROM match_players mp
@@ -36,8 +37,14 @@ function get_match_players(int $matchId): array
           );
 
           $stmt->execute(['match_id' => $matchId]);
+          $players = $stmt->fetchAll();
 
-          return $stmt->fetchAll();
+          // Build full names
+          foreach ($players as &$player) {
+                    $player['display_name'] = build_full_name($player['first_name'], $player['last_name']);
+          }
+
+          return $players;
 }
 
 function replace_match_players(int $matchId, array $players): void
@@ -92,7 +99,7 @@ function get_match_player(int $id): ?array
           if ($supportsCaptain) {
                     $selectColumns .= ', mp.is_captain';
           }
-          $selectColumns .= ', COALESCE(p.display_name, \'\') AS display_name';
+          $selectColumns .= ', COALESCE(p.first_name, \'\') AS first_name, COALESCE(p.last_name, \'\') AS last_name';
           $stmt = db()->prepare(
                     "SELECT {$selectColumns}
              FROM match_players mp
@@ -102,6 +109,10 @@ function get_match_player(int $id): ?array
           );
           $stmt->execute(['id' => $id]);
           $row = $stmt->fetch();
+
+          if ($row) {
+                    $row['display_name'] = build_full_name($row['first_name'], $row['last_name']);
+          }
 
           return $row ?: null;
 }
@@ -208,13 +219,20 @@ function get_club_players(int $clubId, bool $includeInactive = false): array
           }
 
           $stmt = db()->prepare(
-                    'SELECT id, display_name, primary_position, team_id, is_active
+                    'SELECT id, first_name, last_name, primary_position, team_id, is_active
              FROM players
              ' . $whereClause . '
-             ORDER BY is_active DESC, display_name ASC'
+             ORDER BY is_active DESC, first_name ASC, last_name ASC'
           );
 
           $stmt->execute(['club_id' => $clubId]);
 
-          return $stmt->fetchAll();
+          $rows = $stmt->fetchAll();
+          
+          // Build display_name for each player
+          foreach ($rows as &$row) {
+                    $row['display_name'] = build_full_name($row['first_name'], $row['last_name']);
+          }
+          
+          return $rows;
 }

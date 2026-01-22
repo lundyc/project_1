@@ -41,8 +41,8 @@ if (empty($input) && $rawInput) {
 
 $payload = normalize_player_payload($input, $clubId);
 
-if ($payload['display_name'] === '') {
-          $_SESSION['player_edit_error'] = 'Display name is required.';
+if (!$payload['first_name'] && !$payload['last_name']) {
+          $_SESSION['player_edit_error'] = 'First name or last name is required.';
           $_SESSION['player_edit_input'] = $input;
           $_SESSION['player_edit_target'] = $playerId;
           redirect('/admin/players/' . $playerId . '/edit');

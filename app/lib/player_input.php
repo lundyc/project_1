@@ -5,7 +5,6 @@ require_once __DIR__ . '/team_repository.php';
 function normalize_player_payload(array $input, int $clubId): array
 {
           $payload = [
-                    'display_name' => isset($input['display_name']) ? trim((string)$input['display_name']) : '',
                     'first_name' => isset($input['first_name']) && trim((string)$input['first_name']) !== '' ? trim((string)$input['first_name']) : null,
                     'last_name' => isset($input['last_name']) && trim((string)$input['last_name']) !== '' ? trim((string)$input['last_name']) : null,
                     'dob' => isset($input['dob']) && trim((string)$input['dob']) !== '' ? trim((string)$input['dob']) : null,

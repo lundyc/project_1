@@ -57,7 +57,7 @@ function get_players_for_club(int $clubId, array $filters = []): array
                     $sql .= ' WHERE ' . implode(' AND ', $where);
           }
 
-          $sql .= ' ORDER BY p.display_name ASC';
+          $sql .= ' ORDER BY p.first_name ASC, p.last_name ASC';
 
           $stmt = db()->prepare($sql);
           $stmt->execute($params);
@@ -68,13 +68,12 @@ function get_players_for_club(int $clubId, array $filters = []): array
 function create_player_for_club(int $clubId, array $data): int
 {
           $stmt = db()->prepare(
-                    'INSERT INTO players (club_id, display_name, first_name, last_name, dob, primary_position, team_id, is_active)
-           VALUES (:club_id, :display_name, :first_name, :last_name, :dob, :primary_position, :team_id, :is_active)'
+                    'INSERT INTO players (club_id, first_name, last_name, dob, primary_position, team_id, is_active)
+           VALUES (:club_id, :first_name, :last_name, :dob, :primary_position, :team_id, :is_active)'
           );
 
           $stmt->execute([
                     'club_id' => $clubId,
-                    'display_name' => $data['display_name'],
                     'first_name' => $data['first_name'],
                     'last_name' => $data['last_name'],
                     'dob' => $data['dob'],
@@ -90,8 +89,7 @@ function update_player_for_club(int $playerId, int $clubId, array $data): bool
 {
           $stmt = db()->prepare(
                     'UPDATE players
-             SET display_name = :display_name,
-                 first_name = :first_name,
+             SET first_name = :first_name,
                  last_name = :last_name,
                  dob = :dob,
                  primary_position = :primary_position,
@@ -103,7 +101,6 @@ function update_player_for_club(int $playerId, int $clubId, array $data): bool
           return $stmt->execute([
                     'id' => $playerId,
                     'club_id' => $clubId,
-                    'display_name' => $data['display_name'],
                     'first_name' => $data['first_name'],
                     'last_name' => $data['last_name'],
                     'dob' => $data['dob'],

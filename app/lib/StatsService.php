@@ -383,7 +383,8 @@ class StatsService
                 e.minute,
                 e.match_player_id,
                 e.player_id,
-                p.display_name AS player_name
+                p.first_name,
+                p.last_name
             FROM events e
             LEFT JOIN match_players mp ON mp.id = e.match_player_id
             LEFT JOIN players p ON p.id = COALESCE(e.player_id, mp.player_id)
@@ -392,6 +393,12 @@ class StatsService
         ');
         $stmt->execute(['match_id' => $matchId]);
         $rows = $stmt->fetchAll();
+        
+        // Build display_name for each event
+        require_once __DIR__ . '/player_name_helper.php';
+        foreach ($rows as &$row) {
+            $row['player_name'] = build_full_name($row['first_name'], $row['last_name']);
+        }
 
         $events = [
             'home_goals' => [],
@@ -531,7 +538,8 @@ class StatsService
                 $sql = '
                         SELECT 
                                 p.id as player_id,
-                                p.display_name as name,
+                                p.first_name,
+                                p.last_name,
                                 p.primary_position as position,
                                 COUNT(DISTINCT mp.match_id) as appearances,
                                 SUM(CASE WHEN mp.is_starting = 1 THEN 1 ELSE 0 END) as starts,
@@ -541,12 +549,18 @@ class StatsService
                         INNER JOIN matches m ON m.id = mp.match_id
                         LEFT JOIN competitions c ON c.id = m.competition_id
                         WHERE ' . $whereClause . '
-                        GROUP BY p.id, p.display_name, p.primary_position
+                        GROUP BY p.id, p.first_name, p.last_name, p.primary_position
                 ';
         
                 $stmt = $this->pdo->prepare($sql);
                 $stmt->execute($params);
                 $players = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+                
+                // Build display_name for each player
+                require_once __DIR__ . '/player_name_helper.php';
+                foreach ($players as &$p) {
+                    $p['name'] = build_full_name($p['first_name'], $p['last_name']);
+                }
 
                 // Compute minutes using substitutions (fallback: starters 90, unused subs 0, subs that came on get actual minutes)
                 $minutesByPlayer = $this->computeMinutesPlayedForClub($seasonId, $type);
@@ -794,7 +808,8 @@ class StatsService
         $sql = '
             SELECT 
                 mp.player_id,
-                COALESCE(NULLIF(mp.display_name, ""), p.display_name, "Unknown") as name,
+                p.first_name,
+                p.last_name,
                 mp.shirt_number,
                 COALESCE(mp.position_label, p.primary_position, "N/A") as position,
                 mp.is_starting,
@@ -808,6 +823,12 @@ class StatsService
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute(['match_id' => $matchId]);
         $players = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        
+        // Build display_name for each player
+        require_once __DIR__ . '/player_name_helper.php';
+        foreach ($players as &$p) {
+            $p['name'] = build_full_name($p['first_name'], $p['last_name']);
+        }
 
         // Get event stats for these players in this match
         // Note: Events can have player_id directly OR via match_player_id

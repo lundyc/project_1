@@ -26,9 +26,10 @@ if (empty($input) && $rawInput) {
           }
 }
 
-$displayName = isset($input['display_name']) ? trim((string)$input['display_name']) : '';
-if ($displayName === '') {
-          $_SESSION['player_create_error'] = 'Display name is required.';
+$firstName = isset($input['first_name']) ? trim((string)$input['first_name']) : '';
+$lastName = isset($input['last_name']) ? trim((string)$input['last_name']) : '';
+if ($firstName === '' && $lastName === '') {
+          $_SESSION['player_create_error'] = 'First name or last name is required.';
           $_SESSION['player_create_input'] = $input;
           redirect('/admin/players/create');
 }

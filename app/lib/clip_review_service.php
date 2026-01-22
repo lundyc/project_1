@@ -62,7 +62,8 @@ function clip_review_service_list_clips_for_match(int $matchId): array
                             e.team_side,
                             et.label AS event_type_label,
                             et.type_key AS event_type_key,
-                            COALESCE(pl.display_name, \'\') AS player_name,
+                            pl.first_name,
+                            pl.last_name,
                             cr.status AS clip_review_status,
                             cr.reviewed_at,
                             cr.reviewed_by,
@@ -80,7 +81,9 @@ function clip_review_service_list_clips_for_match(int $matchId): array
           $stmt->execute(['match_id' => $matchId]);
 
           $clips = [];
+          require_once __DIR__ . '/player_name_helper.php';
           while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
+                    $row['player_name'] = build_full_name($row['first_name'] ?? null, $row['last_name'] ?? null);
                     $clips[] = clip_review_service_normalize_row($row);
           }
 
@@ -253,7 +256,8 @@ function clip_review_service_get_clip_for_match(\PDO $pdo, int $matchId, int $cl
                             e.team_side,
                             et.label AS event_type_label,
                             et.type_key AS event_type_key,
-                            COALESCE(pl.display_name, \'\') AS player_name,
+                            pl.first_name,
+                            pl.last_name,
                             cr.status AS clip_review_status,
                             cr.reviewed_at,
                             cr.reviewed_by,
@@ -272,6 +276,14 @@ function clip_review_service_get_clip_for_match(\PDO $pdo, int $matchId, int $cl
                     'match_id' => $matchId,
                     'clip_id' => $clipId,
           ]);
+          
+          $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+          if ($row) {
+                    require_once __DIR__ . '/player_name_helper.php';
+                    $row['player_name'] = build_full_name($row['first_name'] ?? null, $row['last_name'] ?? null);
+          }
+          
+          return $row ? clip_review_service_normalize_row($row) : null;
 
           $row = $stmt->fetch(\PDO::FETCH_ASSOC);
           if (!$row) {

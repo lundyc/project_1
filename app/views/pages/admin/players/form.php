@@ -50,7 +50,6 @@ function field_value(array $formInput, array $player, string $key, $default = nu
 }
 
 $values = [
-          'display_name' => field_value($formInput, $player ?? [], 'display_name', ''),
           'first_name' => field_value($formInput, $player ?? [], 'first_name', ''),
           'last_name' => field_value($formInput, $player ?? [], 'last_name', ''),
           'primary_position' => field_value($formInput, $player ?? [], 'primary_position', ''),
@@ -81,23 +80,17 @@ ob_start();
           <form method="post" action="<?= htmlspecialchars($action) ?>">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div>
-                                        <label class="form-label">Display name</label>
-                                        <input type="text" name="display_name" value="<?= htmlspecialchars($values['display_name']) ?>" class="input-dark w-full" required>
+                                        <label class="form-label">First name</label>
+                                        <input type="text" name="first_name" value="<?= htmlspecialchars($values['first_name']) ?>" class="input-dark w-full" required>
+                              </div>
+                              <div>
+                                        <label class="form-label">Last name</label>
+                                        <input type="text" name="last_name" value="<?= htmlspecialchars($values['last_name']) ?>" class="input-dark w-full" required>
                               </div>
                               <div>
                                         <label class="form-label">Primary position</label>
                                         <input type="text" name="primary_position" value="<?= htmlspecialchars($values['primary_position']) ?>" class="input-dark w-full">
                               </div>
-                              <div>
-                                        <label class="form-label">First name</label>
-                                        <input type="text" name="first_name" value="<?= htmlspecialchars($values['first_name']) ?>" class="input-dark w-full">
-                              </div>
-                              <div>
-                                        <label class="form-label">Last name</label>
-                                        <input type="text" name="last_name" value="<?= htmlspecialchars($values['last_name']) ?>" class="input-dark w-full">
-                              </div>
-                              <div>
-                                        <label class="form-label">Date of birth</label>
                                         <input type="date" name="dob" value="<?= htmlspecialchars($values['dob']) ?>" class="input-dark w-full">
                               </div>
                               <div>

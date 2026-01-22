@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/event_validation.php';
+require_once __DIR__ . '/player_name_helper.php';
 
 function ensure_default_event_types(int $clubId): void
 {
@@ -94,7 +95,7 @@ function event_list_for_match(int $matchId): array
                     'SELECT e.*,
                             et.label AS event_type_label,
                             et.type_key AS event_type_key,
-                            COALESCE(pl.display_name, \'\') AS match_player_name,
+                            CONCAT(COALESCE(pl.first_name, \'\'), \' \', COALESCE(pl.last_name, \'\')) AS match_player_name,
                             mp.shirt_number AS match_player_shirt,
                             mp.team_side AS match_player_team_side,
                             mp.position_label AS match_player_position,
@@ -102,7 +103,9 @@ function event_list_for_match(int $matchId): array
                             mpd.label AS period_label,
                             c.id AS clip_id,
                             c.start_second AS clip_start_second,
-                            c.end_second AS clip_end_second
+                            c.end_second AS clip_end_second,
+                            pl.first_name AS player_first_name,
+                            pl.last_name AS player_last_name
              FROM events e
              LEFT JOIN event_types et ON et.id = e.event_type_id
              LEFT JOIN match_players mp ON mp.id = e.match_player_id
@@ -117,6 +120,11 @@ function event_list_for_match(int $matchId): array
 
           if (!$events) {
                     return [];
+          }
+
+          // Build full names
+          foreach ($events as &$event) {
+                    $event['match_player_name'] = build_full_name($event['player_first_name'] ?? null, $event['player_last_name'] ?? null);
           }
 
           $ids = array_column($events, 'id');
@@ -155,7 +163,7 @@ function event_get_by_id(int $eventId): ?array
                     'SELECT e.*,
                             et.label AS event_type_label,
                             et.type_key AS event_type_key,
-                            COALESCE(pl.display_name, \'\') AS match_player_name,
+                            CONCAT(COALESCE(pl.first_name, \'\'), \' \', COALESCE(pl.last_name, \'\')) AS match_player_name,
                             mp.shirt_number AS match_player_shirt,
                             mp.team_side AS match_player_team_side,
                             mp.position_label AS match_player_position,
@@ -163,7 +171,9 @@ function event_get_by_id(int $eventId): ?array
                             mpd.label AS period_label,
                             c.id AS clip_id,
                             c.start_second AS clip_start_second,
-                            c.end_second AS clip_end_second
+                            c.end_second AS clip_end_second,
+                            pl.first_name AS player_first_name,
+                            pl.last_name AS player_last_name
              FROM events e
              LEFT JOIN event_types et ON et.id = e.event_type_id
              LEFT JOIN match_players mp ON mp.id = e.match_player_id
@@ -179,6 +189,9 @@ function event_get_by_id(int $eventId): ?array
           if (!$event) {
                     return null;
           }
+
+          // Build full name
+          $event['match_player_name'] = build_full_name($event['player_first_name'] ?? null, $event['player_last_name'] ?? null);
 
           $tagStmt = $pdo->prepare(
                     'SELECT t.id AS tag_id, t.label AS tag_label, t.tag_key
