@@ -45,10 +45,11 @@ $firstName = isset($input['first_name']) ? trim((string)$input['first_name']) : 
 $lastName = isset($input['last_name']) ? trim((string)$input['last_name']) : null;
 $primaryPosition = isset($input['primary_position']) ? trim((string)$input['primary_position']) : null;
 $teamId = isset($input['team_id']) && $input['team_id'] !== '' ? (int)$input['team_id'] : null;
+$isActive = isset($input['is_active']) ? (int)$input['is_active'] : 1;
 
 $stmt = db()->prepare(
           'INSERT INTO players (club_id, display_name, first_name, last_name, primary_position, team_id, is_active)
-           VALUES (:club_id, :display_name, :first_name, :last_name, :primary_position, :team_id, 1)'
+           VALUES (:club_id, :display_name, :first_name, :last_name, :primary_position, :team_id, :is_active)'
 );
 $stmt->execute([
           'club_id' => $clubId,
@@ -57,6 +58,7 @@ $stmt->execute([
           'last_name' => $lastName,
           'primary_position' => $primaryPosition,
           'team_id' => $teamId,
+          'is_active' => $isActive,
 ]);
 
 $playerId = (int)db()->lastInsertId();

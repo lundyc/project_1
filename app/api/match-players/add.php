@@ -55,7 +55,7 @@ if ($playerId <= 0) {
           respond_json(422, ['ok' => false, 'error' => 'Player is required']);
 }
 
-$playerStmt = $pdo->prepare('SELECT id, display_name, primary_position FROM players WHERE id = :id AND club_id = :club_id AND is_active = 1 LIMIT 1');
+$playerStmt = $pdo->prepare('SELECT id, display_name, primary_position FROM players WHERE id = :id AND club_id = :club_id LIMIT 1');
 $playerStmt->execute(['id' => $playerId, 'club_id' => (int)$match['club_id']]);
 $playerRow = $playerStmt->fetch();
 if (!$playerRow) {

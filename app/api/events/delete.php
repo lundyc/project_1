@@ -23,8 +23,17 @@ try {
           api_error('invalid_csrf', 403, [], $e);
 }
 
-$matchId = isset($matchId) ? (int)$matchId : (int)($_POST['match_id'] ?? 0);
-$eventId = (int)($_POST['event_id'] ?? 0);
+$input = $_POST;
+$raw = file_get_contents('php://input');
+if (empty($input) && $raw) {
+          $decoded = json_decode($raw, true);
+          if (is_array($decoded)) {
+                    $input = $decoded;
+          }
+}
+
+$matchId = isset($matchId) ? (int)$matchId : (int)($input['match_id'] ?? 0);
+$eventId = (int)($input['event_id'] ?? 0);
 
 if ($matchId <= 0 || $eventId <= 0) {
           api_error('invalid_match', 400);
@@ -49,12 +58,13 @@ if (!$canManage) {
           api_error('forbidden', 403);
 }
 
-try {
-          require_match_lock($matchId, (int)$user['id']);
-} catch (MatchLockException $e) {
-          error_log(sprintf('[lock-failed] match=%d user=%d reason=%s', $matchId, (int)$user['id'], $e->getMessage()));
-          api_error('lock_required', 200);
-}
+// Lock requirement is disabled for match edit workflow
+// try {
+//           require_match_lock($matchId, (int)$user['id']);
+// } catch (MatchLockException $e) {
+//           error_log(sprintf('[lock-failed] match=%d user=%d reason=%s', $matchId, (int)$user['id'], $e->getMessage()));
+//           api_error('lock_required', 200);
+// }
 
 try {
           $before = event_get_by_id($eventId);

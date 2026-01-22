@@ -18,6 +18,7 @@ function respond_json(int $status, array $payload): void
 $user = current_user();
 $roles = $_SESSION['roles'] ?? [];
 $clubId = isset($_GET['club_id']) ? (int)$_GET['club_id'] : (int)($user['club_id'] ?? 0);
+$includeInactive = isset($_GET['include_inactive']) && $_GET['include_inactive'] === '1';
 
 if ($clubId <= 0) {
           respond_json(400, ['ok' => false, 'error' => 'Club required']);
@@ -27,5 +28,5 @@ if (!can_view_match($user, $roles, $clubId)) {
           respond_json(403, ['ok' => false, 'error' => 'Unauthorized']);
 }
 
-$players = get_club_players($clubId);
+$players = get_club_players($clubId, $includeInactive);
 respond_json(200, ['ok' => true, 'players' => $players]);

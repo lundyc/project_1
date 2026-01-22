@@ -29,13 +29,10 @@ if (!$matchId || !$subId) {
 }
 
 // Get match and check permissions
-$conn = db_connect();
-$stmt = $conn->prepare('SELECT club_id FROM matches WHERE id = ?');
-$stmt->bind_param('i', $matchId);
-$stmt->execute();
-$result = $stmt->get_result();
-$match = $result->fetch_assoc();
-$stmt->close();
+$pdo = db();
+$stmt = $pdo->prepare('SELECT club_id FROM matches WHERE id = :id');
+$stmt->execute(['id' => $matchId]);
+$match = $stmt->fetch(\PDO::FETCH_ASSOC);
 
 if (!$match) {
     http_response_code(404);
@@ -51,16 +48,13 @@ if (!can_manage_match_for_club($user, $roles, (int)$match['club_id'])) {
 
 try {
     // Get substitution details before deleting
-    $stmt = $conn->prepare('
+    $stmt = $pdo->prepare('
         SELECT player_off_match_player_id, player_on_match_player_id 
         FROM match_substitutions 
-        WHERE id = ? AND match_id = ?
+        WHERE id = :id AND match_id = :match_id
     ');
-    $stmt->bind_param('ii', $subId, $matchId);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $sub = $result->fetch_assoc();
-    $stmt->close();
+    $stmt->execute(['id' => $subId, 'match_id' => $matchId]);
+    $sub = $stmt->fetch(\PDO::FETCH_ASSOC);
     
     if (!$sub) {
         http_response_code(404);
@@ -69,26 +63,18 @@ try {
     }
     
     // Delete substitution
-    $stmt = $conn->prepare('DELETE FROM match_substitutions WHERE id = ? AND match_id = ?');
-    $stmt->bind_param('ii', $subId, $matchId);
-    
-    if (!$stmt->execute()) {
+    $stmt = $pdo->prepare('DELETE FROM match_substitutions WHERE id = :id AND match_id = :match_id');
+    if (!$stmt->execute(['id' => $subId, 'match_id' => $matchId])) {
         throw new Exception('Failed to delete substitution');
     }
     
-    $stmt->close();
-    
     // Optionally restore is_starting flags (revert the substitution)
     // This is a design choice - you may want to keep the current state
-    $stmt = $conn->prepare('UPDATE match_players SET is_starting = 1 WHERE id = ?');
-    $stmt->bind_param('i', $sub['player_off_match_player_id']);
-    $stmt->execute();
-    $stmt->close();
+    $stmt = $pdo->prepare('UPDATE match_players SET is_starting = 1 WHERE id = :id');
+    $stmt->execute(['id' => $sub['player_off_match_player_id']]);
     
-    $stmt = $conn->prepare('UPDATE match_players SET is_starting = 0 WHERE id = ?');
-    $stmt->bind_param('i', $sub['player_on_match_player_id']);
-    $stmt->execute();
-    $stmt->close();
+    $stmt = $pdo->prepare('UPDATE match_players SET is_starting = 0 WHERE id = :id');
+    $stmt->execute(['id' => $sub['player_on_match_player_id']]);
     
     echo json_encode(['success' => true]);
     

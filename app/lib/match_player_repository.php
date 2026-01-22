@@ -32,7 +32,7 @@ function get_match_players(int $matchId): array
              FROM match_players mp
              LEFT JOIN players p ON p.id = mp.player_id
              WHERE mp.match_id = :match_id
-             ORDER BY mp.team_side ASC, mp.is_starting DESC{$orderSuffix}, mp.shirt_number ASC, mp.id ASC"
+             ORDER BY mp.team_side ASC, mp.is_starting DESC{$orderSuffix}, COALESCE(mp.shirt_number, mp.id) ASC"
           );
 
           $stmt->execute(['match_id' => $matchId]);
@@ -200,13 +200,18 @@ function delete_match_player(int $id): bool
           return $stmt->execute(['id' => $id]);
 }
 
-function get_club_players(int $clubId): array
+function get_club_players(int $clubId, bool $includeInactive = false): array
 {
+          $whereClause = 'WHERE club_id = :club_id';
+          if (!$includeInactive) {
+                    $whereClause .= ' AND is_active = 1';
+          }
+
           $stmt = db()->prepare(
-                    'SELECT id, display_name, primary_position, team_id
+                    'SELECT id, display_name, primary_position, team_id, is_active
              FROM players
-             WHERE club_id = :club_id AND is_active = 1
-             ORDER BY display_name ASC'
+             ' . $whereClause . '
+             ORDER BY is_active DESC, display_name ASC'
           );
 
           $stmt->execute(['club_id' => $clubId]);

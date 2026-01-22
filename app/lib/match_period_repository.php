@@ -35,6 +35,7 @@ function hydrate_period(array $row): array
                     }
           }
 
+          
           $row['status'] = $status;
           $row['start_minute'] = $startSecond !== null ? (int)floor($startSecond / 60) : null;
           $row['end_minute'] = $endSecond !== null ? (int)floor($endSecond / 60) : null;

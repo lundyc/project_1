@@ -12,7 +12,7 @@ return [
                     'host' => '127.0.0.1',
                     'name' => 'project_1',
                     'user' => 'project_1',
-                    'pass' => '',
+                    'pass' => 'D&DNdtopmoff7!29',
                     'charset' => 'utf8mb4',
           ],
 

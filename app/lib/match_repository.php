@@ -37,6 +37,10 @@ function normalize_video_source_type(?string $type): string
                     return 'url';
           }
 
+          if ($type === 'none') {
+                    return 'none';
+          }
+
           return in_array($type, ['upload', 'file'], true) ? 'upload' : 'upload';
 }
 
@@ -298,7 +302,8 @@ function update_match(int $id, array $data): void
                          venue = :venue,
                          referee = :referee,
                          attendance = :attendance,
-                         status = :status
+                         status = :status,
+                         updated_at = NOW()
                      WHERE id = :id'
                     );
 
@@ -316,10 +321,14 @@ function update_match(int $id, array $data): void
                               'id' => $id,
                     ]);
 
-                    if (!empty($data['video_source_path'])) {
+                    if ($data['video_source_type'] === 'none') {
+                              // Delete video record if switching to "No Video"
+                              $deleteStmt = $pdo->prepare('DELETE FROM match_videos WHERE match_id = :match_id');
+                              $deleteStmt->execute(['match_id' => $id]);
+                    } elseif (($data['video_source_type'] ?? null) !== 'none' && (!empty($data['video_source_type']) || !empty($data['video_source_path']))) {
                               upsert_match_video($id, [
                                         'source_type' => normalize_video_source_type($data['video_source_type'] ?? 'upload'),
-                                        'source_path' => $data['video_source_path'],
+                                        'source_path' => $data['video_source_path'] ?? null,
                                         'download_status' => 'completed',
                                         'download_progress' => 100,
                                         'error_message' => null,
@@ -329,6 +338,7 @@ function update_match(int $id, array $data): void
                     $pdo->commit();
           } catch (\Throwable $e) {
                     $pdo->rollBack();
+                    error_log('Error updating match ' . $id . ': ' . $e->getMessage());
                     throw $e;
           }
 }

@@ -258,6 +258,11 @@ route('/api/players/list', function () {
           require __DIR__ . '/../app/api/players/list.php';
 });
 
+route('/api/players/search', function () {
+          require_auth();
+          require __DIR__ . '/../app/api/players/search.php';
+});
+
 route('/api/players/create', function () {
           require_auth();
           require __DIR__ . '/../app/api/players/create.php';

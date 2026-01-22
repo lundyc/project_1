@@ -46,13 +46,10 @@ if (!$playerOffId || !$playerOnId) {
 }
 
 // Get match and check permissions
-$conn = db_connect();
+$conn = db();
 $stmt = $conn->prepare('SELECT club_id FROM matches WHERE id = ?');
-$stmt->bind_param('i', $matchId);
-$stmt->execute();
-$result = $stmt->get_result();
-$match = $result->fetch_assoc();
-$stmt->close();
+$stmt->execute([$matchId]);
+$match = $stmt->fetch(PDO::FETCH_ASSOC);
 
 if (!$match) {
     http_response_code(404);
@@ -70,38 +67,46 @@ try {
     // Create substitution
     $stmt = $conn->prepare('
         INSERT INTO match_substitutions 
-        (match_id, team_side, minute, player_off_match_player_id, player_on_match_player_id, reason, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())
+        (match_id, team_side, minute, player_off_match_player_id, player_on_match_player_id, reason, created_by, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
     ');
-    
+
     $reasonValue = $reason ?: null;
-    $stmt->bind_param('isiiss', $matchId, $teamSide, $minute, $playerOffId, $playerOnId, $reasonValue);
-    
-    if (!$stmt->execute()) {
-        throw new Exception('Failed to create substitution: ' . $stmt->error);
-    }
-    
-    $subId = $stmt->insert_id;
-    $stmt->close();
-    
+    $stmt->execute([$matchId, $teamSide, $minute, $playerOffId, $playerOnId, $reasonValue, (int)$user['id']]);
+    $subId = (int)$conn->lastInsertId();
+
     // Update is_starting flags for the players
-    $stmt = $conn->prepare('UPDATE match_players SET is_starting = 0 WHERE id = ?');
-    $stmt->bind_param('i', $playerOffId);
-    $stmt->execute();
-    $stmt->close();
-    
-    $stmt = $conn->prepare('UPDATE match_players SET is_starting = 1 WHERE id = ?');
-    $stmt->bind_param('i', $playerOnId);
-    $stmt->execute();
-    $stmt->close();
-    
+    $conn->prepare('UPDATE match_players SET is_starting = 0 WHERE id = ?')->execute([$playerOffId]);
+    $conn->prepare('UPDATE match_players SET is_starting = 1 WHERE id = ?')->execute([$playerOnId]);
+
+    // Fetch the created substitution with player details
+    $getStmt = $conn->prepare('
+        SELECT ms.id, ms.match_id, ms.team_side, ms.minute, ms.minute_extra, 
+               ms.player_off_match_player_id, ms.player_on_match_player_id, ms.reason, 
+               ms.created_by, ms.created_at,
+               mp_off.shirt_number AS player_off_shirt,
+               COALESCE(pl_off.display_name, \'\') AS player_off_name,
+               mp_on.shirt_number AS player_on_shirt,
+               COALESCE(pl_on.display_name, \'\') AS player_on_name
+        FROM match_substitutions ms
+        LEFT JOIN match_players mp_off ON mp_off.id = ms.player_off_match_player_id
+        LEFT JOIN players pl_off ON pl_off.id = mp_off.player_id
+        LEFT JOIN match_players mp_on ON mp_on.id = ms.player_on_match_player_id
+        LEFT JOIN players pl_on ON pl_on.id = mp_on.player_id
+        WHERE ms.id = ?
+    ');
+    $getStmt->execute([$subId]);
+    $substitution = $getStmt->fetch(PDO::FETCH_ASSOC);
+
     echo json_encode([
+        'ok' => true,
         'success' => true,
-        'substitution_id' => $subId
+        'substitution_id' => $subId,
+        'substitution' => $substitution
     ]);
     
 } catch (Exception $e) {
     error_log('[match-substitutions/create] Error: ' . $e->getMessage());
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    echo json_encode(['ok' => false, 'success' => false, 'error' => $e->getMessage()]);
 }
