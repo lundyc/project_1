@@ -57,7 +57,7 @@ class ClipJobService
                               'start_second' => $startSecond,
                               'duration_seconds' => $durationSeconds,
                               'source_path' => sprintf(
-                                        'videos/matches/match_%d/source/veo/standard/match_%d_standard.mp4',
+                                        'video_%d.mp4',
                                         $matchId,
                                         $matchId
                               ),

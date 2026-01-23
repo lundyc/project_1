@@ -101,17 +101,16 @@ $dbDownloadStatus = $matchVideoRow ? ($matchVideoRow['download_status'] ?? '') :
 $isVideoDownloadComplete = in_array($dbDownloadStatus, ['completed', 'complete', 'ready'], true);
 
 // Use database path if available, otherwise fall back to conventional path
-$standardRelative = $dbSourcePath ? '/' . ltrim($dbSourcePath, '/') : '/videos/matches/match_' . $matchId . '/source/veo/standard/match_' . $matchId . '_standard.mp4';
+$standardRelative = $dbSourcePath ? '/videos/matches/' . ltrim($dbSourcePath, '/') : '';
 $standardAbsolute = $projectRoot && $dbSourcePath
-    ? $projectRoot . DIRECTORY_SEPARATOR . ltrim(str_replace('/', DIRECTORY_SEPARATOR, $dbSourcePath), DIRECTORY_SEPARATOR)
-    : ($projectRoot ? $projectRoot . DIRECTORY_SEPARATOR . 'videos' . DIRECTORY_SEPARATOR . 'matches' . DIRECTORY_SEPARATOR . 'match_' . $matchId . DIRECTORY_SEPARATOR . 'source' . DIRECTORY_SEPARATOR . 'veo' . DIRECTORY_SEPARATOR . 'standard' . DIRECTORY_SEPARATOR . 'match_' . $matchId . '_standard.mp4' : '');
+    ? $projectRoot . DIRECTORY_SEPARATOR . 'videos' . DIRECTORY_SEPARATOR . 'matches' . DIRECTORY_SEPARATOR . ltrim(str_replace('/', DIRECTORY_SEPARATOR, $dbSourcePath), DIRECTORY_SEPARATOR)
+    : '';
 $standardReady = $standardAbsolute && is_file($standardAbsolute) && $isVideoDownloadComplete;
 
-$panoramicRelative = '/videos/matches/match_' . $matchId . '/source/veo/panoramic/match_' . $matchId . '_panoramic.mp4';
-$panoramicAbsolute = $projectRoot
-    ? $projectRoot . DIRECTORY_SEPARATOR . 'videos' . DIRECTORY_SEPARATOR . 'matches' . DIRECTORY_SEPARATOR . 'match_' . $matchId . DIRECTORY_SEPARATOR . 'source' . DIRECTORY_SEPARATOR . 'veo' . DIRECTORY_SEPARATOR . 'panoramic' . DIRECTORY_SEPARATOR . 'match_' . $matchId . '_panoramic.mp4'
-    : '';
-$panoramicReady = $panoramicAbsolute && is_file($panoramicAbsolute);
+// Panoramic not supported in new structure, set to empty
+$panoramicRelative = '';
+$panoramicAbsolute = '';
+$panoramicReady = false;
 $videoReady = false;
 $videoPath = '';
 $videoSrc = '';
@@ -120,23 +119,21 @@ $defaultFormatId = null;
 $placeholderMessage = 'Video will appear once the download completes.';
 
 if ($videoLabEnabled) {
-    $videoReady = $isVeo ? (bool)$standardReady : $standardReady;
+    $videoReady = (bool)$standardReady;
     $videoPath = $videoReady ? $standardRelative : ($match['video_source_path'] ?? '');
-    $videoSrc = $isVeo ? $standardRelative : ($videoReady ? $standardRelative : '');
+    $videoSrc = $videoReady ? $standardRelative : '';
 
-    if ($isVeo) {
-        $defaultFormatId = 'standard';
-        $placeholderMessage = 'This VEO standard video is downloading; it will appear once ready.';
-        $videoFormats = [
-            [
-                'id' => 'standard',
-                'label' => 'Standard',
-                'relative_path' => $standardRelative,
-                'ready' => (bool)$standardReady,
-                'placeholder' => $placeholderMessage,
-            ],
-        ];
-    }
+    $defaultFormatId = 'standard';
+    $placeholderMessage = 'This match video is downloading; it will appear once ready.';
+    $videoFormats = [
+        [
+            'id' => 'standard',
+            'label' => 'Standard',
+            'relative_path' => $standardRelative,
+            'ready' => (bool)$standardReady,
+            'placeholder' => $placeholderMessage,
+        ],
+    ];
 }
 
 $csrfToken = get_csrf_token();

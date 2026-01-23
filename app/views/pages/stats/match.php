@@ -649,7 +649,7 @@ ob_start();
                         <h4 class="text-sm font-semibold text-slate-100 mb-3">Starting XI</h4>
                         <div class="overflow-x-auto">
                             <table class="min-w-full text-sm text-slate-100">
-                                <thead class="bg-slate-800/80 text-slate-200 uppercase tracking-wide">
+                                <thead class="bg-slate-800/80 text-slate-200 uppercase tracking-wide sticky-player-header">
                                     <tr>
                                         <th class="px-3 py-2 text-center" style="width: 60px;">#</th>
                                         <th class="px-3 py-2 text-left">Player</th>
@@ -668,7 +668,7 @@ ob_start();
                         <h4 class="text-sm font-semibold text-slate-100 mb-3">Substitutes</h4>
                         <div class="overflow-x-auto">
                             <table class="min-w-full text-sm text-slate-100">
-                                <thead class="bg-slate-800/80 text-slate-200 uppercase tracking-wide">
+                                <thead class="bg-slate-800/80 text-slate-200 uppercase tracking-wide sticky-player-header">
                                     <tr>
                                         <th class="px-3 py-2 text-center" style="width: 60px;">#</th>
                                         <th class="px-3 py-2 text-left">Player</th>
@@ -2214,8 +2214,12 @@ ob_start();
 
         function renderStartingXI(players) {
             const tbody = document.getElementById('match-starting-xi-tbody');
+            const table = tbody.closest('table');
             tbody.innerHTML = '';
-            
+            // Remove any existing tfoot
+            const oldTfoot = table.querySelector('tfoot');
+            if (oldTfoot) oldTfoot.remove();
+
             if (players.length === 0) {
                 const row = tbody.insertRow();
                 const cell = row.insertCell();
@@ -2224,7 +2228,10 @@ ob_start();
                 cell.textContent = 'No starting XI data available';
                 return;
             }
-            
+
+            let totalGoals = 0;
+            let totalYellow = 0;
+            let totalRed = 0;
             players.forEach(player => {
                 const row = tbody.insertRow();
                 row.innerHTML = `
@@ -2234,21 +2241,39 @@ ob_start();
                     <td class="text-center">${player.goals > 0 ? '⚽ ' + player.goals : '—'}</td>
                     <td class="text-center">${formatCards(player.yellow_cards, player.red_cards)}</td>
                 `;
+                totalGoals += player.goals || 0;
+                totalYellow += player.yellow_cards || 0;
+                totalRed += player.red_cards || 0;
             });
+            // Add totals row
+            const tfoot = document.createElement('tfoot');
+            tfoot.innerHTML = `<tr class="font-semibold bg-slate-800/60">
+                <td colspan="3" class="text-right pr-3">Totals</td>
+                <td class="text-center">${totalGoals > 0 ? '⚽ ' + totalGoals : '—'}</td>
+                <td class="text-center">${formatCards(totalYellow, totalRed)}</td>
+            </tr>`;
+            table.appendChild(tfoot);
         }
 
         function renderSubstitutes(players) {
             const section = document.getElementById('match-substitutes-section');
             const tbody = document.getElementById('match-substitutes-tbody');
+            const table = tbody.closest('table');
             tbody.innerHTML = '';
-            
+            // Remove any existing tfoot
+            const oldTfoot = table.querySelector('tfoot');
+            if (oldTfoot) oldTfoot.remove();
+
             if (players.length === 0) {
                 section.style.display = 'none';
                 return;
             }
-            
+
             section.style.display = 'block';
-            
+
+            let totalGoals = 0;
+            let totalYellow = 0;
+            let totalRed = 0;
             players.forEach(player => {
                 const row = tbody.insertRow();
                 row.innerHTML = `
@@ -2258,7 +2283,18 @@ ob_start();
                     <td class="text-center">${player.goals > 0 ? '⚽ ' + player.goals : '—'}</td>
                     <td class="text-center">${formatCards(player.yellow_cards, player.red_cards)}</td>
                 `;
+                totalGoals += player.goals || 0;
+                totalYellow += player.yellow_cards || 0;
+                totalRed += player.red_cards || 0;
             });
+            // Add totals row
+            const tfoot = document.createElement('tfoot');
+            tfoot.innerHTML = `<tr class="font-semibold bg-slate-800/60">
+                <td colspan="3" class="text-right pr-3">Totals</td>
+                <td class="text-center">${totalGoals > 0 ? '⚽ ' + totalGoals : '—'}</td>
+                <td class="text-center">${formatCards(totalYellow, totalRed)}</td>
+            </tr>`;
+            table.appendChild(tfoot);
         }
 
         function formatCards(yellow, red) {

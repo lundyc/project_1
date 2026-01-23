@@ -1,3 +1,11 @@
+/* Sticky table header for Player Performance */
+.sticky-player-header th {
+   position: sticky;
+   top: 0;
+   z-index: 2;
+   background: #0d152a;
+}
+
 /* Base palette */
 :root {
    --bg-primary: #101624;

@@ -39,6 +39,9 @@ ob_start();
             $pageDescription = 'Manage club-wide players, positions, and assignments.';
             include __DIR__ . '/../../../partials/club_context_header.php';
         ?>
+        <div class="flex justify-end mb-4 px-4 md:px-6 lg:px-8">
+            <a href="<?= $base ?>/admin/players/create.php" class="btn-primary-soft px-4 py-2 text-sm font-semibold rounded-md">+ Create Player</a>
+        </div>
         <div class="grid grid-cols-12 gap-2 px-4 md:px-6 lg:px-8 w-full">
             <!-- Left: Filters -->
             <aside class="col-span-2 space-y-4 min-w-0">
@@ -109,7 +112,11 @@ ob_start();
                     <div class="rounded-xl border border-white/10 bg-slate-800/40 p-4 text-slate-400 text-sm">No players added yet.</div>
                 <?php else: ?>
                     <div class="overflow-x-auto rounded-xl border border-white/10 bg-slate-800/40 p-2">
-                        <table class="w-full text-sm text-slate-200">
+                        <!-- Live search filter -->
+                        <div class="mb-2 flex justify-end">
+                            <input id="playerSearchInput" type="text" class="input-dark w-64" placeholder="Search players...">
+                        </div>
+                        <table class="w-full text-sm text-slate-200" id="playersTable">
                             <thead class="sticky top-0 bg-slate-900/95 border-b border-white/10">
                                 <tr>
                                     <th class="px-6 py-3 text-left font-semibold uppercase tracking-wide text-slate-300">Name</th>
@@ -126,14 +133,30 @@ ob_start();
                                         <td class="px-4 py-3 text-center text-slate-300"><?= htmlspecialchars($player['primary_position'] ?? '—') ?></td>
                                         <td class="px-4 py-3 text-center text-slate-300">
                                             <?php
-                                            // Only show team if it's a club team (not an opponent)
-                                            if (!empty($player['team_is_club']) && $player['team_is_club']) {
+                                            // Show team name if set, otherwise —
+                                            if (!empty($player['team_name'])) {
                                                 echo htmlspecialchars($player['team_name']);
                                             } else {
                                                 echo '—';
                                             }
                                             ?>
                                         </td>
+                                        <script>
+                                        // Live search filter for players table
+                                        document.addEventListener('DOMContentLoaded', function() {
+                                            const input = document.getElementById('playerSearchInput');
+                                            const table = document.getElementById('playersTable');
+                                            if (!input || !table) return;
+                                            input.addEventListener('input', function() {
+                                                const filter = input.value.toLowerCase();
+                                                const rows = table.querySelectorAll('tbody tr');
+                                                rows.forEach(row => {
+                                                    const text = row.textContent.toLowerCase();
+                                                    row.style.display = text.includes(filter) ? '' : 'none';
+                                                });
+                                            });
+                                        });
+                                        </script>
                                         <td class="px-4 py-3 text-center">
                                             <?php if ($player['is_active']): ?>
                                                 <span class="inline-flex items-center rounded-full bg-emerald-700/20 px-2 py-1 text-xs font-semibold text-emerald-300">Yes</span>

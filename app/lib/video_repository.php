@@ -482,7 +482,7 @@ function retry_video_download(int $videoId): array
                     @unlink($cancelFile);
           }
 
-          $sourcePath = '/videos/matches/match_' . $matchId . '/source/veo';
+          $sourcePath = 'video_' . $matchId . '.mp4';
 
           $pdo->prepare(
                     'UPDATE match_videos SET source_path = :path, download_status = :status, download_progress = 0, error_message = NULL WHERE id = :id'

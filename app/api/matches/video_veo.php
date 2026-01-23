@@ -214,9 +214,11 @@ log_veo_activity($matchId, 'Start payload recorded', [
           'payload' => $input,
 ]);
 
-$filename = 'match_' . $matchId . '_raw.mp4';
-$publicPath = '/videos/raw/' . $filename;
-$absolutePath = $projectRoot . DIRECTORY_SEPARATOR . 'videos' . DIRECTORY_SEPARATOR . 'raw' . DIRECTORY_SEPARATOR . $filename;
+
+// New structure: videos/matches/video_{id}.mp4
+$filename = 'video_' . $matchId . '.mp4';
+$publicPath = $filename; // Only store filename in DB
+$absolutePath = $projectRoot . DIRECTORY_SEPARATOR . 'videos' . DIRECTORY_SEPARATOR . 'matches' . DIRECTORY_SEPARATOR . $filename;
 @mkdir(dirname($absolutePath), 0777, true);
 log_stage_entry($matchId, 'php', 'Configured video path', ['public' => $publicPath, 'absolute' => $absolutePath]);
 
@@ -251,11 +253,12 @@ if (!can_manage_match_for_club($user, $roles, (int)$match['club_id'])) {
           respond_error(403, 'Forbidden', 'match_forbidden', $matchId);
 }
 
+// Store only filename in source_path
 $insertData = [
           'match_id' => $matchId,
           'source_type' => 'veo',
           'source_url' => $veoUrl,
-          'source_path' => $publicPath,
+          'source_path' => $filename,
           'download_status' => 'starting',
           'download_progress' => 0,
           'error_message' => null,

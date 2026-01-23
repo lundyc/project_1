@@ -57,7 +57,7 @@ function get_players_for_club(int $clubId, array $filters = []): array
                     $sql .= ' WHERE ' . implode(' AND ', $where);
           }
 
-          $sql .= ' ORDER BY p.first_name ASC, p.last_name ASC';
+          $sql .= ' ORDER BY p.is_active DESC, p.primary_position ASC, p.last_name ASC, p.first_name ASC';
 
           $stmt = db()->prepare($sql);
           $stmt->execute($params);

@@ -89,7 +89,20 @@ ob_start();
                               </div>
                               <div>
                                         <label class="form-label">Primary position</label>
-                                        <input type="text" name="primary_position" value="<?= htmlspecialchars($values['primary_position']) ?>" class="input-dark w-full">
+                                        <select name="primary_position" class="input-dark w-full">
+                                                  <option value="">Unassigned</option>
+                                                  <?php
+                                                  // Fetch unique positions from formation_positions
+                                                  $positions = [];
+                                                  $pdo = db();
+                                                  $stmt = $pdo->query("SELECT DISTINCT position_label FROM formation_positions ORDER BY position_label");
+                                                  while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                                                      $positions[] = $row['position_label'];
+                                                  }
+                                                  foreach ($positions as $pos): ?>
+                                                      <option value="<?= htmlspecialchars($pos) ?>" <?= $values['primary_position'] === $pos ? 'selected' : '' ?>><?= htmlspecialchars($pos) ?></option>
+                                                  <?php endforeach; ?>
+                                        </select>
                               </div>
                                         <input type="date" name="dob" value="<?= htmlspecialchars($values['dob']) ?>" class="input-dark w-full">
                               </div>

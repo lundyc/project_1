@@ -353,10 +353,10 @@
                               veoInlineRetryBtn.classList.toggle('d-none', status !== 'failed');
                     }
 
-                   if (cancelBtn) {
-                             cancelBtn.classList.toggle('d-none', !(status === 'downloading' || status === 'pending'));
-                             cancelBtn.disabled = status === 'completed' || status === 'failed';
-                   }
+                    if (cancelBtn) {
+                              cancelBtn.classList.toggle('d-none', !(status === 'downloading' || status === 'pending'));
+                              cancelBtn.disabled = status === 'completed' || status === 'failed';
+                    }
                     if (debugMode) {
                               logDebug('Status update', { status, progress: safeProgress, error, summary: summaryLabel, stage: statusMessage });
                     }
@@ -407,7 +407,7 @@
                               attendance: form.elements['attendance'] ? form.elements['attendance'].value : '',
                               status: form.elements['status'] ? form.elements['status'].value : 'draft',
                               video_source_type: videoMode === 'veo' ? 'veo' : 'upload',
-                              video_source_path: videoMode === 'upload' && uploadSelect ? uploadSelect.value : '',
+                              video_source_path: videoMode === 'upload' && uploadSelect ? uploadSelect.value.replace(/^.*[\\/]/, '') : '',
                     };
                     if (matchId) {
                               payload.match_id = matchId;
@@ -419,10 +419,10 @@
                     const home = getFieldValue('home_team_id');
                     const away = getFieldValue('away_team_id');
                     const club = getFieldValue('club_id');
-                   if (!club || !home || !away) {
-                             setFlash('danger', 'Club, home team, and away team are required.');
-                             return false;
-                   }
+                    if (!club || !home || !away) {
+                              setFlash('danger', 'Club, home team, and away team are required.');
+                              return false;
+                    }
                     if (home === away) {
                               setFlash('danger', 'Home and away teams must be different.');
                               return false;
@@ -446,13 +446,13 @@
                               step1Next.textContent = 'Saving...';
                     }
 
-                              try {
-                                        const data = await saveMatch('upload');
-                                        logDebug('Match created', { matchId: data.match_id, data });
-                                        const newId = updateMatchId(data.match_id || matchId);
-                                        if (!newId) {
-                                                  throw new Error('Match id missing from response');
-                                        }
+                    try {
+                              const data = await saveMatch('upload');
+                              logDebug('Match created', { matchId: data.match_id, data });
+                              const newId = updateMatchId(data.match_id || matchId);
+                              if (!newId) {
+                                        throw new Error('Match id missing from response');
+                              }
                               setFlash('success', 'Match saved. Proceed to Step 2.');
                               showStep(2);
                               return newId;
@@ -643,12 +643,12 @@
                                         logDebug('Progress issue', { progressIssue, diagnostics, log: issueLink });
                               }
 
-                             if (isCompleted) {
-                                       setProgress(
-                                                 'completed',
-                                                 100,
-                                                 null,
-                                                 finalPath ? `Saved to ${finalPath}` : message || null,
+                              if (isCompleted) {
+                                        setProgress(
+                                                  'completed',
+                                                  100,
+                                                  null,
+                                                  finalPath ? `Saved to ${finalPath}` : message || null,
                                                   message || 'Download complete',
                                                   downloadedBytes,
                                                   totalBytes
@@ -657,7 +657,7 @@
                                         setContinueReady();
                                         stopPolling();
                               } else if (status === 'failed' || status === 'error') {
-                                       setProgress('failed', percent, error || 'Download failed', null, message || 'Download failed', downloadedBytes, totalBytes);
+                                        setProgress('failed', percent, error || 'Download failed', null, message || 'Download failed', downloadedBytes, totalBytes);
                                         console.warn('VEO download failed', { matchId, error: error || message, percent });
                                         disableContinue();
                                         stopPolling();
@@ -685,14 +685,14 @@
                                                   issueLink
                                         );
                               }
-                   } catch (e) {
-                             console.error('VEO status poll failed', e);
+                    } catch (e) {
+                              console.error('VEO status poll failed', e);
                               if (debugMode) {
                                         logDebug('Progress poll failed', { error: e.message });
                               }
-                             setProgress('failed', 0, e.message || 'Progress check failed', null, null, 0, 0);
-                             stopPolling();
-                   }
+                              setProgress('failed', 0, e.message || 'Progress check failed', null, null, 0, 0);
+                              stopPolling();
+                    }
           }
 
           function startPolling() {
@@ -755,10 +755,10 @@
                               setFlash('danger', e.message || 'Unable to save match');
                     } finally {
                               isSubmitting = false;
-                             if (submitBtn) {
-                                       submitBtn.disabled = false;
-                                       submitBtn.textContent = cfg.isEdit ? 'Save & start' : 'Create & start';
-                             }
+                              if (submitBtn) {
+                                        submitBtn.disabled = false;
+                                        submitBtn.textContent = cfg.isEdit ? 'Save & start' : 'Create & start';
+                              }
                     }
           }
 
@@ -770,14 +770,14 @@
                               return;
                     }
                     isSaving = true;
-                   if (saveBtn) {
-                             saveBtn.disabled = true;
-                             saveBtn.textContent = 'Saving...';
-                   }
-                   if (step1SaveInline) {
-                             step1SaveInline.disabled = true;
-                             step1SaveInline.textContent = 'Saving...';
-                   }
+                    if (saveBtn) {
+                              saveBtn.disabled = true;
+                              saveBtn.textContent = 'Saving...';
+                    }
+                    if (step1SaveInline) {
+                              step1SaveInline.disabled = true;
+                              step1SaveInline.textContent = 'Saving...';
+                    }
                     const mode = getVideoMode();
                     if (mode === 'veo' && (!veoInput || !veoInput.value.trim())) {
                               setFlash('danger', 'VEO URL required to save.');
@@ -793,18 +793,18 @@
                               await saveMatch(mode);
                               setFlash('success', 'Match saved.');
                     } catch (e) {
-                             setFlash('danger', e.message || 'Unable to save match');
-                   } finally {
-                             isSaving = false;
-                             if (saveBtn) {
-                                       saveBtn.disabled = false;
-                                       saveBtn.textContent = saveBtnDefaultText;
-                             }
-                             if (step1SaveInline) {
-                                       step1SaveInline.disabled = false;
-                                       step1SaveInline.textContent = step1SaveInlineDefaultText;
-                             }
-                   }
+                              setFlash('danger', e.message || 'Unable to save match');
+                    } finally {
+                              isSaving = false;
+                              if (saveBtn) {
+                                        saveBtn.disabled = false;
+                                        saveBtn.textContent = saveBtnDefaultText;
+                              }
+                              if (step1SaveInline) {
+                                        step1SaveInline.disabled = false;
+                                        step1SaveInline.textContent = step1SaveInlineDefaultText;
+                              }
+                    }
           }
 
           function resumeIfNeeded() {
@@ -862,26 +862,26 @@
                     showStep(1);
                     resumeIfNeeded();
 
-                   if (videoModeRadios.length) {
-                             videoModeRadios.forEach((radio) => radio.addEventListener('change', toggleVideoInputs));
-                   }
-                   if (step1Next) {
-                             step1Next.addEventListener('click', async () => {
-                                       clearFlash();
-                                       if (!validateStep1()) {
-                                                 showStep(1);
-                                                 return;
-                                       }
-                                       try {
-                                                 await ensureMatchCreatedForVideo();
-                                       } catch {
-                                                 // Error already surfaced
-                                       }
-                             });
-                   }
-                   if (step1SaveInline) {
-                             step1SaveInline.addEventListener('click', handleSaveClick);
-                   }
+                    if (videoModeRadios.length) {
+                              videoModeRadios.forEach((radio) => radio.addEventListener('change', toggleVideoInputs));
+                    }
+                    if (step1Next) {
+                              step1Next.addEventListener('click', async () => {
+                                        clearFlash();
+                                        if (!validateStep1()) {
+                                                  showStep(1);
+                                                  return;
+                                        }
+                                        try {
+                                                  await ensureMatchCreatedForVideo();
+                                        } catch {
+                                                  // Error already surfaced
+                                        }
+                              });
+                    }
+                    if (step1SaveInline) {
+                              step1SaveInline.addEventListener('click', handleSaveClick);
+                    }
                     navSteps.forEach((nav) => {
                               nav.addEventListener('click', () => {
                                         const target = Number(nav.dataset.stepNav);
@@ -893,9 +893,9 @@
                     if (saveBtn) {
                               saveBtn.addEventListener('click', handleSaveClick);
                     }
-                   if (step2Back) {
-                             step2Back.addEventListener('click', () => showStep(1));
-                   }
+                    if (step2Back) {
+                              step2Back.addEventListener('click', () => showStep(1));
+                    }
                     if (submitBtn) {
                               submitBtn.addEventListener('click', handleSubmit);
                     }
@@ -908,19 +908,19 @@
                     if (cancelBtn) {
                               cancelBtn.addEventListener('click', () => cancelDownload().catch((e) => setFlash('danger', e.message || 'Cancel failed')));
                     }
-                   if (lineupBackBtn) {
-                             lineupBackBtn.addEventListener('click', () => showStep(3));
-                   }
+                    if (lineupBackBtn) {
+                              lineupBackBtn.addEventListener('click', () => showStep(3));
+                    }
                     if (debugClearBtn) {
                               debugClearBtn.addEventListener('click', () => {
                                         clearDebugOutput();
                                         logDebug('Debug console cleared');
                               });
                     }
-                   form.addEventListener('submit', (e) => {
-                             e.preventDefault();
-                             handleSubmit();
-                   });
+                    form.addEventListener('submit', (e) => {
+                              e.preventDefault();
+                              handleSubmit();
+                    });
           }
 
           init();

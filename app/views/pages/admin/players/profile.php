@@ -40,7 +40,10 @@ foreach ($appearances as $appearance) {
           $appearanceMap[(int)$appearance['match_id']] = $appearance;
 }
 
-$title = $player['display_name'];
+$displayName = isset($player['display_name']) && $player['display_name'] !== null && $player['display_name'] !== ''
+    ? $player['display_name']
+    : trim(($player['first_name'] ?? '') . ' ' . ($player['last_name'] ?? ''));
+$title = $displayName;
 $base = base_path();
 
 ob_start();
@@ -48,7 +51,7 @@ ob_start();
 <div class="d-flex align-items-center justify-content-between mb-4">
           <div>
                     <div class="text-muted-alt text-sm">Player profile</div>
-                    <h1 class="mb-1"><?= htmlspecialchars($player['display_name']) ?></h1>
+                    <h1 class="mb-1"><?= htmlspecialchars((string)$displayName) ?></h1>
                     <p class="text-muted-alt text-sm mb-0"><?= htmlspecialchars($player['primary_position'] ?? 'Position not set') ?></p>
           </div>
           <div class="d-flex gap-2">
@@ -89,6 +92,21 @@ ob_start();
                     <h5 class="mb-0 text-light">Match Appearances</h5>
                     <span class="text-muted-alt text-sm"><?= count($appearances) ?> recorded</span>
           </div>
+                    <?php
+                        $starterCount = 0;
+                        $subCount = 0;
+                        foreach ($appearances as $appearance) {
+                            if (isset($appearance['is_starting']) && $appearance['is_starting']) {
+                                $starterCount++;
+                            } elseif (isset($appearance['is_starting'])) {
+                                $subCount++;
+                            }
+                        }
+                    ?>
+                    <div class="mb-2 text-muted-alt text-sm">
+                        <span class="me-3">Starter: <span class="fw-semibold text-light"><?= $starterCount ?></span></span>
+                        <span>Substitute: <span class="fw-semibold text-light"><?= $subCount ?></span></span>
+                    </div>
           <?php if (empty($appearances)): ?>
                     <div class="text-muted-alt text-sm">No appearances recorded.</div>
           <?php else: ?>
