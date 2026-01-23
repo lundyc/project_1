@@ -1,10 +1,19 @@
 // Ensure playlist filter popover is hidden on page load
+// --- Playlist Filter Popover Dropdown ---
 $(function () {
       var $playlistFilterPopover = $('#playlistFilterPopover');
       if ($playlistFilterPopover.length) {
             $playlistFilterPopover.attr('hidden', '');
       }
 });
+// --- Skeleton Loader Synchronization ---
+let deskVideoReady = false;
+let deskTimelineReady = false;
+function tryHideDeskSkeleton() {
+      if (deskVideoReady && deskTimelineReady && window.deskHideSkeleton) {
+            window.deskHideSkeleton();
+      }
+}
 // --- Playlist Filter Popover Dropdown ---
 $(function () {
       $playlistFilterBtn = $('#playlistFilterBtn');
@@ -88,6 +97,12 @@ $(function () {
       window.DeskClipPlaybackState = clipPlaybackState;
 
       const $video = $('#deskVideoPlayer');
+      if ($video.length) {
+            $video.on('loadedmetadata', function () {
+                  deskVideoReady = true;
+                  tryHideDeskSkeleton();
+            });
+      }
       const $timelineList = $('#timelineList');
       const $timelineMatrix = $('#timelineMatrix');
       const $timelineScroll = $('.timeline-scroll');
@@ -1745,6 +1760,9 @@ $(function () {
                         renderListTimeline(groups, filtered);
                   }
             }
+            // Mark timeline as ready and try to hide skeleton
+            deskTimelineReady = true;
+            tryHideDeskSkeleton();
       }
 
       function getEventMinuteBucket(ev) {
@@ -2910,7 +2928,31 @@ $(function () {
             return Math.max(0, numeric);
       }
 
-      setPeriodState(createBasePeriodState());
+
+      // Fetch period state from DB and update UI
+      function refreshPeriodStateFromApi() {
+            const url = cfg.endpoints && cfg.endpoints.periodsList ? cfg.endpoints.periodsList : '/app/api/matches/periods_list.php';
+            if (!url) return;
+            $.getJSON(url)
+                  .done((res) => {
+                        if (!res.ok || !Array.isArray(res.periods)) return;
+                        const nextState = createBasePeriodState();
+                        (res.periods || []).forEach((p) => {
+                              const key = p.period_key;
+                              if (!nextState[key]) return;
+                              const entry = nextState[key];
+                              entry.started = !!p.start_second;
+                              entry.ended = !!p.end_second;
+                              entry.startMatchSecond = p.start_second !== null ? Number(p.start_second) : null;
+                              entry.endMatchSecond = p.end_second !== null ? Number(p.end_second) : null;
+                              entry.label = p.label || entry.label;
+                        });
+                        setPeriodState(nextState);
+                  });
+      }
+
+      // On page load, use DB period state
+      refreshPeriodStateFromApi();
 
       function recordPeriodBoundary(action, periodKey, label) {
             if (!lockOwned || !cfg.canEditRole || !periodKey || !action) {
@@ -2933,6 +2975,8 @@ $(function () {
                               return;
                         }
                         showToast(`${label || 'Period'} ${action === 'end' ? 'ended' : 'started'}`);
+                        // After period action, refresh period state from DB
+                        refreshPeriodStateFromApi();
                   })
                   .fail((xhr, status, error) => {
                         showToast(`Unable to ${action} ${label}`, true);

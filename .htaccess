@@ -12,3 +12,7 @@ RewriteRule ^\.venv(/|$) - [F,L]
 <FilesMatch "\.(py|sh|log|env|venv)$">
     Require all denied
 </FilesMatch>
+
+# RESTful API rewrite for periods list
+RewriteEngine On
+RewriteRule ^api/matches/([0-9]+)/periods/list$ app/api/matches/periods/list.php?match_id=$1 [QSA,L]

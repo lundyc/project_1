@@ -183,7 +183,8 @@ $deskConfig = [
         'redoEvent' => $base . '/api/events/redo',
         'periodsStart' => $base . '/api/matches/' . (int)$match['id'] . '/periods/start',
         'periodsEnd' => $base . '/api/matches/' . (int)$match['id'] . '/periods/end',
-            'periodsSet' => $base . '/api/match-periods/set',
+        'periodsSet' => $base . '/api/match-periods/set',
+        'periodsList' => $base . '/api/matches/' . (int)$match['id'] . '/periods/list',
             'clipCreate' => $base . '/api/matches/' . (int)$match['id'] . '/clips/create',
             'clipDelete' => $base . '/api/matches/' . (int)$match['id'] . '/clips/delete',
             'playlistsList' => $base . '/api/matches/' . (int)$match['id'] . '/playlists',
@@ -230,7 +231,67 @@ ob_start();
 <div id="deskRoot" data-base-path="<?= htmlspecialchars($base) ?>" data-match-id="<?= (int)$match['id'] ?>"></div>
 <div id="deskError" class="desk-toast desk-toast-error" style="display:none;"></div>
 
-<div class="desk-shell<?= $videoLabEnabled ? '' : ' desk-shell--video-disabled' ?>">
+<style>
+    .desk-loading-skeleton { display: none; }
+    .animate-pulse { animation: pulse 1.5s cubic-bezier(0.4,0,0.6,1) infinite; }
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.4; }
+    }
+</style>
+<div id="deskLoadingSkeleton" class="desk-loading-skeleton">
+    <div class="mx-auto w-full max-w-2xl rounded-md border border-blue-300 p-4 mb-6">
+        <div class="flex animate-pulse space-x-4">
+            <div class="size-24 rounded bg-gray-200"></div>
+            <div class="flex-1 space-y-6 py-1">
+                <div class="h-4 rounded bg-gray-200 w-1/2"></div>
+                <div class="space-y-3">
+                    <div class="grid grid-cols-3 gap-4">
+                        <div class="col-span-2 h-4 rounded bg-gray-200"></div>
+                        <div class="col-span-1 h-4 rounded bg-gray-200"></div>
+                    </div>
+                    <div class="h-4 rounded bg-gray-200"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="mx-auto w-full max-w-3xl rounded-md border border-blue-300 p-4 mb-6">
+        <div class="flex animate-pulse space-x-4">
+            <div class="flex-1 space-y-4 py-1">
+                <div class="h-4 rounded bg-gray-200 w-1/3"></div>
+                <div class="h-4 rounded bg-gray-200 w-2/3"></div>
+                <div class="h-4 rounded bg-gray-200 w-full"></div>
+            </div>
+        </div>
+    </div>
+    <div class="mx-auto w-full max-w-4xl rounded-md border border-blue-300 p-4">
+        <div class="flex animate-pulse space-x-4">
+            <div class="flex-1 space-y-4 py-1">
+                <div class="h-4 rounded bg-gray-200 w-1/2"></div>
+                <div class="h-4 rounded bg-gray-200 w-1/4"></div>
+                <div class="h-4 rounded bg-gray-200 w-3/4"></div>
+                <div class="h-4 rounded bg-gray-200 w-full"></div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var skeleton = document.getElementById('deskLoadingSkeleton');
+        var deskShell = document.querySelector('.desk-shell');
+        if (skeleton && deskShell) {
+            skeleton.style.display = '';
+            deskShell.style.display = 'none';
+            // Wait for main desk JS to signal ready (or fallback after 2.5s)
+            window.deskHideSkeleton = function() {
+                skeleton.style.display = 'none';
+                deskShell.style.display = '';
+            };
+            setTimeout(window.deskHideSkeleton, 2500); // fallback timeout
+        }
+    });
+</script>
+<div class="desk-shell<?= $videoLabEnabled ? '' : ' desk-shell--video-disabled' ?>" style="">
     <?php if (!$videoLabEnabled): ?>
         <style>
             .desk-shell--video-disabled .video-header,
