@@ -1,3 +1,50 @@
+/* Matrix period marker line and dot */
+.matrix-period-marker-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+  background: #e11d48;
+  /* red-600 */
+  border-radius: 2px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: auto;
+  transition: width 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.matrix-period-marker-dot {
+  position: absolute;
+  top: -7px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 12px;
+  height: 12px;
+  background: #e11d48;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(225, 29, 72, 0.18);
+  transition: width 0.18s cubic-bezier(0.4, 0, 0.2, 1), height 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 11;
+}
+
+.matrix-period-marker-line:hover,
+.matrix-period-marker-line:focus-visible {
+  width: 6px;
+}
+
+.matrix-period-marker-line:hover .matrix-period-marker-dot,
+.matrix-period-marker-line:focus-visible .matrix-period-marker-dot {
+  width: 18px;
+  height: 18px;
+}
+
+.toolbar-hidden {
+  display: none !important;
+}
+
 html,
 body {
   height: 100%;
@@ -81,7 +128,6 @@ body {
 .desk-top {
   display: grid;
   grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
-  gap: 20px;
   align-items: stretch;
   width: 100%;
   min-height: calc(100vh - 3rem);
@@ -273,7 +319,7 @@ body {
 
 .custom-video-controls {
   position: absolute;
-  left: 43px;
+  left: 0;
   right: 0;
   bottom: 0;
   z-index: 20;
@@ -284,9 +330,14 @@ body {
   border-radius: 0;
   background: rgba(0, 0, 0, 0.45);
   opacity: 1;
-  transition: opacity 0.25s ease;
+  transition: opacity 0.25s ease, left 0.25s cubic-bezier(0.4, 0, 0.2, 1), width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   pointer-events: auto;
 }
+
+.custom-video-controls.toolbar-open {
+  left: 43px;
+}
+
 
 .custom-video-controls.is-hidden {
   opacity: 0;
@@ -306,6 +357,12 @@ body {
   position: relative;
   overflow: hidden;
   cursor: pointer;
+  transition: height 0.25s ease;
+}
+
+.desk-timeline-track:hover,
+.desk-timeline-track:focus-visible {
+  height: 10px;
 }
 
 .desk-timeline-progress {
@@ -317,6 +374,28 @@ body {
   background: linear-gradient(90deg, rgba(59, 130, 246, 0.9), rgba(59, 130, 246, 0.6));
   border-radius: 999px;
   transition: width 0.1s linear;
+}
+
+.desk-timeline-hover-ball {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #3b82f6;
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.45);
+  z-index: 4;
+}
+
+.desk-timeline-track:hover .desk-timeline-hover-ball,
+.desk-timeline-track:focus-visible .desk-timeline-hover-ball {
+  opacity: 1;
 }
 
 .desk-timeline-track[data-video-timeline-track] {
@@ -408,8 +487,57 @@ body {
   transition: background 0.2s ease, transform 0.2s ease;
 }
 
+.control-btn-shell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.video-control-tooltip {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translate(-50%, -10px);
+  background: rgba(15, 23, 42, 0.95);
+  color: #fff;
+  font-size: 11px;
+  padding: 5px 10px;
+  border-radius: 4px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.2s ease;
+  z-index: 20;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.25);
+}
+
+.video-control-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(45deg);
+  width: 8px;
+  height: 8px;
+  background: rgba(15, 23, 42, 0.95);
+  border-radius: 1px;
+}
+
+.control-btn-shell:hover .video-control-tooltip,
+.control-btn-shell:focus-within .video-control-tooltip {
+  opacity: 1;
+  transform: translate(-50%, -15px);
+}
+
 .control-btn:hover {
-  background: rgba(255, 255, 255, 0.18);
+  background: #3b82f6;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.4);
+}
+
+.control-btn:focus-visible {
+  outline: 2px solid rgba(59, 130, 246, 0.8);
+  outline-offset: 2px;
+  background: #3b82f6;
 }
 
 .control-btn i {
@@ -476,6 +604,10 @@ body {
   color: #fff;
   letter-spacing: 0.04em;
   white-space: nowrap;
+}
+
+.desk-time-display .desk-time-total-block {
+  color: #9ca3af;
 }
 
 .desk-control-primary {
@@ -803,7 +935,6 @@ body {
 .desk-right {
   display: flex;
   flex-direction: column;
-  gap: 12px;
   min-height: 0;
 }
 
@@ -1868,6 +1999,10 @@ body {
   font-size: 14px;
 }
 
+.text-sm.text-subtle {
+  font-weight: 600;
+}
+
 .text-xl {
   font-size: 22px;
 }
@@ -2237,7 +2372,7 @@ body {
 
 .qt-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   grid-auto-rows: minmax(72px, auto);
   gap: 12px;
   align-content: flex-start;
@@ -3237,7 +3372,7 @@ select.input-dark {
   opacity: 0;
   transition: opacity 0.15s ease, transform 0.15s ease;
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.25);
-  z-index: 5;
+  z-index: 9999;
 }
 
 [data-tooltip]::before,

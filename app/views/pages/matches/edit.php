@@ -192,19 +192,19 @@ $headExtras = '<style>
     input:invalid,
     select:invalid,
     textarea:invalid {
-        border-color: rgb(239, 68, 68) !important;
+        border-color: var(--border-danger) !important;
     }
     
     input:invalid:focus,
     select:invalid:focus,
     textarea:invalid:focus {
-        border-color: rgb(239, 68, 68) !important;
-        ring: 2px rgb(239, 68, 68) !important;
+        border-color: var(--border-danger) !important;
+        ring: 2px var(--border-danger) !important;
     }   
   
     /* Sticky Button Container */
     .sticky-button-container {
-        box-shadow: 0 -2px 15px rgba(0, 0, 0, 0.3);
+        box-shadow: 0 -2px 15px var(--shadow-strong);
     }
     
     /* Tab Indicator */
@@ -220,7 +220,7 @@ $headExtras = '<style>
     }
     
     .edit-nav-item.active::after {
-     /*   background-color: rgb(59, 130, 246);*/
+     /*   background-color: var(--accent-info);*/
     }
     
     /* Focus Ring Enhancement */
@@ -228,7 +228,7 @@ $headExtras = '<style>
     input:focus-visible,
     select:focus-visible,
     textarea:focus-visible {
-        outline: 2px solid rgb(59, 130, 246);
+        outline: 2px solid var(--accent-info);
         outline-offset: 2px;
     }
 </style>';
@@ -1465,7 +1465,7 @@ ob_start();
                             <i class="fa-solid fa-plus mr-2"></i>
                             Add Player
                         </button>
-                        <button type="button" class="btn-primary" id="add-another-btn" style="background-color: rgb(59, 130, 246);">
+                        <button type="button" class="btn-primary" id="add-another-btn" style="background-color: var(--accent-info);">
                             <i class="fa-solid fa-redo mr-2"></i>
                             Save & Add Another
                         </button>

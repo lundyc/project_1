@@ -288,10 +288,10 @@ ob_start();
                     </div>
                     <section class="desk-video">
                         <div class="desk-video-shell">
-                            <div class="panel-dark video-panel">
+                            <div class="video-panel">
                                 <div class="video-content">
                                     <div class="video-frame">
-                                        <div class="desk-drawing-toolbar" data-drawing-toolbar>
+                                        <div class="desk-drawing-toolbar toolbar-hidden" data-drawing-toolbar style="display:none;">
                                             <?php if ($ANNOTATIONS_ENABLED): ?>
                                                 <div class="drawing-toolbar" data-annotation-toolbar>
                                                     <div class="drawing-toolbar-tools">
@@ -353,14 +353,14 @@ ob_start();
                                                             </button>
                                                             <div class="drawing-tool-panel drawing-submenu colors" data-toolbar-menu="colours" aria-hidden="true" inert>
                                                                 <div class="drawing-submenu-heading">Colours</div>
-                                                                <button type="button" class="drawing-option-btn drawing-colour-swatch color-swatch" style="--swatch-color:#facc15;background:#facc15;" data-pencil-color="#facc15" aria-label="Yellow"></button>
-                                                                <button type="button" class="drawing-option-btn drawing-colour-swatch color-swatch" style="--swatch-color:#10b981;background:#10b981;" data-pencil-color="#10b981" aria-label="Green"></button>
-                                                                <button type="button" class="drawing-option-btn drawing-colour-swatch color-swatch" style="--swatch-color:#38bdf8;background:#38bdf8;" data-pencil-color="#38bdf8" aria-label="Sky blue"></button>
-                                                                <button type="button" class="drawing-option-btn drawing-colour-swatch color-swatch" style="--swatch-color:#f472b6;background:#f472b6;" data-pencil-color="#f472b6" aria-label="Pink"></button>
-                                                                <button type="button" class="drawing-option-btn drawing-colour-swatch color-swatch" style="--swatch-color:#a855f7;background:#a855f7;" data-pencil-color="#a855f7" aria-label="Purple"></button>
-                                                                <button type="button" class="drawing-option-btn drawing-colour-swatch color-swatch" style="--swatch-color:#fb923c;background:#fb923c;" data-pencil-color="#fb923c" aria-label="Orange"></button>
-                                                                <button type="button" class="drawing-option-btn drawing-colour-swatch color-swatch" style="--swatch-color:#ef4444;background:#ef4444;" data-pencil-color="#ef4444" aria-label="Red"></button>
-                                                                <button type="button" class="drawing-option-btn drawing-colour-swatch color-swatch" style="--swatch-color:#2563eb;background:#2563eb;" data-pencil-color="#2563eb" aria-label="Blue"></button>
+                                                                <button type="button" class="drawing-option-btn drawing-colour-swatch color-swatch" style="--swatch-color:var(--accent-yellow);background:var(--accent-yellow);" data-pencil-color="var(--accent-yellow)" aria-label="Yellow"></button>
+                                                                <button type="button" class="drawing-option-btn drawing-colour-swatch color-swatch" style="--swatch-color:var(--accent-green);background:var(--accent-green);" data-pencil-color="var(--accent-green)" aria-label="Green"></button>
+                                                                <button type="button" class="drawing-option-btn drawing-colour-swatch color-swatch" style="--swatch-color:var(--accent-sky);background:var(--accent-sky);" data-pencil-color="var(--accent-sky)" aria-label="Sky blue"></button>
+                                                                <button type="button" class="drawing-option-btn drawing-colour-swatch color-swatch" style="--swatch-color:var(--accent-pink);background:var(--accent-pink);" data-pencil-color="var(--accent-pink)" aria-label="Pink"></button>
+                                                                <button type="button" class="drawing-option-btn drawing-colour-swatch color-swatch" style="--swatch-color:var(--accent-purple);background:var(--accent-purple);" data-pencil-color="var(--accent-purple)" aria-label="Purple"></button>
+                                                                <button type="button" class="drawing-option-btn drawing-colour-swatch color-swatch" style="--swatch-color:var(--accent-orange);background:var(--accent-orange);" data-pencil-color="var(--accent-orange)" aria-label="Orange"></button>
+                                                                <button type="button" class="drawing-option-btn drawing-colour-swatch color-swatch" style="--swatch-color:var(--accent-danger);background:var(--accent-danger);" data-pencil-color="var(--accent-danger)" aria-label="Red"></button>
+                                                                <button type="button" class="drawing-option-btn drawing-colour-swatch color-swatch" style="--swatch-color:var(--accent-blue);background:var(--accent-blue);" data-pencil-color="var(--accent-blue)" aria-label="Blue"></button>
                                                             </div>
                                                         </div>
                                                         <div class="drawing-tool drawing-tool--menu drawing-tool--arrows">
@@ -542,26 +542,47 @@ ob_start();
                               </div>
                               <div class="custom-video-controls" id="deskControls">
                                   <div class="desk-timeline" id="deskTimeline" role="slider" tabindex="0" aria-label="Video timeline" data-video-timeline>
-                                      <div class="desk-timeline-track" id="deskTimelineTrack" data-video-timeline-track>
-                                          <div class="desk-timeline-markers" data-video-timeline-markers></div>
-                                          <div class="desk-timeline-progress" id="deskTimelineProgress"></div>
-                                          <div class="desk-timeline-playhead" data-video-timeline-playhead></div>
-                                      </div>
+                                  <div class="desk-timeline-track" id="deskTimelineTrack" data-video-timeline-track>
+                                      <div class="desk-timeline-markers" data-video-timeline-markers></div>
+                                      <div class="desk-timeline-progress" id="deskTimelineProgress"></div>
+                                      <span class="desk-timeline-hover-ball" data-video-timeline-ball aria-hidden="true"></span>
+                                      <div class="desk-timeline-playhead" data-video-timeline-playhead></div>
                                   </div>
-                                  <div class="desk-control-group">
-                                      <div class="desk-time-display" id="deskTimeDisplay">00:00 / 00:00</div>
-                                      <div class="desk-control-primary">
-                                          <button id="deskPlayPause" class="control-btn" data-tooltip="Play/Pause" aria-label="Play or pause">
-                                              <i class="fa-solid fa-play" aria-hidden="true"></i>
-                                          </button>
-                                          <button id="deskRewind" class="control-btn" data-tooltip="Back 5s" aria-label="Back 5 seconds">
-                                              <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>
-                                          </button>
-                                          <button id="deskForward" class="control-btn" data-tooltip="Forward 5s" aria-label="Forward 5 seconds">
-                                              <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
-                                          </button>
+                              </div>
+                              <div class="desk-control-group" style="display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; width: 100%; gap: 12px;">
+                                  <div style="justify-self: start;">
+                                          <div class="desk-time-display" id="deskTimeDisplay">
+                                              <span class="desk-time-current">00:00</span>
+                                              <span class="desk-time-total-block"> / 00:00</span>
+                                          </div>
+                                  </div>
+                                      <div style="justify-self: center; display: flex; gap: 12px;">
+                                          <span class="control-btn-shell">
+                                              <button id="deskPlayPause" class="control-btn" aria-label="Play or pause" aria-describedby="tooltip-deskPlayPause">
+                                                  <i class="fa-solid fa-play" aria-hidden="true"></i>
+                                              </button>
+                                              <div id="tooltip-deskPlayPause" role="tooltip" class="video-control-tooltip">Play/Pause</div>
+                                          </span>
+                                          <span class="control-btn-shell">
+                                              <button id="deskRewind" class="control-btn" aria-label="Back 5 seconds" aria-describedby="tooltip-deskRewind">
+                                                  <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>
+                                              </button>
+                                              <div id="tooltip-deskRewind" role="tooltip" class="video-control-tooltip">Back 5s</div>
+                                          </span>
+                                          <span class="control-btn-shell">
+                                              <button id="deskForward" class="control-btn" aria-label="Forward 5 seconds" aria-describedby="tooltip-deskForward">
+                                                  <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
+                                              </button>
+                                              <div id="tooltip-deskForward" role="tooltip" class="video-control-tooltip">Forward 5s</div>
+                                          </span>
                                       </div>
-                                      <div class="desk-control-secondary">
+                                      <div style="justify-self: end; display: flex; gap: 12px;">
+                                          <span class="control-btn-shell">
+                                              <button id="drawingToolbarToggleBtn" class="control-btn" aria-label="Show/hide drawing toolbar" aria-pressed="false" type="button" aria-describedby="tooltip-drawingToolbarToggle">
+                                                  <i class="fa-solid fa-pen-ruler" aria-hidden="true"></i>
+                                              </button>
+                                              <div id="tooltip-drawingToolbarToggle" role="tooltip" class="video-control-tooltip">Show/hide drawing tools</div>
+                                          </span>
                                           <div class="speed-selector">
                                               <button id="deskSpeedToggle" class="control-btn" aria-label="Playback speed">
                                                   <i class="fa-solid fa-gauge-simple" aria-hidden="true"></i>
@@ -569,12 +590,19 @@ ob_start();
                                               </button>
                                               <ul id="deskSpeedOptions" class="speed-options" role="menu"></ul>
                                           </div>
-                                          <button id="deskMuteToggle" class="control-btn" data-tooltip="Mute" aria-label="Toggle mute">
-                                              <i class="fa-solid fa-volume-high" aria-hidden="true"></i>
-                                          </button>
-                                          <button id="deskFullscreen" class="control-btn" data-tooltip="Fullscreen" aria-label="Toggle fullscreen">
-                                              <i class="fa-solid fa-expand" aria-hidden="true"></i>
-                                          </button>
+                                          <span class="control-btn-shell">
+                                              <button id="deskMuteToggle" class="control-btn" aria-label="Toggle mute" aria-describedby="tooltip-deskMuteToggle">
+                                                  <i class="fa-solid fa-volume-high" aria-hidden="true"></i>
+                                              </button>
+                                              <div id="tooltip-deskMuteToggle" role="tooltip" class="video-control-tooltip">Mute</div>
+                                          </span>
+                                          <span class="control-btn-shell">
+                                              <button id="deskFullscreen" class="control-btn" aria-label="Toggle fullscreen" aria-describedby="tooltip-deskFullscreen">
+                                                  <i class="fa-solid fa-expand" aria-hidden="true"></i>
+                                              </button>
+                                              <div id="tooltip-deskFullscreen" role="tooltip" class="video-control-tooltip">Fullscreen</div>
+                                          </span>
+                                      </div>
                             <?php
                             /*
                                           <button id="deskInteractiveToggle" class="control-btn" data-tooltip="Interactive mode" aria-label="Toggle interactive mode" aria-pressed="false">
@@ -619,20 +647,32 @@ ob_start();
                             </div>
                         </div>
                     </div>
-                    <div class="panel-dark timeline-panel timeline-panel-full">
+                    <!-- timeline-panel moved below desk-video section -->
+                </div>
+                    </section>
+                    <div class="panel-dark timeline-panel timeline-panel-full p-2">
                         <div class="panel-row">
                             <div class="text-sm text-subtle">Timeline</div>
                             <div class="timeline-actions">
-                                <button id="timelineDeleteAll" class="ghost-btn ghost-btn-sm desk-editable" type="button" data-tooltip="Delete all events" aria-label="Delete all events">
-                                    <i class="fa-solid fa-trash" aria-hidden="true"></i>
-                                </button>
+                                <span class="control-btn-shell">
+                                    <button id="timelineDeleteAll" class="ghost-btn ghost-btn-sm desk-editable" type="button" aria-label="Delete all events" aria-describedby="tooltip-timelineDeleteAll">
+                                        <i class="fa-solid fa-trash" aria-hidden="true"></i>
+                                    </button>
+                                    <div id="tooltip-timelineDeleteAll" role="tooltip" class="video-control-tooltip">Delete all events</div>
+                                </span>
                                 <div class="timeline-undo-redo">
-                                    <button class="ghost-btn ghost-btn-sm desk-editable" id="eventUndoBtn" type="button" data-tooltip="Undo" disabled aria-label="Undo">
-                                        <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>
-                                    </button>
-                                    <button class="ghost-btn ghost-btn-sm desk-editable" id="eventRedoBtn" type="button" data-tooltip="Redo" disabled aria-label="Redo">
-                                        <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
-                                    </button>
+                                    <span class="control-btn-shell">
+                                        <button class="ghost-btn ghost-btn-sm desk-editable" id="eventUndoBtn" type="button" disabled aria-label="Undo" aria-describedby="tooltip-eventUndoBtn">
+                                            <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>
+                                        </button>
+                                        <div id="tooltip-eventUndoBtn" role="tooltip" class="video-control-tooltip">Undo</div>
+                                    </span>
+                                    <span class="control-btn-shell">
+                                        <button class="ghost-btn ghost-btn-sm desk-editable" id="eventRedoBtn" type="button" disabled aria-label="Redo" aria-describedby="tooltip-eventRedoBtn">
+                                            <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
+                                        </button>
+                                        <div id="tooltip-eventRedoBtn" role="tooltip" class="video-control-tooltip">Redo</div>
+                                    </span>
                                 </div>
                                 <div class="timeline-mode">
                                     <button type="button" class="ghost-btn ghost-btn-sm timeline-mode-btn is-active" data-mode="list">List</button>
@@ -661,12 +701,10 @@ ob_start();
                             </div>
                         </div>
                         <div class="timeline-scroll">
-                            <div class="timeline-view is-active" id="timelineList"></div>
-                            <div class="timeline-view" id="timelineMatrix"></div>
+                            <div class="timeline-view" id="timelineList"></div>
+                            <div class="timeline-view is-active" id="timelineMatrix"></div>
                         </div>
                     </div>
-                </div>
-                    </section>
                 </div>
             <aside class="desk-side is-mode-active">
                 <div class="desk-side-shell">
@@ -827,7 +865,7 @@ ob_start();
                                 </div>
                             </section>
                             <section class="desk-section desk-playlists-section" aria-label="Playlists">
-                                <div id="playlistsPanel" class="panel-dark playlists-panel">
+                                <div id="playlistsPanel" class="panel-dark playlists-panel p-3">
                                     <div class="playlist-panel-header">
                                         <div class="playlist-panel-heading">
                                             <div>
@@ -837,7 +875,7 @@ ob_start();
                                         </div>
                                         <div class="playlist-panel-controls">
                                             <div class="playlist-control-buttons">
-                                                <button id="playlistFilterBtn" type="button" class="ghost-btn ghost-btn-sm playlist-filter-btn" aria-label="Filter playlists" aria-expanded="false">
+                                                <button id="playlistFilterBtn" type="button" class="ghost-btn ghost-btn-sm playlist-filter-btn" aria-label="Filter playlists" aria-expanded="false" style="display: none">
                                                     <i class="fa-solid fa-filter" aria-hidden="true"></i>
                                                 </button>
                                                 <button id="playlistSearchToggle" type="button" class="ghost-btn ghost-btn-sm playlist-toggle-btn" aria-label="Search playlists">
@@ -863,7 +901,7 @@ ob_start();
                                             </div>
                                         </div>
                                     </div>
-                                    <div id="playlistFilterPopover" class="playlist-filter-popover" hidden>
+                                    <div id="playlistFilterPopover" class="playlist-filter-popover" hidden style="display: none">
                                         <button type="button" class="playlist-filter-option" data-team="">All teams</button>
                                         <button type="button" class="playlist-filter-option" data-team="home">Home - <?= htmlspecialchars($match['home_team'] ?? 'Home') ?></button>
                                         <button type="button" class="playlist-filter-option" data-team="away">Away - <?= htmlspecialchars($match['away_team'] ?? 'Away') ?></button>
@@ -872,9 +910,10 @@ ob_start();
                                     <div class="playlist-mode">
                                         <div class="playlist-mode-header">
                                             <div>
-                                                <div class="text-xs text-muted-alt">Clips</div>
-                                                <div id="playlistActiveTitle" class="text-sm text-subtle">click on playlist to show clips</div>
+                                                <div class="text-sm text-subtle">Clips</div>
+                                                <div id="playlistActiveTitle" class="text-xs text-muted-alt">click on playlist to show clips</div>
                                             </div>
+                                                 
                                             <button id="playlistAddClipBtn" type="button" class="ghost-btn ghost-btn-sm" disabled aria-label="Add clip">
                                                 <i class="fa-solid fa-plus" aria-hidden="true"></i>
                                             </button>
@@ -922,8 +961,10 @@ ob_start();
                 </div>
             </aside>
             </div>
+                </div>
         </div>
-    </div>
+        <!-- Drawing Toolbar Toggle JS -->
+        <script src="/assets/js/desk-toolbar-toggle.js?v=<?= time() ?>" defer></script>
 </div>
 
         <div id="editorPanel" class="editor-modal is-hidden" role="dialog" aria-modal="true" aria-labelledby="editorTitle">

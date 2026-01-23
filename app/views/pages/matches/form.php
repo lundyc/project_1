@@ -484,7 +484,7 @@ ob_start();
 </form>
 
 <div id="setupModals">
-          <div id="teamCreateModal" class="setup-modal" role="dialog" aria-hidden="true" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:2100; align-items:center; justify-content:center;">
+          <div id="teamCreateModal" class="setup-modal" role="dialog" aria-hidden="true" style="display:none; position:fixed; inset:0; background:var(--modal-backdrop); z-index:2100; align-items:center; justify-content:center;">
                     <div class="panel p-3 rounded-md" style="max-width:420px; width:100%; margin:0 16px;">
                               <div class="d-flex align-items-center justify-content-between mb-3">
                                         <div>
@@ -510,7 +510,7 @@ ob_start();
                     </div>
           </div>
 
-          <div id="seasonCreateModal" class="setup-modal" role="dialog" aria-hidden="true" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:2100; align-items:center; justify-content:center;">
+          <div id="seasonCreateModal" class="setup-modal" role="dialog" aria-hidden="true" style="display:none; position:fixed; inset:0; background:var(--modal-backdrop); z-index:2100; align-items:center; justify-content:center;">
                     <div class="panel p-3 rounded-md" style="max-width:420px; width:100%; margin:0 16px;">
                               <div class="d-flex align-items-center justify-content-between mb-3">
                                         <div>
@@ -536,7 +536,7 @@ ob_start();
                     </div>
           </div>
 
-          <div id="competitionCreateModal" class="setup-modal" role="dialog" aria-hidden="true" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:2100; align-items:center; justify-content:center;">
+          <div id="competitionCreateModal" class="setup-modal" role="dialog" aria-hidden="true" style="display:none; position:fixed; inset:0; background:var(--modal-backdrop); z-index:2100; align-items:center; justify-content:center;">
                     <div class="panel p-3 rounded-md" style="max-width:420px; width:100%; margin:0 16px;">
                               <div class="d-flex align-items-center justify-content-between mb-3">
                                         <div>

@@ -9,11 +9,11 @@ const SUB_SVG = `<svg fill="currentColor" viewBox="0 0 20 20"
           class="lineup-sub-icon">
           <path fill-rule="evenodd"
                     d="m18.74 4.21-1.31 3.16a7.84 7.84 0 0 0-14.81-.18l1.28.46a6.47 6.47 0 0 1 12.28.3l-3.24-1.33-.52 1.26 5.36 2.22L20 4.74l-1.26-.53Z"
-                    fill="#dc0000">
+                    fill="#EF4444">
           </path>
           <path fill-rule="evenodd"
                     d="M10 16.3a6.47 6.47 0 0 1-6.18-4.58l3.24 1.34.53-1.26-5.37-2.22-.32.77-.2.49-1.7 4.1 1.26.52 1.31-3.15a7.84 7.84 0 0 0 14.81.17l-1.28-.46a6.49 6.49 0 0 1-6.1 4.29Z"
-                    fill="#14dc4b">
+                    fill="#22C55E">
           </path>
 </svg>`;
 const SUBSTITUTION_LOCK_TOOLTIP = 'Players with substitution history cannot be removed';

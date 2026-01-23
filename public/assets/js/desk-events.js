@@ -1,3 +1,47 @@
+// Ensure playlist filter popover is hidden on page load
+$(function () {
+      var $playlistFilterPopover = $('#playlistFilterPopover');
+      if ($playlistFilterPopover.length) {
+            $playlistFilterPopover.attr('hidden', '');
+      }
+});
+// --- Playlist Filter Popover Dropdown ---
+$(function () {
+      $playlistFilterBtn = $('#playlistFilterBtn');
+      $playlistFilterPopover = $('#playlistFilterPopover');
+      if ($playlistFilterBtn.length && $playlistFilterPopover.length) {
+            function closePopover() {
+                  $playlistFilterPopover.attr('hidden', '');
+                  $playlistFilterBtn.attr('aria-expanded', 'false');
+            }
+            function openPopover() {
+                  $playlistFilterPopover.removeAttr('hidden');
+                  $playlistFilterBtn.attr('aria-expanded', 'true');
+            }
+            $playlistFilterBtn.on('click', function (e) {
+                  e.stopPropagation();
+                  if ($playlistFilterPopover.is(':visible')) {
+                        closePopover();
+                  } else {
+                        openPopover();
+                  }
+            });
+            // Hide popover when clicking outside
+            $(document).on('mousedown', function (e) {
+                  if (
+                        !$playlistFilterPopover.is(e.target) &&
+                        $playlistFilterPopover.has(e.target).length === 0 &&
+                        !$playlistFilterBtn.is(e.target)
+                  ) {
+                        closePopover();
+                  }
+            });
+            // Hide on ESC
+            $(document).on('keydown', function (e) {
+                  if (e.key === 'Escape') closePopover();
+            });
+      }
+});
 
 /* global jQuery */
 (function ($) {
@@ -167,11 +211,11 @@
       const $btnClipDelete = $('#clipDeleteBtn');
 
       const EVENT_COLOURS = {
-            goal: '#4CAF50',
-            goal_for: '#4CAF50',
-            goal_against: '#4CAF50',
-            shot: '#2196F3',
-            chance: '#9C27B0',
+            goal: '#22C55E',
+            goal_for: '#22C55E',
+            goal_against: '#22C55E',
+            shot: '#0EA5E9',
+            chance: '#FFB340',
             big_chance: '#9C27B0',
             corner: '#FF9800',
             corner_for: '#FF9800',
@@ -1648,10 +1692,12 @@
             const opts = { ...options, previousScroll };
 
             let filtered = [...events];
+            const filtersActive = Boolean(teamF || typeF || playerF);
             if (teamF) filtered = filtered.filter((e) => e.team_side === teamF);
             if (typeF) filtered = filtered.filter((e) => String(e.event_type_id) === String(typeF));
             if (playerF) filtered = filtered.filter((e) => String(e.match_player_id) === String(playerF));
 
+            // Always include period events if present in the DB, even if filtered out
             if (events && events.length) {
                   const periodCandidates = events.filter(
                         (ev) => isPeriodEvent(ev) && ev.match_second !== null && ev.match_second !== undefined
@@ -1678,10 +1724,26 @@
 
             filteredCache = filtered;
 
+            // Only show 'No events yet' if there are truly no events in the DB
+            const noEventsInDb = !events || !events.length;
+            const noEventsAfterFilter = !filtered.length;
+
             if (timelineMode === 'matrix') {
-                  renderMatrix(groups, filtered, opts);
+                  if (noEventsInDb) {
+                        $timelineMatrix.html('<div class="text-muted-alt text-sm">No events yet.</div>');
+                  } else if (noEventsAfterFilter && filtersActive) {
+                        $timelineMatrix.html('<div class="text-muted-alt text-sm">No events match your filters.</div>');
+                  } else {
+                        renderMatrix(groups, filtered, opts);
+                  }
             } else {
-                  renderListTimeline(groups, filtered);
+                  if (noEventsInDb) {
+                        $timelineList.html('<div class="text-muted-alt text-sm">No events yet.</div>');
+                  } else if (noEventsAfterFilter && filtersActive) {
+                        $timelineList.html('<div class="text-muted-alt text-sm">No events match your filters.</div>');
+                  } else {
+                        renderListTimeline(groups, filtered);
+                  }
             }
       }
 
@@ -1976,83 +2038,8 @@
                   html += '</div></div></div>';
             });
 
-            if (clipRanges.length) {
-                  html += `<div class="matrix-grid" style="${gridColumnsStyle}">`;
-                  html += `<div class="matrix-type matrix-type--clip">Clips</div>`;
-                  html += `<div class="matrix-track" style="width:${timelineWidth}px">`;
-                  html += `<div class="matrix-row-buckets" style="grid-template-columns:${bucketColumns}; width:${timelineWidth}px">`;
-                  buckets.forEach((bucket, idx) => {
-                        html += `<div class="matrix-cell" data-bucket="${idx}" style="width:${bucketWidths[idx]}px"></div>`;
-                  });
-                  html += '</div>';
-                  html += `<div class="matrix-row-events matrix-row-events--clip" style="width:${timelineWidth}px">`;
-                  clipRanges.forEach((clip) => {
-                        const start = Math.max(0, Number.isFinite(clip.start) ? clip.start : 0);
-                        const end = Math.max(0, Number.isFinite(clip.end) ? clip.end : 0);
-                        if (end <= start) {
-                              return;
-                        }
-                        const left = Math.min(Math.max(0, start * timelineZoom.pixelsPerSecond * timelineZoom.scale), timelineWidth);
-                        const rawWidth = Math.max(0, (end - start) * timelineZoom.pixelsPerSecond * timelineZoom.scale);
-                        let width = Math.max(6, rawWidth);
-                        if (left + width > timelineWidth) {
-                              width = Math.max(4, timelineWidth - left);
-                        }
-                        if (width <= 0) {
-                              return;
-                        }
-                        const clipLabel = clip.label || `Clip #${clip.clipId}`;
-                        const tooltip = `${h(clipLabel)} · ${h(formatMatchSecondWithExtra(start, 0))} – ${h(formatMatchSecondWithExtra(end, 0))}`;
-                        html += `<span class="matrix-clip" data-clip-id="${clip.clipId}" draggable="true" data-start-second="${start}" title="${tooltip}" style="left:${left}px; width:${width}px"></span>`;
-                  });
-                  html += '</div></div></div>';
-            }
 
-            if (annotationsEnabled) {
-                  const drawingAnnotations = Array.isArray(timelineAnnotations) ? timelineAnnotations : [];
-                  html += `<div class="matrix-grid" style="${gridColumnsStyle}">`;
-                  html += `<div class="matrix-type matrix-type--drawing">DRAWINGS</div>`;
-                  html += `<div class="matrix-track" style="width:${timelineWidth}px">`;
-                  html += `<div class="matrix-row-buckets" style="grid-template-columns:${bucketColumns}; width:${timelineWidth}px">`;
-                  buckets.forEach((bucket, idx) => {
-                        html += `<div class="matrix-cell" data-bucket="${idx}" style="width:${bucketWidths[idx]}px"></div>`;
-                  });
-                  html += '</div>';
-                  html += `<div class="matrix-row-events matrix-row-events--drawing" style="width:${timelineWidth}px">`;
-                  if (!drawingAnnotations.length) {
-                        html += '<div class="matrix-drawing-empty">No drawings yet.</div>';
-                  }
-                  drawingAnnotations.forEach((annotation) => {
-                        const seconds = Number(annotation.timestamp_second);
-                        if (!Number.isFinite(seconds)) {
-                              return;
-                        }
-                        const left = Math.min(Math.max(0, seconds * timelineZoom.pixelsPerSecond * timelineZoom.scale), timelineWidth);
-                        const fallbackWindow = DRAWING_WINDOW_FALLBACK_SECONDS;
-                        let beforeSeconds = Number(annotation.show_before_seconds);
-                        if (!Number.isFinite(beforeSeconds) || beforeSeconds < 0) {
-                              const derivedFrom = Number(annotation.show_from_second);
-                              beforeSeconds = Number.isFinite(derivedFrom)
-                                    ? Math.max(0, seconds - derivedFrom)
-                                    : fallbackWindow;
-                        } else {
-                              beforeSeconds = Math.max(0, beforeSeconds);
-                        }
-                        let afterSeconds = Number(annotation.show_after_seconds);
-                        if (!Number.isFinite(afterSeconds) || afterSeconds < 0) {
-                              const derivedTo = Number(annotation.show_to_second);
-                              afterSeconds = Number.isFinite(derivedTo)
-                                    ? Math.max(0, derivedTo - seconds)
-                                    : fallbackWindow;
-                        } else {
-                              afterSeconds = Math.max(0, afterSeconds);
-                        }
-                        const note = annotation.notes ? String(annotation.notes).trim() : 'Drawing';
-                        const tooltip = `${h(note || 'Drawing')} · ${h(formatMatchSecondWithExtra(seconds, 0))} · before ${beforeSeconds}s / after ${afterSeconds}s`;
-                        html += `<span class="matrix-drawing" data-annotation-id="${annotation.id}" data-drawing-id="${annotation.id}" data-second="${seconds}" data-before="${beforeSeconds}" data-after="${afterSeconds}" title="${tooltip}" style="left:${left}px"></span>`;
-                  });
-                  html += '</div></div></div>';
-            }
+            // Removed Clips and Drawings from timeline (matrix mode)
 
             html += '</div>';
 

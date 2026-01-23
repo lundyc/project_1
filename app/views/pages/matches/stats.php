@@ -193,709 +193,561 @@ $phase2Buckets = $phase2['per_15_minute'] ?? [];
 $headExtras = <<<HTML
 <style>
 .match-hero {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 16px;
-          padding: 16px 20px;
-          border: 1px solid #1e2b40;
-          border-radius: 12px;
-          background: linear-gradient(135deg, #0f1c33 0%, #0b172b 100%);
-          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    border: 1px solid var(--border-primary);
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--surface-2) 0%, var(--surface-1) 100%);
+    box-shadow: 0 10px 30px var(--shadow-strong);
 }
 .match-hero-left {
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }
-.match-hero-eyebrow {
-          font-size: 0.75rem;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-          color: #8fa4c7;
-          font-weight: 600;
+.match-hero-eyebrow, .match-hero-separator, .match-hero-meta-label {
+    color: var(--text-muted);
 }
-.match-hero-title {
-          font-size: 1.75rem;
-          font-weight: 800;
-          color: #f8fafc;
-          line-height: 1.2;
+.match-hero-title, .match-hero-score {
+    color: var(--text-primary);
 }
-.match-hero-separator {
-          color: #8fa4c7;
-          font-weight: 600;
-}
-.match-hero-subtitle {
-          color: #cbd5e1;
-          font-size: 0.95rem;
-}
-.match-hero-right {
-          display: flex;
-          flex-direction: column;
-          align-items: flex-end;
-          gap: 10px;
-}
-.match-hero-meta {
-          display: flex;
-          flex-direction: column;
-          align-items: flex-end;
-          gap: 4px;
-}
-.match-hero-meta-label {
-          font-size: 0.75rem;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-          color: #8fa4c7;
-}
-.match-hero-score {
-          font-size: 1.8rem;
-          font-weight: 800;
-          color: #f8fafc;
-}
-.match-hero-status {
-          font-size: 0.85rem;
-          color: #cbd5e1;
-}
-.match-hero-actions {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-}
-@media (max-width: 768px) {
-          .match-hero {
-                    flex-direction: column;
-                    align-items: flex-start;
-          }
-          .match-hero-right {
-                    align-items: flex-start;
-                    width: 100%;
-          }
-          .match-hero-actions {
-                    width: 100%;
-                    gap: 10px;
-          }
-          .match-hero-actions .btn {
-                    flex: 1;
-                    text-align: center;
-          }
-}
-
-.summary-timeline {
-          display: flex;
-          flex-direction: column;
-          gap: 14px;
+.match-hero-subtitle, .match-hero-status, .stl-period-header, .stl-player {
+    color: var(--text-secondary);
 }
 .stl-period {
-          background: #0b172b;
-          border: 1px solid #1e2b40;
-          border-radius: 10px;
-          padding: 12px;
-}
-.stl-period-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          text-transform: uppercase;
-          font-size: 12px;
-          letter-spacing: 0.04em;
-          color: #cbd5e1;
-          margin-bottom: 8px;
-}
-.stl-period-name {
-          font-weight: 700;
+    background: var(--surface-1);
+    border: 1px solid var(--border-primary);
 }
 .stl-period-score {
-          background: #0f1c33;
-          border: 1px solid #233656;
-          border-radius: 999px;
-          padding: 6px 12px;
-          font-weight: 700;
-          color: #e2e8f0;
-          min-width: 68px;
-          text-align: center;
+    background: var(--surface-2);
+    border: 1px solid var(--border-secondary);
+    color: var(--text-tertiary);
 }
-.stl-separator {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-          color: #94a3b8;
-          font-size: 12px;
-          padding: 6px 0;
+.stl-separator, .stl-minute {
+    color: var(--text-tertiary);
 }
-.stl-separator::before,
-.stl-separator::after {
-          content: '';
-          flex: 1;
-          height: 1px;
-          background: #1f2f4a;
-}
-.stl-grid {
-          display: flex;
-          flex-direction: column;
-          gap: 10px;
-}
-.stl-row {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 10px;
-          align-items: stretch;
-}
-.stl-divider {
-          grid-column: 1 / -1;
-          padding: 6px 0;
-}
-.stl-cell {
-          min-height: 20px;
+.stl-separator::before, .stl-separator::after {
+    background: var(--surface-3);
 }
 .stl-event {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          background: #0f1f37;
-          border: 1px solid #1f2f4a;
-          border-radius: 12px;
-          padding: 8px 10px;
-          color: #e2e8f0;
-          text-decoration: none;
-          transition: border-color 120ms ease, transform 120ms ease;
+    background: var(--surface-4);
+    border: 1px solid var(--border-secondary);
+    color: var(--text-tertiary);
 }
 .stl-event:hover {
-          border-color: #38bdf8;
-          transform: translateY(-1px);
-}
-.stl-minute {
-          font-weight: 700;
-          color: #94a3b8;
-          min-width: 34px;
-          text-align: right;
-}
-.stl-text {
-          display: flex;
-          flex-direction: column;
-          gap: 2px;
+    border-color: var(--accent-info);
 }
 .stl-card {
-          color: #eab308;
-          display: inline-flex;
-          align-items: center;
-          font-size: 12px;
+    color: var(--accent-warning);
 }
 .stl-card.red {
-          color: #ef4444;
+    color: var(--accent-danger);
 }
 .stl-title {
-          font-weight: 700;
-          color: #e2e8f0;
-}
-.stl-player {
-          font-size: 12px;
-          color: #cbd5e1;
+    color: var(--text-tertiary);
 }
 .stl-away .stl-event {
-          flex-direction: row-reverse;
-          text-align: right;
+    flex-direction: row-reverse;
+    text-align: right;
 }
 .stl-away .stl-minute {
-          text-align: left;
+    text-align: left;
 }
 .stl-away .stl-text {
-          align-items: flex-end;
+    align-items: flex-end;
 }
 .stl-fulltime {
-          margin-top: 6px;
-          background: #0b172b;
-          border: 1px solid #233656;
-          border-radius: 10px;
-          padding: 10px 12px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          font-weight: 700;
-          color: #e2e8f0;
+    margin-top: 6px;
+    background: var(--surface-1);
+    border: 1px solid var(--border-secondary);
+    border-radius: 10px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-weight: 700;
+    color: var(--text-tertiary);
 }
 .stl-fulltime small {
-          color: #94a3b8;
-          text-transform: uppercase;
-          letter-spacing: 0.04em;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
 }
 @media (max-width: 768px) {
-          .stl-row {
-                    grid-template-columns: 1fr;
-          }
-          .stl-away .stl-event {
-                    flex-direction: row;
-                    text-align: left;
-          }
-          .stl-away .stl-text {
-                    align-items: flex-start;
-          }
+    .stl-row {
+        grid-template-columns: 1fr;
+    }
+    .stl-away .stl-event {
+        flex-direction: row;
+        text-align: left;
+    }
+    .stl-away .stl-text {
+        align-items: flex-start;
+    }
 }
 .phase2-sections {
-          display: flex;
-          flex-direction: column;
-          gap: 1rem;
-          margin-bottom: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
 }
 .phase2-grid {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 12px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
 }
 .phase2-panel-column {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
 }
 .phase2-panel {
-          background: #0b172b;
-          border: 1px solid #1e2b40;
-          border-radius: 10px;
-          padding: 12px;
+    background: var(--surface-1);
+    border: 1px solid var(--border-primary);
+    border-radius: 10px;
+    padding: 12px;
 }
 .phase2-panel-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
 }
 .phase2-panel-title {
-          font-size: 14px;
-          font-weight: 600;
+    font-size: 14px;
+    font-weight: 600;
 }
 .phase2-panel-note {
-          font-size: 11px;
-          color: #94a3b8;
-          letter-spacing: 0.04em;
-          text-transform: uppercase;
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
 }
 .phase2-card {
-          background: #0f1c33;
-          border: 1px solid #1f2f4a;
-          border-radius: 10px;
-          padding: 10px;
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
+    background: var(--surface-2);
+    border: 1px solid var(--border-secondary);
+    border-radius: 10px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
 }
 .phase2-card-label {
-          font-size: 12px;
-          color: #94a3b8;
-          text-transform: uppercase;
-          letter-spacing: 0.06em;
+    font-size: 12px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
 }
 .phase2-card-values {
-          display: flex;
-          width: 100%;
-          justify-content: space-between;
-          font-size: 1.65rem;
-          font-weight: 700;
+    display: flex;
+    width: 100%;
+    justify-content: space-between;
+    font-size: 1.65rem;
+    font-weight: 700;
 }
 .phase2-card-values span {
-          flex: 1;
+    flex: 1;
 }
 .phase2-highlight {
-          font-size: 12px;
-          color: #cbd5e1;
+    font-size: 12px;
+    color: var(--text-muted);
 }
 .half-cue {
-          font-size: 12px;
-          color: #94a3b8;
+    font-size: 12px;
+    color: var(--text-muted);
 }
 .distribution-table {
-          display: flex;
-          flex-direction: column;
-          gap: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }
 .distribution-legend {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-          font-size: 11px;
-          letter-spacing: 0.06em;
-          color: #94a3b8;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
 }
 .distribution-legend-pill {
-          text-transform: uppercase;
-          border-radius: 999px;
-          padding: 4px 10px;
-          font-weight: 600;
-          font-size: 10px;
+    text-transform: uppercase;
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-weight: 600;
+    font-size: 10px;
 }
 .distribution-legend-pill-home {
-          background: rgba(59, 130, 246, 0.15);
-          color: #3b82f6;
+    background: rgba(59, 130, 246, 0.15);
+    color: var(--text-primary);
 }
 .distribution-legend-pill-away {
-          background: rgba(251, 146, 60, 0.15);
-          color: #fb923c;
+    background: rgba(251, 146, 60, 0.15);
+    color: var(--text-primary);
 }
 .distribution-legend-pill-unknown {
-          background: rgba(148, 163, 184, 0.15);
-          color: #94a3b8;
+    background: rgba(148, 163, 184, 0.15);
+    color: var(--text-muted);
 }
 .distribution-row {
-          display: flex;
-          flex-direction: column;
-          gap: 10px;
-          padding: 14px;
-          border: 1px solid #1f2f4a;
-          border-radius: 10px;
-          background: #0f1c33;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    border: 1px solid var(--surface-3);
+    border-radius: 10px;
+    background: var(--surface-1);
 }
 .distribution-row-heading {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
 }
 .distribution-label {
-          font-size: 12px;
-          font-weight: 600;
-          color: #cbd5e1;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
 }
 .distribution-total {
-          font-size: 11px;
-          color: #94a3b8;
+    font-size: 11px;
+    color: var(--text-muted);
 }
 .distribution-info {
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }
 .distribution-chart {
-          display: flex;
-          height: 10px;
-          border-radius: 999px;
-          overflow: hidden;
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    height: 10px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
 }
 .distribution-segment {
-          display: block;
-          height: 100%;
+    display: block;
+    height: 100%;
 }
 .distribution-segment-home {
-          background: linear-gradient(90deg, #3b82f6, #0ea5e9);
+    background: linear-gradient(90deg, #3b82f6, #0ea5e9);
 }
 .distribution-segment-away {
-          background: linear-gradient(90deg, #fb923c, #f97316);
+    background: linear-gradient(90deg, #fb923c, #f97316);
 }
 .distribution-segment-unknown {
-          background: linear-gradient(90deg, #94a3b8, #64748b);
+    background: linear-gradient(90deg, #94a3b8, #64748b);
 }
 .distribution-pill-row {
-          display: flex;
-          gap: 8px;
-          flex-wrap: wrap;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
 }
 .distribution-pill {
-          font-size: 11px;
-          font-weight: 600;
-          padding: 6px 12px;
-          border-radius: 999px;
-          color: #f8fafc;
-          text-transform: none;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 999px;
+    color: var(--text-primary);
+    text-transform: none;
 }
 .distribution-pill-home {
-          background: linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(14, 165, 233, 0.45));
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(14, 165, 233, 0.45));
 }
 .distribution-pill-away {
-          background: linear-gradient(135deg, rgba(251, 146, 60, 0.25), rgba(249, 115, 22, 0.45));
+    background: linear-gradient(135deg, rgba(251, 146, 60, 0.25), rgba(249, 115, 22, 0.45));
 }
 .distribution-pill-unknown {
-          background: linear-gradient(135deg, rgba(148, 163, 184, 0.25), rgba(100, 116, 139, 0.45));
+    background: linear-gradient(135deg, rgba(148, 163, 184, 0.25), rgba(100, 116, 139, 0.45));
 }
 @media (max-width: 768px) {
-          .phase2-grid {
-                    grid-template-columns: 1fr;
-          }
-          .distribution-row-heading {
-                    flex-direction: column;
-                    align-items: flex-start;
-          }
-          .distribution-pill-row {
-                    flex-direction: column;
-                    align-items: flex-start;
-          }
+    .phase2-grid {
+        grid-template-columns: 1fr;
+    }
+    .distribution-row-heading {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .distribution-pill-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
 }
 .comparison-extension {
-          display: flex;
-          flex-direction: column;
-          gap: 1rem;
-          margin-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 1rem;
 }
 .period-comparison,
 .phase-comparison {
-          background: #0b172b;
-          border: 1px solid #1e2b40;
-          border-radius: 10px;
-          padding: 12px;
+    background: var(--surface-1);
+    border: 1px solid var(--border-primary);
+    border-radius: 10px;
+    padding: 12px;
 }
 .period-section-note,
 .phase-section-note {
-          font-size: 11px;
-          color: #94a3b8;
-          letter-spacing: 0.04em;
-          text-transform: uppercase;
-          margin-top: 6px;
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-top: 6px;
 }
 .period-table,
 .phase-table {
-          margin-top: 10px;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 8px;
-          overflow: hidden;
+    margin-top: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    overflow: hidden;
 }
 .period-row,
 .phase-row {
-          display: grid;
-          grid-template-columns: 1fr max-content max-content;
-          gap: 10px;
-          padding: 10px 12px;
-          align-items: center;
+    display: grid;
+    grid-template-columns: 1fr max-content max-content;
+    gap: 10px;
+    padding: 10px 12px;
+    align-items: center;
 }
 .period-row:not(.period-row-header),
 .phase-row:not(.phase-row-header) {
-          border-top: 1px solid rgba(255, 255, 255, 0.04);
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
 }
 .period-row-header,
 .phase-row-header {
-          font-size: 11px;
-          letter-spacing: 0.06em;
-          color: #94a3b8;
-          text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    text-transform: uppercase;
 }
 .period-label,
 .phase-label {
-          font-weight: 600;
-          color: #e2e8f0;
+    font-weight: 600;
+    color: var(--text-tertiary);
 }
 .observation-list {
-          margin: 0;
-          padding-left: 1.25rem;
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-          font-size: 13px;
-          color: #cbd5e1;
+    margin: 0;
+    padding-left: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 13px;
+    color: var(--text-muted);
 }
 .momentum-panel {
-          background: #0b172b;
-          border: 1px solid #1e2b40;
-          border-radius: 10px;
-          padding: 14px;
-          margin-top: 1rem;
+    background: var(--surface-1);
+    border: 1px solid var(--border-primary);
+    border-radius: 10px;
+    padding: 14px;
+    margin-top: 1rem;
 }
 .momentum-panel-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
 }
 .momentum-note {
-          font-size: 11px;
-          color: #94a3b8;
-          letter-spacing: 0.04em;
-          text-transform: uppercase;
-          margin-bottom: 10px;
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
 }
 .momentum-chart {
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-          max-height: 250px;
-          overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 250px;
+    overflow-y: auto;
 }
 .momentum-row {
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-          padding: 6px 0;
-          border-top: 1px solid rgba(255, 255, 255, 0.04);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 6px 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
 }
 .momentum-row:first-child {
-          border-top: none;
+    border-top: none;
 }
 .momentum-row-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          font-size: 13px;
-          color: #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13px;
+    color: var(--text-tertiary);
 }
 .momentum-row-bars {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 6px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
 }
 .momentum-bar {
-          height: 6px;
-          border-radius: 999px;
-          background: rgba(255, 255, 255, 0.08);
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
 }
 .momentum-bar-home {
-          background: linear-gradient(90deg, #38bdf8, #0ea5e9);
+    background: linear-gradient(90deg, #38bdf8, #0ea5e9);
 }
 .momentum-bar-away {
-          background: linear-gradient(90deg, #fb923c, #f97316);
+    background: linear-gradient(90deg, #fb923c, #f97316);
 }
 .match-overview-graphs {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 12px;
-          margin-top: 12px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 12px;
 }
 .overview-graph-card {
-          display: flex;
-          flex-direction: column;
-          gap: 10px;
-          padding: 16px;
-          background: #0d1526;
-          border: 1px solid #1d2740;
-          border-radius: 14px;
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px;
+    background: var(--surface-1);
+    border: 1px solid var(--border-primary);
+    border-radius: 14px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
 }
 .overview-graph-card .phase2-card-label {
-          margin-bottom: 0;
-          text-transform: uppercase;
-          letter-spacing: 0.18em;
-          font-size: 13px;
-          color: #a5b7cf;
+    margin-bottom: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-size: 13px;
+    color: var(--text-muted);
 }
 .overview-gauge-wrapper {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
 }
 .overview-gauge {
-          position: relative;
-          width: 160px;
-          min-height: 80px;
-          margin: 0 auto;
+    position: relative;
+    width: 160px;
+    min-height: 80px;
+    margin: 0 auto;
 }
 .overview-gauge svg {
-          width: 160px;
-          height: 80px;
-          display: block;
+    width: 160px;
+    height: 80px;
+    display: block;
 }
 .overview-gauge path {
-          fill: none;
-          stroke-width: 14;
-          stroke-linecap: butt;
+    fill: none;
+    stroke-width: 14;
+    stroke-linecap: butt;
 }
 .overview-gauge-base {
-          stroke: rgba(255, 255, 255, 0.15);
+    stroke: rgba(255, 255, 255, 0.15);
 }
 .overview-gauge-fill {
-          opacity: 0.95;
+    opacity: 0.95;
 }
 .overview-gauge-fill.overview-gauge-away {
-          stroke: #f97316;
+    stroke: #f97316;
 }
 .overview-gauge-fill.overview-gauge-home {
-          stroke: #3b82f6;
+    stroke: #3b82f6;
 }
 .overview-gauge-center {
-          position: absolute;
-          top: 36px;
-          left: 50%;
-          transform: translateX(-50%);
-          text-align: center;
+    position: absolute;
+    top: 36px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
 }
 .overview-gauge-percent {
-          font-size: 1.4rem;
-          font-weight: 700;
-          color: #ffffff;
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #F4F7FA;
 }
 .overview-gauge-caption {
-          font-size: 10px;
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
-          color: #94a3b8;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #94a3b8;
 }
 .overview-gauge-labels {
-          position: absolute;
-          top: 6px;
-          left: 10px;
-          right: 10px;
-          display: flex;
-          justify-content: space-between;
-          font-size: 11px;
-          text-transform: uppercase;
+    position: absolute;
+    top: 6px;
+    left: 10px;
+    right: 10px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    text-transform: uppercase;
 }
 .overview-gauge-label-home {
-          color: #3b82f6;
+    color: #3b82f6;
 }
 .overview-gauge-label-away {
-          color: #f97316;
-          text-align: right;
+    color: #f97316;
+    text-align: right;
 }
 .overview-stats {
-          width: 100%;
+    width: 100%;
 }
 .overview-stats-row {
-          display: grid;
-          grid-template-columns: repeat(2, 1fr);
-          gap: 8px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
 }
 .overview-stats-labels {
-          text-transform: uppercase;
-          justify-items: center;
-          text-align: center;
+    text-transform: uppercase;
+    justify-items: center;
+    text-align: center;
                     border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-          padding-bottom: 2px;
+    padding-bottom: 2px;
 }
 
 .overview-stats-row span {
-          text-align: center;
+    text-align: center;
 }
 .overview-stats-label {
-          font-size: 10px;
-          letter-spacing: 0.12em;
-          color: #8fa4c7;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    color: #8fa4c7;
 
 }
 .overview-stats-label:last-child {
-          text-align: right;
+    text-align: right;
 }
 .overview-stats-values {
-          font-size: 14px;
-          font-weight: 600;
-          color: #fdfdfd;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fdfdfd;
 }
 .overview-stats-values span:last-child {
-          text-align: center;
+    text-align: center;
 }
 .overview-gauge-meta {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-          font-size: 12px;
-          color: #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    color: #e2e8f0;
 }
 .overview-gauge-value {
-          font-weight: 600;
+    font-weight: 600;
 }
 .overview-gauge-total {
-          font-size: 11px;
-          color: #94a3b8;
+    font-size: 11px;
+    color: #94a3b8;
 }
 .momentum-row-values {
-          display: flex;
-          gap: 12px;
-          font-size: 12px;
-          color: #cbd5e1;
+    display: flex;
+    gap: 12px;
+    font-size: 12px;
+    color: #cbd5e1;
 }
 .momentum-row-values .text-home {
-          color: #38bdf8;
+    color: #38bdf8;
 }
 .momentum-row-values .text-away {
-          color: #fb923c;
+    color: #fb923c;
 }
 .momentum-row-label {
-          font-weight: 600;
+    font-weight: 600;
 }
 </style>
 HTML;
@@ -1290,7 +1142,17 @@ $awayHalfShift = (int)$secondHalfCounts['away'] - (int)$firstHalfCounts['away'];
                                         </div>
                                         <div class="match-overview-graphs">
                                                   <?= render_graph_card('Set pieces (corners + free kicks + penalties)', (int)$setPieces['home'], (int)$setPieces['away'], 'Aggregated from derived stats totals') ?>
-                                                  <?= render_graph_card('Cards (yellow + red)', (int)$cards['home'], (int)$cards['away'], 'Discipline totals from derived stats') ?>
+                                                  <?= render_shot_accuracy_card(
+                                                            'Cards (yellow + red)',
+                                                            $match['home_team'] ?? 'Home',
+                                                            'On Target',
+                                                            'Off Target',
+                                                            $cards['home'],
+                                                            $cards['away'],
+                                                            $homeShotGauge['homePercent'],
+                                                            $homeShotGauge['awayPercent'],
+                                                            $homeTotalForDisplay
+                                                  ) ?>
                                         </div>
                               </div>
                     </div>
@@ -1457,13 +1319,23 @@ $awayHalfShift = (int)$secondHalfCounts['away'] - (int)$firstHalfCounts['away'];
                     <div class="text-muted-alt text-sm">No events yet.</div>
           <?php else: ?>
                     <div class="summary-timeline">
-                              <?php foreach ($timeline as $periodLabel => $rows): ?>
-                                        <?php
+                              <?php
+                              // Helper: get the running score at the start of a period
+                              $getScoreAtPeriodStart = function($periodIdx, $orderedLabels, $periodEndScores) {
+                                        if ($periodIdx === 0) {
+                                                  return ['home' => 0, 'away' => 0];
+                                        }
+                                        $prevLabel = $orderedLabels[$periodIdx - 1] ?? null;
+                                        return $prevLabel && isset($periodEndScores[$prevLabel]) ? $periodEndScores[$prevLabel] : ['home' => 0, 'away' => 0];
+                              };
+                              $periodIdx = 0;
+                              foreach ($timeline as $periodLabel => $rows):
                                         $sorted = $rows;
                                         usort($sorted, function ($a, $b) {
                                                   return ((int)($a['match_second'] ?? 0)) <=> ((int)($b['match_second'] ?? 0));
                                         });
-                                        $score = $periodEndScores[$periodLabel] ?? ['home' => 0, 'away' => 0];
+                                        $scoreEnd = $periodEndScores[$periodLabel] ?? ['home' => 0, 'away' => 0];
+                                        $scoreStart = $getScoreAtPeriodStart($periodIdx, $orderedLabels, $periodEndScores);
                                         $hasPeriodEnd = false;
                                         foreach ($sorted as $checkEv) {
                                                   $k = strtolower((string)($checkEv['event_type_key'] ?? ''));
@@ -1474,7 +1346,7 @@ $awayHalfShift = (int)$secondHalfCounts['away'] - (int)$firstHalfCounts['away'];
                                         }
                                         $startMinute = isset($periodWindows[$periodLabel]['start']) ? (int)floor((int)$periodWindows[$periodLabel]['start'] / 60) : 0;
                                         $endMinute = isset($periodWindows[$periodLabel]['end']) ? (int)floor((int)$periodWindows[$periodLabel]['end'] / 60) : null;
-                                        $scoreText = $hasPeriodEnd ? ((int)$score['home'] . ' - ' . (int)$score['away']) : '';
+                                        $scoreText = $hasPeriodEnd ? ((int)$scoreEnd['home'] . ' - ' . (int)$scoreEnd['away']) : '';
                                         ?>
                                         <div class="stl-period">
                                                   <div class="stl-period-header">
@@ -1506,7 +1378,11 @@ $awayHalfShift = (int)$secondHalfCounts['away'] - (int)$firstHalfCounts['away'];
                                                                                           <div class="stl-separator">
                                                                                                     <?= $minuteVal ?>' ·
                                                                                                     <?= htmlspecialchars($eventLabel) ?>
-                                                                                                    <?= (int)$score['home'] ?> - <?= (int)$score['away'] ?>
+                                                                                                    <?php if ($kLower === 'period_start'): ?>
+                                                                                                              <?= (int)$scoreStart['home'] ?> - <?= (int)$scoreStart['away'] ?>
+                                                                                                    <?php else: ?>
+                                                                                                              <?= (int)$scoreEnd['home'] ?> - <?= (int)$scoreEnd['away'] ?>
+                                                                                                    <?php endif; ?>
                                                                                           </div>
                                                                                 </div>
                                                                                 <?php continue; ?>
@@ -1549,6 +1425,7 @@ $awayHalfShift = (int)$secondHalfCounts['away'] - (int)$firstHalfCounts['away'];
 
                                                   </div>
                                         </div>
+                                        <?php $periodIdx++; ?>
                               <?php endforeach; ?>
                               <div class="stl-fulltime">
                                         <small>Full time</small>

@@ -85,7 +85,7 @@ if ($isPlatformAdmin) {
                               <div class="top-nav__brand-text">
                                         <span class="top-nav__brand-name"><?= htmlspecialchars($appName) ?></span>
                                         <?php if (!empty($title)): ?>
-                                                  <span class="top-nav__section"><?= htmlspecialchars($title) ?></span>
+                                                  <span class="top-nav__section"></span>
                                         <?php endif; ?>
                               </div>
                     </div>

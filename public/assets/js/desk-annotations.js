@@ -4,36 +4,36 @@
     // Pencil defaults used for initial toolbar state
     pencil: {
       thickness: 4,
-      color: '#facc15',
+      color: '#FACC15',
     },
     spotlight: {
       // Vertical beam gradient stops (bottom → top)
       verticalGradientStops: [
-        { offset: 0, color: 'rgba(255,255,255,0.58)' },
-        { offset: 0.25, color: 'rgba(255,255,255,0.44)' },
-        { offset: 0.45, color: 'rgba(255,255,255,0.34)' },
-        { offset: 0.7, color: 'rgba(255,255,255,0.22)' },
-        { offset: 1, color: 'rgba(255,255,255,0)' },
+        { offset: 0, color: 'rgba(244,247,250,0.58)' },
+        { offset: 0.25, color: 'rgba(244,247,250,0.44)' },
+        { offset: 0.45, color: 'rgba(244,247,250,0.34)' },
+        { offset: 0.7, color: 'rgba(244,247,250,0.22)' },
+        { offset: 1, color: 'rgba(244,247,250,0)' },
       ],
       // Horizontal softness mask stops (left → right)
       horizontalGradientStops: [
-        { offset: 0, color: 'rgba(255,255,255,0)' },
-        { offset: 0.25, color: 'rgba(255,255,255,0.25)' },
-        { offset: 0.5, color: 'rgba(255,255,255,0.45)' },
-        { offset: 0.75, color: 'rgba(255,255,255,0.25)' },
-        { offset: 1, color: 'rgba(255,255,255,0)' },
+        { offset: 0, color: 'rgba(244,247,250,0)' },
+        { offset: 0.25, color: 'rgba(244,247,250,0.25)' },
+        { offset: 0.5, color: 'rgba(244,247,250,0.45)' },
+        { offset: 0.75, color: 'rgba(244,247,250,0.25)' },
+        { offset: 1, color: 'rgba(244,247,250,0)' },
       ],
       // Ellipse glow radial gradient stops
       ellipseGradientStops: [
-        { offset: 0, color: 'rgba(255,255,255,0.45)' },
-        { offset: 0.5, color: 'rgba(255,255,255,0.15)' },
-        { offset: 1, color: 'rgba(255,255,255,0)' },
+        { offset: 0, color: 'rgba(244,247,250,0.45)' },
+        { offset: 0.5, color: 'rgba(244,247,250,0.15)' },
+        { offset: 1, color: 'rgba(244,247,250,0)' },
       ],
       // Ellipse fade mask stops (bottom → top)
       ellipseMaskStops: [
-        { offset: 1, color: 'rgba(255,255,255,1)' },
-        { offset: 0.5, color: 'rgba(255,255,255,0.5)' },
-        { offset: 0, color: 'rgba(255,255,255,0)' },
+        { offset: 1, color: 'rgba(244,247,250,1)' },
+        { offset: 0.5, color: 'rgba(244,247,250,0.5)' },
+        { offset: 0, color: 'rgba(244,247,250,0)' },
       ],
       minBeamWidth: 30,
     },
@@ -527,18 +527,18 @@
       ctx.clip();
 
       const radial = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, Math.max(radiusX, radiusY));
-      radial.addColorStop(0, 'rgba(255,255,255,0.32)');
-      radial.addColorStop(0.6, 'rgba(255,255,255,0.12)');
-      radial.addColorStop(1, 'rgba(255,255,255,0)');
+      radial.addColorStop(0, 'rgba(244,247,250,0.32)');
+      radial.addColorStop(0.6, 'rgba(244,247,250,0.12)');
+      radial.addColorStop(1, 'rgba(244,247,250,0)');
       ctx.fillStyle = radial;
       ctx.fillRect(centerX - radiusX, top, radiusX * 2, radiusY * 2);
 
       const vertical = ctx.createLinearGradient(centerX, top, centerX, bottom);
-      vertical.addColorStop(0, 'rgba(255,255,255,0)');
-      vertical.addColorStop(0.35, 'rgba(255,255,255,0.18)');
-      vertical.addColorStop(0.5, 'rgba(255,255,255,0.35)');
-      vertical.addColorStop(0.65, 'rgba(255,255,255,0.18)');
-      vertical.addColorStop(1, 'rgba(255,255,255,0)');
+      vertical.addColorStop(0, 'rgba(244,247,250,0)');
+      vertical.addColorStop(0.35, 'rgba(244,247,250,0.18)');
+      vertical.addColorStop(0.5, 'rgba(244,247,250,0.35)');
+      vertical.addColorStop(0.65, 'rgba(244,247,250,0.18)');
+      vertical.addColorStop(1, 'rgba(244,247,250,0)');
       ctx.globalCompositeOperation = 'destination-in';
       ctx.fillStyle = vertical;
       ctx.fillRect(centerX - radiusX, top, radiusX * 2, radiusY * 2);
@@ -549,7 +549,7 @@
       ctx.beginPath();
       ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, Math.PI * 2);
       ctx.lineWidth = Math.max(1, (action.thickness || 3) * 0.4);
-      ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+      ctx.strokeStyle = 'rgba(244,247,250,0.25)';
       ctx.stroke();
     }
     ctx.restore();
@@ -662,7 +662,7 @@
     const beamHeight = Math.max(1, Math.min(groundYValue, canvas.height));
     const beamLeft = centerXValue - beamWidth / 2;
     const beamTop = 0;
-    const beamColor = action.color || '#ffffff';
+    const beamColor = action.color || '#F4F7FA';
 
     ctx.save();
     ctx.beginPath();
@@ -1009,7 +1009,7 @@
         state.drawing = 'spotlight';
         state.currentAction = {
           type: 'spotlight',
-          color: '#ffffff',
+          color: '#F4F7FA',
           centerX: point.x,
           startX: point.x,
           startY: point.y,

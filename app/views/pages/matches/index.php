@@ -27,8 +27,13 @@ foreach ($availableClubs as $club) {
 $clubContextName = $selectedClub['name'] ?? 'Saltcoats Victoria F.C.';
 $showClubSelector = true;
 
+
 $searchQuery = trim((string)($_GET['q'] ?? ''));
 $statusFilter = strtolower(trim((string)($_GET['status'] ?? '')));
+$opponentFilter = trim((string)($_GET['opponent'] ?? ''));
+$competitionTypeFilter = trim((string)($_GET['competition_type'] ?? ''));
+$dateFrom = trim((string)($_GET['date_from'] ?? ''));
+$dateTo = trim((string)($_GET['date_to'] ?? ''));
 
 $totalMatches = count($matches);
 $statusCounts = [];
@@ -56,7 +61,8 @@ foreach ($statusCounts as $status => $count) {
 
 $searchNormalized = strtolower($searchQuery);
 $filteredMatches = array_values(
-    array_filter($matches, function (array $match) use ($searchNormalized, $statusFilter) {
+    array_filter($matches, function (array $match) use ($searchNormalized, $statusFilter, $opponentFilter, $competitionTypeFilter, $dateFrom, $dateTo) {
+        // Status filter
         if ($statusFilter !== '') {
             $matchStatus = strtolower(trim((string)($match['status'] ?? '')));
             if ($matchStatus === '') {
@@ -66,6 +72,40 @@ $filteredMatches = array_values(
                 return false;
             }
         }
+        // Opponent filter
+        if ($opponentFilter !== '') {
+            $home = strtolower(trim((string)($match['home_team'] ?? '')));
+            $away = strtolower(trim((string)($match['away_team'] ?? '')));
+            if ($opponentFilter !== $home && $opponentFilter !== $away) {
+                return false;
+            }
+        }
+        // Competition type filter
+        if ($competitionTypeFilter !== '') {
+            $competition = strtolower(trim((string)($match['competition'] ?? '')));
+            if ($competitionTypeFilter === 'league' && strpos($competition, 'league') === false) {
+                return false;
+            }
+            if ($competitionTypeFilter === 'cups' && strpos($competition, 'cup') === false) {
+                return false;
+            }
+        }
+        // Date range filter
+        if ($dateFrom !== '' || $dateTo !== '') {
+            $kickoff = $match['kickoff_at'] ?? null;
+            if ($kickoff) {
+                $kickoffDate = date('Y-m-d', strtotime($kickoff));
+                if ($dateFrom !== '' && $kickoffDate < $dateFrom) {
+                    return false;
+                }
+                if ($dateTo !== '' && $kickoffDate > $dateTo) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+        // Search query
         if ($searchNormalized === '') {
             return true;
         }
@@ -118,7 +158,7 @@ ob_start();
         <div class="stats-three-col grid grid-cols-12 gap-2 px-4 md:px-6 lg:px-8 w-full">
             <!-- Left Sidebar -->
             <aside class="stats-col-left col-span-2 space-y-4 min-w-0">
-                <div class="rounded-xl bg-slate-900/80 border border-white/10 p-3">
+           
                     <?php if ($canManage): ?>
                         <a href="<?= htmlspecialchars($base) ?>/matches/create" class="stats-tab w-full justify-start text-left px-4 py-2.5 text-sm font-medium rounded-lg border transition-all duration-200 bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20 mb-4 flex">Create Match</a>
                     <?php endif; ?>
@@ -126,30 +166,56 @@ ob_start();
                         <h6 class="text-slate-300 text-xs font-semibold mb-2">Filters</h6>
                         <form method="get" class="flex flex-col gap-3" role="search">
                             <div>
-                                <label class="block text-slate-400 text-xs mb-1" for="matches-search">Search matches</label>
-                                <input id="matches-search" name="q" type="search" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-white/30" placeholder="Search teams, competition, venue, or notes" value="<?= htmlspecialchars($searchQuery) ?>">
-                                <?php if ($statusFilter !== ''): ?>
-                                    <input type="hidden" name="status" value="<?= htmlspecialchars($statusFilter) ?>">
-                                <?php endif; ?>
+                                <label class="block text-slate-400 text-xs mb-1" for="status-filter">Status</label>
+                                <select id="status-filter" name="status" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs">
+                                    <option value="">All</option>
+                                    <?php foreach ($orderedStatuses as $status => $count): ?>
+                                        <?php $statusLabel = $formatStatusLabel($status); ?>
+                                        <option value="<?= htmlspecialchars($status) ?>" <?= $statusFilter === $status ? 'selected' : '' ?>><?= htmlspecialchars($statusLabel) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-slate-400 text-xs mb-1" for="opponent-filter">Opponent</label>
+                                <select id="opponent-filter" name="opponent" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs">
+                                    <option value="">All Opponents</option>
+                                    <?php
+                                    $opponents = [];
+                                    foreach ($matches as $m) {
+                                        $home = trim($m['home_team'] ?? '');
+                                        $away = trim($m['away_team'] ?? '');
+                                        if ($home !== '' && !in_array($home, $opponents, true)) $opponents[] = $home;
+                                        if ($away !== '' && !in_array($away, $opponents, true)) $opponents[] = $away;
+                                    }
+                                    sort($opponents, SORT_NATURAL | SORT_FLAG_CASE);
+                                    foreach ($opponents as $opponent): ?>
+                                        <option value="<?= htmlspecialchars($opponent) ?>" <?= $opponentFilter === $opponent ? 'selected' : '' ?>><?= htmlspecialchars($opponent) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-slate-400 text-xs mb-1" for="competition-type-filter">Competition</label>
+                                <select id="competition-type-filter" name="competition_type" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs">
+                                    <option value="">All Competitions</option>
+                                    <option value="league" <?= $competitionTypeFilter === 'league' ? 'selected' : '' ?>>League</option>
+                                    <option value="cups" <?= $competitionTypeFilter === 'cups' ? 'selected' : '' ?>>Cups</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-slate-400 text-xs mb-1" for="date-from">From</label>
+                                <input id="date-from" name="date_from" type="date" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs" value="<?= htmlspecialchars($dateFrom) ?>">
+                            </div>
+                            <div>
+                                <label class="block text-slate-400 text-xs mb-1" for="date-to">To</label>
+                                <input id="date-to" name="date_to" type="date" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs" value="<?= htmlspecialchars($dateTo) ?>">
+                            </div>
+                            <div>
+                                <button type="submit" class="w-full rounded-md bg-indigo-600 text-white px-4 py-2 text-xs font-semibold hover:bg-indigo-700 transition">Apply Filters</button>
                             </div>
                         </form>
-                        <div class="mt-4 flex flex-col gap-2">
-                            <a class="stats-tab w-full text-left px-4 py-2.5 text-sm font-medium rounded-lg border transition-all duration-200 <?= $statusFilter === '' ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'bg-slate-800/40 border-white/10 text-slate-300 hover:bg-slate-700/50 hover:border-white/20' ?>" role="tab" href="<?= htmlspecialchars($buildTabUrl('')) ?>">
-                                All <span class="ml-2 inline-block rounded-full bg-slate-700/60 px-2 py-0.5 text-xs font-semibold text-slate-200 align-middle"><?= htmlspecialchars((string)$totalMatches) ?></span>
-                            </a>
-                            <?php foreach ($orderedStatuses as $status => $count): ?>
-                                <?php $statusLabel = $formatStatusLabel($status); ?>
-                                <a class="stats-tab w-full text-left px-4 py-2.5 text-sm font-medium rounded-lg border transition-all duration-200 <?= $statusFilter === $status ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'bg-slate-800/40 border-white/10 text-slate-300 hover:bg-slate-700/50 hover:border-white/20' ?>" role="tab" href="<?= htmlspecialchars($buildTabUrl($status)) ?>">
-                                    <?= htmlspecialchars($statusLabel) ?>
-                                    <span class="ml-2 inline-block rounded-full bg-slate-700/60 px-2 py-0.5 text-xs font-semibold text-slate-200 align-middle"><?= htmlspecialchars((string)$count) ?></span>
-                                </a>
-                            <?php endforeach; ?>
-                        </div>
-                        <div class="mt-4 text-xs text-slate-400 bg-slate-800/40 border border-white/10 rounded-lg px-3 py-2">
-                            Showing <?= htmlspecialchars((string)$displayedMatches) ?> of <?= htmlspecialchars((string)$totalMatches) ?> matches
-                        </div>
+                        <!-- Status buttons replaced by dropdown above. Showing X of X matches removed. -->
                     </div>
-                </div>
+                
             </aside>
             <!-- Main Content -->
             <main class="stats-col-main col-span-7 space-y-4 min-w-0">
@@ -165,16 +231,19 @@ ob_start();
                     <?php if ($displayedMatches === 0): ?>
                         <div class="rounded-xl border border-white/10 bg-slate-800/40 p-4 text-slate-400 text-sm">No matches found for the current view.</div>
                     <?php else: ?>
-                        <table class="min-w-full text-sm text-slate-200">
-                            <thead class="bg-slate-900/90 text-slate-100 uppercase tracking-wider">
-                                <tr>
-                                    <th class="px-3 py-2">Match</th>
-                                    <th class="px-3 py-2 text-center">Date</th>
-                                    <th class="px-3 py-2 text-center">Time</th>
-                                    <th class="px-3 py-2 text-center">Competition</th>
-                                    <th class="px-3 py-2 text-center">Status</th>
-                                    <th class="px-3 py-2 text-center">Actions</th>
-                                </tr>
+                                                       <table class="min-w-full text-sm text-slate-200">
+                                    <thead class="bg-slate-900/90 text-slate-100 uppercase tracking-wider">
+                                        <tr>
+                                             <th class="px-3 py-2">Match</th>
+                                            <th class="px-3 py-2">Date</th>
+                                            <th class="px-3 py-2">Time</th>
+                                           
+                                        
+                                            <th class="px-3 py-2">Competition</th>
+                                             <th class="px-3 py-2"></th>
+                                            <th class="px-3 py-2 text-center">Action</th>
+                                        </tr>
+
                             </thead>
                             <tbody>
                                 <?php foreach ($filteredMatches as $match): ?>
@@ -205,34 +274,79 @@ ob_start();
                                         $venue = $match['venue'] ?? '';
                                     ?>
                                     <tr>
-                                        <td class="px-3 py-3 whitespace-nowrap font-semibold text-slate-100 text-sm">
-                                            <a href="<?= $matchUrl ?>" class="hover:underline">
+
+                         
+                  
+ 
+
+
+
+
+                                        <td class="px-3 py-2">
+                                            <a href="<?= $matchUrl ?>" class="text-indigo-300 hover:text-indigo-100">
                                                 <?= htmlspecialchars($title) ?>
                                                 <?php if ($venue !== ''): ?>
                                                     <br><span class="text-xs text-slate-400">@ <?= htmlspecialchars($venue) ?></span>
                                                 <?php endif; ?>
                                             </a>
                                         </td>
-                                        <td class="px-3 py-3 whitespace-nowrap text-slate-200 text-xs font-medium text-center">
-                                            <span class="inline-block bg-slate-800/60 rounded px-2 py-1">
+                                        <td class="px-3 py-2 whitespace-nowrap">
+                                          
                                                 <?= htmlspecialchars($dateLabel) ?>
-                                            </span>
+                                            
                                         </td>
-                                        <td class="px-3 py-3 whitespace-nowrap text-slate-200 text-xs font-medium text-center">
-                                            <span class="inline-block bg-slate-800/60 rounded px-2 py-1">
+                                        <td class="px-3 py-2 whitespace-nowrap">
+                                        
                                                 <?= htmlspecialchars($timeLabel) ?>
-                                            </span>
+                                          
                                         </td>
-                                        <td class="px-3 py-3 whitespace-pre-line text-slate-200 text-xs font-medium text-center">
-                                            <?php if ($displayCompetition !== ''): ?>
-                                                <?= htmlspecialchars($displayCompetition) ?>
-                                            <?php endif; ?>
+                                        <td class="px-1 py-2 max-w-[8rem] truncate align-middle" title="<?= htmlspecialchars($displayCompetition) ?>">
+                                            <?php
+                                            if ($displayCompetition !== '') {
+                                                $shortComp = $displayCompetition;
+                                                if (stripos($shortComp, 'cup') !== false) {
+                                                    // Always show 'Cup' at the end, trim before if needed
+                                                    $parts = preg_split('/\s+/', $shortComp);
+                                                    $beforeCup = [];
+                                                    $foundCup = false;
+                                                    foreach ($parts as $part) {
+                                                        if (stripos($part, 'cup') !== false) {
+                                                            $foundCup = true;
+                                                            break;
+                                                        }
+                                                        $beforeCup[] = $part;
+                                                    }
+                                                    $main = implode(' ', $beforeCup);
+                                                    if (mb_strlen($main) > 10) {
+                                                        $main = mb_substr($main, 0, 10) . '…';
+                                                    }
+                                                    $shortComp = trim($main) . ' Cup';
+                                                } elseif (stripos($shortComp, 'league') !== false) {
+                                                    // For leagues, show full name, never trim
+                                                    $shortComp = $displayCompetition;
+                                                } elseif (stripos($shortComp, 'division') !== false) {
+                                                    // For divisions, show full name, never trim
+                                                    $shortComp = $displayCompetition;
+                                                } else {
+                                                    // For other competitions, trim to 14 chars
+                                                    $shortComp = mb_substr($displayCompetition, 0, 14);
+                                                    if (mb_strlen($displayCompetition) > 14) {
+                                                        $shortComp = rtrim($shortComp) . '…';
+                                                    }
+                                                }
+                                                echo htmlspecialchars($shortComp);
+                                            }
+                                            ?>
                                         </td>
                                         <td class="px-3 py-3 whitespace-nowrap text-center">
                                             <?php if ($status === 'ready'): ?>
-                                                <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-600/80 text-white border border-white/10" title="Ready"><i class="fa-solid fa-circle-check"></i></span>
+<span class="rounded-full p-2.5 text-center text-sm text-green-400 shadow-sm">
+    <i class="fa-solid fa-circle-check"></i>
+</span>
+
+
                                             <?php elseif ($status === 'draft'): ?>
-                                                <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-500/80 text-white border border-white/10" title="Draft"><i class="fa-solid fa-pencil"></i></span>
+                                               <span class="rounded-full p-2.5 text-center text-sm text-amber-400 shadow-sm"><i class="fa-solid fa-pencil"></i></span>
                                             <?php else: ?>
                                                 <span class="status-badge status-badge--<?= htmlspecialchars($statusClass) ?> text-xs px-2 py-1 rounded-full bg-slate-700/40 text-slate-300 border border-white/10">
                                                     <?= htmlspecialchars($statusLabel) ?>

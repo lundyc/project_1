@@ -1079,7 +1079,7 @@ ob_start();
 .overview-gauge-percent {
     font-size: 1.4rem;
     font-weight: 700;
-    color: #ffffff;
+    color: #F4F7FA;
 }
 .overview-gauge-caption {
     font-size: 10px;

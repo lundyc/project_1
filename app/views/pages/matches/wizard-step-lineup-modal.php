@@ -1,4 +1,4 @@
-<div id="lineupCreatePlayerModal" aria-hidden="true" role="dialog" style="display:none; position:fixed; inset:0; z-index:2100; background:rgba(0,0,0,0.6); align-items:center; justify-content:center;">
+<div id="lineupCreatePlayerModal" aria-hidden="true" role="dialog" style="display:none; position:fixed; inset:0; z-index:2100; background:var(--modal-backdrop); align-items:center; justify-content:center;">
           <div class="panel p-3 rounded-md" style="max-width:480px; width:100%; margin:0 16px;">
                     <div class="d-flex align-items-center justify-content-between mb-3">
                               <div>
@@ -56,7 +56,7 @@
 </div>
 </div>
 
-<div id="lineupQuickAddModal" aria-hidden="true" role="dialog" style="display:none; position:fixed; inset:0; z-index:2200; background:rgba(0,0,0,0.6); align-items:center; justify-content:center;">
+<div id="lineupQuickAddModal" aria-hidden="true" role="dialog" style="display:none; position:fixed; inset:0; z-index:2200; background:var(--modal-backdrop); align-items:center; justify-content:center;">
           <div class="panel p-3 rounded-md" style="max-width:420px; width:100%; margin:0 16px;">
                               <div class="d-flex align-items-center justify-content-between mb-3">
                                         <div>
@@ -100,7 +100,7 @@
           </div>
 </div>
 
-<div id="lineupSubstituteModal" aria-hidden="true" role="dialog" style="display:none; position:fixed; inset:0; z-index:2200; background:rgba(0,0,0,0.6); align-items:center; justify-content:center;">
+<div id="lineupSubstituteModal" aria-hidden="true" role="dialog" style="display:none; position:fixed; inset:0; z-index:2200; background:var(--modal-backdrop); align-items:center; justify-content:center;">
           <div class="panel p-3 rounded-md" style="max-width:420px; width:100%; margin:0 16px;">
                               <div class="d-flex align-items-center justify-content-between mb-3">
                                         <div>
@@ -130,7 +130,7 @@
           </div>
 </div>
 
-<div id="lineupSubstitutionModal" aria-hidden="true" role="dialog" style="display:none; position:fixed; inset:0; z-index:2200; background:rgba(0,0,0,0.6); align-items:center; justify-content:center;">
+<div id="lineupSubstitutionModal" aria-hidden="true" role="dialog" style="display:none; position:fixed; inset:0; z-index:2200; background:var(--modal-backdrop); align-items:center; justify-content:center;">
           <div class="panel p-3 rounded-md" style="max-width:420px; width:100%; margin:0 16px;">
                     <div class="d-flex align-items-center justify-content-between mb-3">
                               <div>

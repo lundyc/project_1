@@ -20,7 +20,8 @@ if ($basePath === '/') {
                               font-family: system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
                               padding: 1rem;
                               line-height: 1.4;
-                              background: #fffaf0;
+                              background: var(--bg-base);
+                              color: var(--text-primary);
                     }
                     label {
                               display: block;
@@ -39,8 +40,8 @@ if ($basePath === '/') {
                     pre {
                               margin-top: 1rem;
                               padding: 0.5rem;
-                              background: #111;
-                              color: #f8f8f2;
+                              background: var(--bg-tertiary);
+                              color: var(--text-primary);
                               max-height: 360px;
                               overflow: auto;
                     }

@@ -20,6 +20,7 @@
     const timelineTrack = document.getElementById('deskTimelineTrack');
     const timelineProgress = document.getElementById('deskTimelineProgress');
     const timelineWrapper = document.getElementById('deskTimeline');
+    const timelineHoverBall = document.querySelector('[data-video-timeline-ball]');
     const timeDisplay = document.getElementById('deskTimeDisplay');
     const controls = document.getElementById('deskControls');
     const drawingToolbarShell = document.querySelector('[data-drawing-toolbar]');
@@ -220,24 +221,35 @@
       }
       const current = formatTime(video.currentTime);
       const total = Number.isFinite(video.duration) && video.duration > 0 ? formatTime(video.duration) : '00:00';
-      timeDisplay.textContent = `${current} / ${total}`;
+      timeDisplay.innerHTML = `${current} <span class="desk-time-total-block">/ ${total}</span>`;
     };
 
-    const updateTimelineProgress = () => {
+    const getTimelinePercent = () => {
+      if (!Number.isFinite(video.duration) || video.duration === 0) {
+        return 0;
+      }
+      return Math.min(100, Math.max(0, (video.currentTime / video.duration) * 100));
+    };
+
+    const updateTimelineProgress = (percent) => {
       if (!timelineProgress) {
         return;
       }
-      if (!Number.isFinite(video.duration) || video.duration === 0) {
-        timelineProgress.style.width = '0%';
+      timelineProgress.style.width = `${percent}%`;
+    };
+
+    const updateTimelineHoverBall = (percent) => {
+      if (!timelineHoverBall) {
         return;
       }
-      const percent = Math.min(100, Math.max(0, (video.currentTime / video.duration) * 100));
-      timelineProgress.style.width = `${percent}%`;
+      timelineHoverBall.style.left = `${percent}%`;
     };
 
     const syncTimeline = () => {
       updateTimeDisplay();
-      updateTimelineProgress();
+      const percent = getTimelinePercent();
+      updateTimelineProgress(percent);
+      updateTimelineHoverBall(percent);
     };
 
     const skip = (seconds) => {
@@ -256,6 +268,7 @@
       const offset = Math.min(Math.max(0, clientX - rect.left), rect.width);
       const percent = offset / rect.width;
       video.currentTime = percent * video.duration;
+      syncTimeline();
     };
 
     let isScrubbing = false;

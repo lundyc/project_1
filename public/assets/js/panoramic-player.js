@@ -4,8 +4,8 @@
   const baseVideo = document.getElementById('deskVideoPlayer');
   if (!overlay) {
     window.PanoramicDesk = {
-      show: () => {},
-      hide: () => {},
+      show: () => { },
+      hide: () => { },
       isVisible: () => false,
     };
     return;
@@ -23,8 +23,8 @@
   const ctx = canvas ? canvas.getContext('2d') : null;
   if (!canvas || !video || !ctx) {
     window.PanoramicDesk = {
-      show: () => {},
-      hide: () => {},
+      show: () => { },
+      hide: () => { },
       isVisible: () => false,
     };
     return;
@@ -101,7 +101,7 @@
         canvas.height
       );
     } else {
-      ctx.fillStyle = '#010106';
+      ctx.fillStyle = '#101624';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
   };

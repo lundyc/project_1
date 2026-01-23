@@ -279,9 +279,10 @@ ob_start();
                                 <table class="min-w-full text-sm text-slate-200">
                                     <thead class="bg-slate-900/90 text-slate-100 uppercase tracking-wider">
                                         <tr>
+                                             <th class="px-3 py-2">Match</th>
                                             <th class="px-3 py-2">Date</th>
                                             <th class="px-3 py-2">Time</th>
-                                            <th class="px-3 py-2">Match</th>
+                                           
                                             <th class="px-3 py-2 text-center">Score</th>
                                             <th class="px-3 py-2">Competition</th>
                                             <th class="px-3 py-2 text-center">Action</th>
@@ -308,13 +309,14 @@ ob_start();
                                             $competition = $match['competition'] ?? '';
                                         ?>
                                         <tr data-match-id="<?= htmlspecialchars((string)$matchId) ?>">
-                                            <td class="px-3 py-2 whitespace-nowrap"><?= htmlspecialchars($dateLabel) ?></td>
-                                            <td class="px-3 py-2 whitespace-nowrap"><?= htmlspecialchars($timeLabel) ?></td>
-                                            <td class="px-3 py-2">
+                                                                                    <td class="px-3 py-2">
                                                 <a href="<?= $matchUrl ?>" class="text-indigo-300 hover:text-indigo-100">
                                                     <?= htmlspecialchars($title) ?>
                                                 </a>
-                                            </td>
+                                            </td>  
+                                        <td class="px-3 py-2 whitespace-nowrap"><?= htmlspecialchars($dateLabel) ?></td>
+                                            <td class="px-3 py-2 whitespace-nowrap"><?= htmlspecialchars($timeLabel) ?></td>
+
                                             <td class="px-3 py-2 text-center">
                                                 <span class="font-semibold <?= $scoreLabel !== '—' ? 'text-emerald-400' : 'text-slate-400' ?>"><?= htmlspecialchars($scoreLabel) ?></span>
                                             </td>
@@ -646,8 +648,9 @@ ob_start();
 </div>
 
 <style>
+/* Palette-driven colour system */
 .stats-page {
-    color: #e5e7eb;
+    color: var(--color-text-primary);
 }
 .stats-page h1,
 .stats-page h2,
@@ -670,20 +673,16 @@ ob_start();
 .stats-page .table {
     color: inherit;
 }
-.stats-page .stats-tabs .btn.is-active {
-    background-color: rgba(255, 255, 255, 0.12);
-    border-color: rgba(255, 255, 255, 0.2);
+    background-color: var(--color-surface-accent);
+    border-color: var(--color-border-accent);
 }
-.stats-page .text-muted-alt {
-    color: rgba(255, 255, 255, 0.65);
+    color: var(--color-text-secondary);
 }
-.stats-page .text-muted-alt small {
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--color-text-tertiary);
 }
-.stats-page .stats-card {
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--color-border-subtle);
     border-radius: 12px;
-    background-color: rgba(255, 255, 255, 0.02);
+    background-color: var(--color-surface-subtle);
 }
 
 /* Three-column layout */
@@ -718,9 +717,8 @@ ob_start();
     gap: 12px;
 }
 
-.stats-overview-card {
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--color-surface-accent);
+    border: 1px solid var(--color-border-subtle);
     border-radius: 12px;
     padding: 16px;
     display: flex;
@@ -730,9 +728,8 @@ ob_start();
     transition: background-color 120ms ease, border-color 120ms ease, transform 120ms ease;
 }
 
-.stats-overview-card:hover {
-    background: rgba(255, 255, 255, 0.06);
-    border-color: rgba(255, 255, 255, 0.14);
+    background: var(--color-surface-hover);
+    border-color: var(--color-border-hover);
 }
 
 .stats-overview-card__left {
@@ -741,11 +738,10 @@ ob_start();
     gap: 6px;
 }
 
-.stats-overview-card__desc {
     font-size: 11px;
     letter-spacing: .02em;
     text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--color-text-secondary);
 }
 
 .stats-overview-card__value {
@@ -754,9 +750,8 @@ ob_start();
     line-height: 1;
 }
 
-.stats-overview-card__label {
     font-size: 12px;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--color-text-secondary);
 }
 
 .stats-overview-card__icon {
@@ -780,9 +775,8 @@ ob_start();
     gap: 16px;
 }
 
-.tp-card {
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: var(--color-surface-gradient);
+    border: 1px solid var(--color-border-accent);
     border-radius: 12px;
     padding: 16px;
     display: flex;
@@ -793,18 +787,16 @@ ob_start();
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.tp-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-    border-color: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 4px 12px var(--color-shadow-hover);
+    border-color: var(--color-border-hover);
 }
 
-.tp-card__label {
     font-size: 12px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.02em;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--color-text-secondary);
 }
 
 .tp-card__value {
@@ -821,26 +813,22 @@ ob_start();
     flex-wrap: wrap;
 }
 
-.tp-form-grid .panel {
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--color-surface-accent);
+    border: 1px solid var(--color-border-subtle);
     min-width: 140px;
 }
 
 /* Form result color coding */
-.tp-form-result--W {
-    background: rgba(34, 197, 94, 0.15) !important;
-    border-color: rgba(34, 197, 94, 0.3) !important;
+    background: var(--color-success-bg) !important;
+    border-color: var(--color-success-border) !important;
 }
 
-.tp-form-result--L {
-    background: rgba(239, 68, 68, 0.15) !important;
-    border-color: rgba(239, 68, 68, 0.3) !important;
+    background: var(--color-danger-bg) !important;
+    border-color: var(--color-danger-border) !important;
 }
 
-.tp-form-result--D {
-    background: rgba(156, 163, 175, 0.15) !important;
-    border-color: rgba(156, 163, 175, 0.3) !important;
+    background: var(--color-neutral-bg) !important;
+    border-color: var(--color-neutral-border) !important;
 }
 
 /* Home vs Away table centered and sized */
@@ -852,13 +840,12 @@ ob_start();
 }
 
 /* Goals & Clean Sheets grid */
-.tp-goals-table {
     width: 85%;
     max-width: 900px;
     margin-left: auto;
     margin-right: auto;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--color-surface-subtle);
+    border: 1px solid var(--color-border-subtle);
 }
 
 .tp-goals-table th,
@@ -866,35 +853,26 @@ ob_start();
     vertical-align: middle;
 }
 
-.tp-goals-table tbody td[data-league-stat="goals_for"],
-.tp-goals-table tbody td[data-cup-stat="goals_for"] {
-    color: #22c55e;
+    color: var(--color-success);
     font-weight: 700;
 }
 
-.tp-goals-table tbody td[data-league-stat="goals_against"],
-.tp-goals-table tbody td[data-cup-stat="goals_against"] {
-    color: #ef4444;
+    color: var(--color-danger);
     font-weight: 700;
 }
 
-.tp-goals-table tbody td[data-league-stat="goal_difference"],
-.tp-goals-table tbody td[data-cup-stat="goal_difference"] {
-    color: #3b82f6;
+    color: var(--color-info);
     font-weight: 700;
 }
 
-.tp-goals-table tbody td[data-league-stat="clean_sheets"],
-.tp-goals-table tbody td[data-cup-stat="clean_sheets"] {
-    color: #f59e0b;
+    color: var(--color-warning);
     font-weight: 700;
 }
 
-.tp-goal-card__label {
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.02em;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--color-text-secondary);
     margin-bottom: 8px;
 }
 
@@ -904,104 +882,81 @@ ob_start();
     line-height: 1;
 }
 
-.tp-goal-card--for .tp-goal-card__value {
-    color: #22c55e;
+    color: var(--color-success);
 }
 
-.tp-goal-card--against .tp-goal-card__value {
-    color: #ef4444;
+    color: var(--color-danger);
 }
 
-.tp-goal-card--diff .tp-goal-card__value {
-    color: #3b82f6;
+    color: var(--color-info);
 }
 
-.tp-goal-card--clean .tp-goal-card__value {
-    color: #8b5cf6;
+    color: var(--color-accent);
 }
 
 /* Club selector dark styling */
-#stats-club-selector.form-select,
-#stats-club-selector {
-    background-color: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    color: #e5e7eb;
+    background-color: var(--color-surface-accent);
+    border: 1px solid var(--color-border-accent);
+    color: var(--color-text-primary);
 }
 
-#stats-club-selector:focus {
-    border-color: rgba(255, 255, 255, 0.35);
-    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.1) inset;
+    border-color: var(--color-border-focus);
+    box-shadow: 0 0 0 2px var(--color-shadow-focus) inset;
     outline: none;
 }
 
-#stats-club-selector option {
-    background-color: #0b1220;
-    color: #e5e7eb;
+    background-color: var(--color-surface-dark);
+    color: var(--color-text-primary);
 }
 
 /* Table tweaks for dark theme */
-.stats-page .table thead.table-dark th {
-    background-color: rgba(255, 255, 255, 0.06);
-    border-color: rgba(255, 255, 255, 0.12);
+    background-color: var(--color-surface-accent);
+    border-color: var(--color-border-accent);
 }
-.stats-page .table td, .stats-page .table th {
-    border-color: rgba(255, 255, 255, 0.12);
+    border-color: var(--color-border-accent);
 }
 .stats-page .table td,
 .stats-page .table th {
     vertical-align: middle;
 }
-.stats-page a {
-    color: #a5b4fc;
+    color: var(--color-link);
 }
-.stats-page a:hover,
-.stats-page a:focus {
-    color: #dbeafe;
+    color: var(--color-link-hover);
 }
-.stats-page .panel-secondary {
-    border-color: rgba(255, 255, 255, 0.08) !important;
+    border-color: var(--color-border-subtle) !important;
 }
-.panel-dark {
-    background-color: rgba(15, 23, 42, 0.8) !important;
-    border-color: rgba(255, 255, 255, 0.08) !important;
+    background-color: var(--color-surface-dark) !important;
+    border-color: var(--color-border-subtle) !important;
     border-radius: 12px !important;
 }
-.stats-page .table {
-    background-color: rgba(15, 23, 42, 0.6) !important;
+    background-color: var(--color-surface-dark) !important;
     border-radius: 12px !important;
-    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid var(--color-border-subtle) !important;
     overflow: hidden;
 }
-.stats-page .table thead {
-    background-color: #0b1220 !important;
+    background-color: var(--color-surface-dark) !important;
 }
-.stats-page .table thead th {
-    color: #f8fafc !important;
+    color: var(--color-text-primary) !important;
     border-color: transparent;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     font-size: 0.75rem;
 }
-.stats-page .table tbody tr:nth-child(even) {
-    background-color: rgba(18, 32, 76, 0.85) !important;
+    background-color: var(--color-surface-row-even) !important;
 }
-.stats-page .table tbody tr:nth-child(odd) {
-    background-color: rgba(20, 34, 80, 0.65) !important;
+    background-color: var(--color-surface-row-odd) !important;
 }
-.stats-page .table tbody tr td {
     border-color: transparent;
-    color: #e2e8f0;
+    color: var(--color-text-secondary);
 }
-.stats-page .table-dark {
-    background: rgba(12, 17, 34, 0.85) !important;
-    color: #fff !important;
+    background: var(--color-surface-dark) !important;
+    color: var(--color-text-primary) !important;
 }
-.library-list .library-row {
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--color-border-subtle);
     padding: 0.75rem;
     margin-bottom: 0.75rem;
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--color-surface-subtle);
 }
 
 /* Sortable table headers */
@@ -1010,8 +965,7 @@ ob_start();
     user-select: none;
     transition: background-color 0.15s ease;
 }
-.stats-page th.sortable:hover {
-    background-color: rgba(255, 255, 255, 0.1) !important;
+    background-color: var(--color-surface-hover) !important;
 }
 .stats-page th.sortable .sort-icon {
     margin-left: 4px;
@@ -1194,11 +1148,12 @@ ob_start();
                 const competition = match.competition || '';
                 
                 row.innerHTML = `
-                    <td class="px-3 py-2 whitespace-nowrap">${dateLabel}</td>
-                    <td class="px-3 py-2 whitespace-nowrap">${timeLabel}</td>
-                    <td class="px-3 py-2">
+                                    <td class="px-3 py-2">
                         <a href="${matchUrl}" class="text-indigo-300 hover:text-indigo-100">${title}</a>
-                    </td>
+                    </td>   
+                <td class="px-3 py-2 whitespace-nowrap">${dateLabel}</td>
+                    <td class="px-3 py-2 whitespace-nowrap">${timeLabel}</td>
+
                     <td class="px-3 py-2 text-center">
                         <span class="font-semibold ${hasScore ? 'text-emerald-400' : 'text-slate-400'}">${scoreLabel}</span>
                     </td>

@@ -346,10 +346,10 @@ function renderStatusLabel(string $text, string $type): string
     <style>
         body {
             font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-            background: #f4f6f9;
+            background: var(--bg-base);
             margin: 0;
             padding: 1.5rem;
-            color: #1c1f26;
+            color: var(--text-primary);
         }
         .page {
             max-width: 1100px;
@@ -380,7 +380,7 @@ function renderStatusLabel(string $text, string $type): string
             vertical-align: top;
         }
         th {
-            background: #f8f9fb;
+            background: var(--bg-panel);
             font-weight: 600;
             text-transform: uppercase;
             font-size: 0.78rem;
@@ -396,24 +396,24 @@ function renderStatusLabel(string $text, string $type): string
             font-weight: 600;
         }
         .status-pass {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
+            background: var(--accent-success);
+            color: var(--bg-base);
+            border: 1px solid var(--accent-success);
         }
         .status-fail {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
+            background: var(--accent-danger);
+            color: var(--bg-base);
+            border: 1px solid var(--accent-danger);
         }
         .status-warning {
-            background: #fff3cd;
-            color: #856404;
-            border: 1px solid #ffeeba;
+            background: var(--accent-warning);
+            color: var(--bg-base);
+            border: 1px solid var(--accent-warning);
         }
         .status-muted {
-            background: #e2e3e5;
-            color: #41464b;
-            border: 1px solid #d3d6db;
+            background: var(--bg-surface);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-soft);
         }
         .status-line {
             margin-top: 0.5rem;
@@ -423,8 +423,8 @@ function renderStatusLabel(string $text, string $type): string
             gap: 0.5rem;
         }
         section {
-            background: #ffffff;
-            border: 1px solid #e1e4ef;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-soft);
             border-radius: 0.5rem;
             padding: 1rem 1.25rem 1.25rem;
         }

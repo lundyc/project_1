@@ -52,8 +52,39 @@
           let markerDragState = null;
           let skipMarkerClickId = null;
 
+          // Compute timeline duration, compressing half-time and hiding ET unless started
+          function getTimelinePeriods() {
+                    // Example: periods = [{start:0,end:45,type:'H1'},{start:45,end:60,type:'HT'},{start:60,end:90,type:'H2'},{start:90,end:105,type:'ET1'},{start:105,end:120,type:'ET2'}]
+                    // You may need to fetch this from window.DeskConfig or PHP
+                    const periods = window.DeskConfig?.periods || [
+                              { start: 0, end: 45, type: 'H1' },
+                              { start: 45, end: 60, type: 'HT' },
+                              { start: 60, end: 90, type: 'H2' },
+                              { start: 90, end: 105, type: 'ET1' },
+                              { start: 105, end: 120, type: 'ET2' }
+                    ];
+                    // Hide ET1/ET2 unless started
+                    const showET1 = window.DeskConfig?.et1Started;
+                    const showET2 = window.DeskConfig?.et2Started;
+                    return periods.filter(p => {
+                              if (p.type === 'ET1' && !showET1) return false;
+                              if (p.type === 'ET2' && !showET2) return false;
+                              return true;
+                    });
+          }
+
           function getTimelineDuration() {
-                    return state.matchDuration > 0 ? state.matchDuration : 1;
+                    // Only count visible periods, compress half-time
+                    const periods = getTimelinePeriods();
+                    let duration = 0;
+                    periods.forEach(p => {
+                              if (p.type === 'HT') {
+                                        duration += 2; // Compress half-time to 2 minutes width
+                              } else {
+                                        duration += (p.end - p.start);
+                              }
+                    });
+                    return duration > 0 ? duration : 1;
           }
 
           function computeTimestampFromClientX(clientX) {
@@ -67,16 +98,32 @@
           }
 
           function renderMarkerPosition(marker, entry, timestamp) {
-                    const duration = getTimelineDuration();
-                    const safeTimestamp = Math.min(duration, Math.max(0, Number(timestamp) || 0));
-                    entry.timestamp = safeTimestamp;
-                    if (duration > 0) {
-                              const percent = Math.min(100, Math.max(0, (safeTimestamp / duration) * 100));
-                              marker.style.left = `${percent}%`;
-                    } else {
-                              marker.style.left = '0%';
+                    // Map real time to compressed timeline
+                    const periods = getTimelinePeriods();
+                    let timelineTime = 0;
+                    let found = false;
+                    for (const p of periods) {
+                              if (timestamp >= p.start && timestamp < p.end) {
+                                        if (p.type === 'HT') {
+                                                  // Half-time: compress
+                                                  timelineTime += 2 * (timestamp - p.start) / (p.end - p.start);
+                                        } else {
+                                                  timelineTime += (timestamp - p.start);
+                                        }
+                                        found = true;
+                                        break;
+                              } else {
+                                        if (p.type === 'HT') {
+                                                  timelineTime += 2;
+                                        } else {
+                                                  timelineTime += (p.end - p.start);
+                                        }
+                              }
                     }
-                    marker.dataset.timestamp = String(safeTimestamp);
+                    const duration = getTimelineDuration();
+                    const percent = duration > 0 ? Math.min(100, Math.max(0, (timelineTime / duration) * 100)) : 0;
+                    marker.style.left = `${percent}%`;
+                    marker.dataset.timestamp = String(timestamp);
                     marker.title = buildTooltip(entry);
           }
 
@@ -334,9 +381,30 @@
           }
 
           function updatePlayheadPosition() {
-                    const duration = state.matchDuration > 0 ? state.matchDuration : 1;
-                    const currentTime = Math.max(0, Math.min(typeof videoEl.currentTime === 'number' ? videoEl.currentTime : 0, duration));
-                    const position = Math.min(100, Math.max(0, (currentTime / duration) * 100));
+                    // Map real time to compressed timeline
+                    const periods = getTimelinePeriods();
+                    let timelineTime = 0;
+                    let found = false;
+                    const currentTime = typeof videoEl.currentTime === 'number' ? videoEl.currentTime : 0;
+                    for (const p of periods) {
+                              if (currentTime >= p.start && currentTime < p.end) {
+                                        if (p.type === 'HT') {
+                                                  timelineTime += 2 * (currentTime - p.start) / (p.end - p.start);
+                                        } else {
+                                                  timelineTime += (currentTime - p.start);
+                                        }
+                                        found = true;
+                                        break;
+                              } else {
+                                        if (p.type === 'HT') {
+                                                  timelineTime += 2;
+                                        } else {
+                                                  timelineTime += (p.end - p.start);
+                                        }
+                              }
+                    }
+                    const duration = getTimelineDuration();
+                    const position = duration > 0 ? Math.min(100, Math.max(0, (timelineTime / duration) * 100)) : 0;
                     playheadEl.style.left = `${position}%`;
           }
 
@@ -361,7 +429,7 @@
                     }
                     if (!Number.isFinite(entry.timestamp)) {
                               return;
-                   }
+                    }
                     state.selectedAnnotationId = entry.id;
                     videoEl.currentTime = Math.max(0, entry.timestamp);
                     handleTimeUpdate();
@@ -375,6 +443,34 @@
                     const annotations = collectAnnotationsForContext();
                     state.currentMarkers = annotations;
                     markersEl.innerHTML = '';
+
+                    // Add period markers (vertical line + dot)
+                    const periods = getTimelinePeriods();
+                    const duration = getTimelineDuration();
+                    periods.forEach((p, idx) => {
+                              // Only show ET1/ET2 if started (already filtered by getTimelinePeriods)
+                              // Place marker at start of each period except first
+                              if (idx === 0) return;
+                              let timelineTime = 0;
+                              for (let i = 0; i < idx; i++) {
+                                        if (periods[i].type === 'HT') {
+                                                  timelineTime += 2;
+                                        } else {
+                                                  timelineTime += (periods[i].end - periods[i].start);
+                                        }
+                              }
+                              const percent = duration > 0 ? Math.min(100, Math.max(0, (timelineTime / duration) * 100)) : 0;
+                              const markerLine = document.createElement('div');
+                              markerLine.className = 'matrix-period-marker-line';
+                              markerLine.style.left = `${percent}%`;
+                              markerLine.tabIndex = 0;
+                              markerLine.title = p.label || p.type;
+                              const dot = document.createElement('div');
+                              dot.className = 'matrix-period-marker-dot';
+                              markerLine.appendChild(dot);
+                              markersEl.appendChild(markerLine);
+                    });
+
                     if (!annotations.length) {
                               updateMarkerStates();
                               updatePlayheadPosition();

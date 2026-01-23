@@ -325,14 +325,18 @@ function update_match(int $id, array $data): void
                               // Delete video record if switching to "No Video"
                               $deleteStmt = $pdo->prepare('DELETE FROM match_videos WHERE match_id = :match_id');
                               $deleteStmt->execute(['match_id' => $id]);
-                    } elseif (($data['video_source_type'] ?? null) !== 'none' && (!empty($data['video_source_type']) || !empty($data['video_source_path']))) {
-                              upsert_match_video($id, [
-                                        'source_type' => normalize_video_source_type($data['video_source_type'] ?? 'upload'),
-                                        'source_path' => $data['video_source_path'] ?? null,
-                                        'download_status' => 'completed',
-                                        'download_progress' => 100,
-                                        'error_message' => null,
-                              ]);
+                    } elseif (($data['video_source_type'] ?? null) !== 'none') {
+                              // Only upsert if a non-empty source_path is present
+                              $sourcePath = $data['video_source_path'] ?? null;
+                              if (!empty($sourcePath)) {
+                                        upsert_match_video($id, [
+                                                  'source_type' => normalize_video_source_type($data['video_source_type'] ?? 'upload'),
+                                                  'source_path' => $sourcePath,
+                                                  'download_status' => 'completed',
+                                                  'download_progress' => 100,
+                                                  'error_message' => null,
+                                        ]);
+                              }
                     }
 
                     $pdo->commit();
