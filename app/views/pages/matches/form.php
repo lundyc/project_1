@@ -5,6 +5,7 @@ require_once __DIR__ . '/../../../lib/team_repository.php';
 require_once __DIR__ . '/../../../lib/season_repository.php';
 require_once __DIR__ . '/../../../lib/competition_repository.php';
 require_once __DIR__ . '/../../../lib/club_repository.php';
+require_once __DIR__ . '/../../../lib/player_repository.php';
 
 $user = current_user();
 $roles = $_SESSION['roles'] ?? [];
@@ -23,94 +24,75 @@ if ($isEdit) {
 }
 
 if (!$selectedClubId) {
-          http_response_code(400);
-          echo 'Club context required';
-          exit;
+        http_response_code(400);
+        echo 'Club context required';
+        exit;
 }
+        $selectedClubId = $isPlatformAdmin
+            ? (isset($_GET['club_id']) && $_GET['club_id'] !== '' ? (int)$_GET['club_id'] : (int)($clubs[0]['id'] ?? ($user['club_id'] ?? 0)))
+            : (int)($user['club_id'] ?? 0);
+        if (!$selectedClubId) {
+            http_response_code(400);
+            echo 'Club context required';
+            exit;
+        }
+        $teams = get_teams_by_club($selectedClubId);
+        $seasons = get_seasons_by_club($selectedClubId);
+        $competitions = get_competitions_by_club($selectedClubId);
+        $clubPlayers = get_players_for_club($selectedClubId);
+        $error = $_SESSION['match_form_error'] ?? null;
+        $success = $_SESSION['match_form_success'] ?? null;
+        unset($_SESSION['match_form_error']);
+        unset($_SESSION['match_form_success']);
+        $title = 'Create Match';
+        $matchId = null;
+        $nextMatchId = null;
+        $matchSeasonId = null;
+        $matchCompetitionId = null;
+        $matchHomeId = 0;
+        $matchAwayId = 0;
+        $matchVenue = '';
+        $matchReferee = '';
+        $matchAttendance = null;
+        $matchStatus = 'draft';
+        $kickoffValue = '';
+        $videoType = 'none';
+        $videoPath = '';
+        $videoUrl = '';
+        $downloadStatus = '';
+        $downloadProgress = 0;
+        $homeTeamName = '';
+        $awayTeamName = '';
+        $videoFiles = [];
+        $videoDir = realpath(dirname(__DIR__, 4) . DIRECTORY_SEPARATOR . 'videos' . DIRECTORY_SEPARATOR . 'raw');
+        $allowedVideoExt = ['mp4', 'webm', 'mov'];
+        if ($videoDir && is_dir($videoDir)) {
+            $items = scandir($videoDir);
+            foreach ($items as $item) {
+                if ($item === '.' || $item === '..') {
+                    continue;
+                }
+                $full = $videoDir . DIRECTORY_SEPARATOR . $item;
+                if (!is_file($full)) {
+                    continue;
+                }
+                $real = realpath($full);
+                if (!$real || !str_starts_with($real, $videoDir)) {
+                    continue;
+                }
+                $ext = strtolower(pathinfo($item, PATHINFO_EXTENSION));
+                if (!in_array($ext, $allowedVideoExt, true)) {
+                    continue;
+                }
+                $videoFiles[] = [
+                    'filename' => $item,
+                    'web_path' => '/videos/raw/' . $item,
+                ];
+            }
+        }
 
-$teams = get_teams_by_club($selectedClubId);
-$seasons = get_seasons_by_club($selectedClubId);
-$competitions = get_competitions_by_club($selectedClubId);
-
-$error = $_SESSION['match_form_error'] ?? null;
-$success = $_SESSION['match_form_success'] ?? null;
-unset($_SESSION['match_form_error']);
-unset($_SESSION['match_form_success']);
-
-$title = $isEdit ? 'Edit Match' : 'Create Match';
-$action = $isEdit ? ($base . '/api/matches/' . (int)$match['id'] . '/edit') : ($base . '/api/matches/create');
-$kickoffValue = $isEdit && !empty($match['kickoff_at']) ? date('Y-m-d\TH:i', strtotime($match['kickoff_at'])) : '';
-$videoType = $isEdit ? ($match['video_source_type'] ?? 'upload') : 'veo';
-$videoPath = $isEdit ? ($match['video_source_path'] ?? '') : '';
-$initialDownloadStatus = $isEdit ? ($match['video_download_status'] ?? '') : '';
-$initialDownloadProgress = $isEdit ? (int)($match['video_download_progress'] ?? 0) : 0;
-$initialVeoUrl = $isEdit ? ($match['video_source_url'] ?? '') : '';
-$matchSeasonId = $isEdit ? $match['season_id'] : null;
-$matchCompetitionId = $isEdit ? $match['competition_id'] : null;
-$matchHomeId = $isEdit ? (int)$match['home_team_id'] : 0;
-$matchAwayId = $isEdit ? (int)$match['away_team_id'] : 0;
-$matchVenue = $isEdit ? (string)($match['venue'] ?? '') : '';
-$matchReferee = $isEdit ? (string)($match['referee'] ?? '') : '';
-$matchAttendance = $isEdit ? $match['attendance'] : null;
-$matchStatus = $isEdit ? $match['status'] : 'draft';
-$matchIdValue = $isEdit ? (int)$match['id'] : null;
-
-$videoFiles = [];
-$videoDir = realpath(dirname(__DIR__, 4) . DIRECTORY_SEPARATOR . 'videos' . DIRECTORY_SEPARATOR . 'raw');
-$allowedVideoExt = ['mp4', 'webm', 'mov'];
-
-if ($videoDir && is_dir($videoDir)) {
-          $items = scandir($videoDir);
-          foreach ($items as $item) {
-                    if ($item === '.' || $item === '..') {
-                              continue;
-                    }
-                    $full = $videoDir . DIRECTORY_SEPARATOR . $item;
-                    if (!is_file($full)) {
-                              continue;
-                    }
-                    $real = realpath($full);
-                    if (!$real || !str_starts_with($real, $videoDir)) {
-                              continue;
-                    }
-                    $ext = strtolower(pathinfo($item, PATHINFO_EXTENSION));
-                    if (!in_array($ext, $allowedVideoExt, true)) {
-                              continue;
-                    }
-                    $videoFiles[] = [
-                              'filename' => $item,
-                              'web_path' => '/videos/raw/' . $item,
-                    ];
-          }
-}
-$hasCurrentVideo = $videoPath && !empty(array_filter($videoFiles, fn($f) => $f['web_path'] === $videoPath));
-
-$debugMode = isset($_GET['debug']) && $_GET['debug'] === '1';
-$wizardConfig = [
-          'basePath' => $base,
-          'isEdit' => $isEdit,
-          'matchId' => $matchIdValue,
-          'createEndpoint' => $base . '/api/matches/create',
-          'updateEndpoint' => $isEdit ? $base . '/api/matches/' . (int)$matchIdValue . '/edit' : null,
-          'continuePath' => $base . '/matches',
-          'initialVideoType' => $videoType,
-          'initialDownloadStatus' => $initialDownloadStatus ?: null,
-          'initialDownloadProgress' => $initialDownloadProgress,
-          'initialVeoUrl' => $initialVeoUrl,
-          'pollInterval' => 2000,
-          'debugConsole' => $debugMode,
-];
-
-$setupConfig = [
-          'basePath' => $base,
-          'clubId' => $selectedClubId,
-          'endpoints' => [
-                    'teamCreate' => $base . '/api/teams/create-json',
-                    'seasonCreate' => $base . '/api/seasons/create',
-                    'competitionCreate' => $base . '/api/competitions/create',
-          ],
-];
-
+        // Render the edit.php UI, but with create-mode variables
+        require __DIR__ . '/edit.php';
 $footerScripts = '<script>window.MatchWizardConfig = ' . json_encode($wizardConfig) . ';</script>';
 $footerScripts .= '<script>window.MatchWizardSetupConfig = ' . json_encode($setupConfig) . ';</script>';
 $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/match-setup.js?v=' . time() . '"></script>';

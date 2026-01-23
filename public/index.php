@@ -29,20 +29,19 @@ route('/matches', function () {
 });
 
 route('/matches/create', function () {
-          require_auth();
-          require_once __DIR__ . '/../app/lib/match_permissions.php';
+    require_auth();
+    require_once __DIR__ . '/../app/lib/match_permissions.php';
 
-          $user = current_user();
-          $roles = $_SESSION['roles'] ?? [];
+    $user = current_user();
+    $roles = $_SESSION['roles'] ?? [];
 
-          if (!can_manage_matches($user, $roles)) {
-                    http_response_code(403);
-                    echo '403 Forbidden';
-                    return;
-          }
+    if (!can_manage_matches($user, $roles)) {
+        http_response_code(403);
+        echo '403 Forbidden';
+        return;
+    }
 
-          $match = null;
-          require __DIR__ . '/../app/views/pages/matches/form.php';
+    require __DIR__ . '/../app/views/pages/matches/create.php';
 });
 
 route('/api/matches/create', function () {

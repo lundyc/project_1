@@ -3378,7 +3378,8 @@ a:hover {
    ==================================== */
 
 /* Navigation Items */
-.edit-nav-item {
+.edit-nav-item,
+.create-nav-item {
    display: flex;
    align-items: center;
    gap: 0.75rem;
@@ -3397,7 +3398,8 @@ a:hover {
    position: relative;
 }
 
-.edit-nav-item::before {
+.edit-nav-item::before,
+.create-nav-item::before {
    content: '';
    position: absolute;
    left: 0;
@@ -3409,29 +3411,35 @@ a:hover {
    transition: background-color 0.2s ease;
 }
 
-.edit-nav-item:hover {
+.edit-nav-item:hover,
+.create-nav-item:hover {
    background-color: rgba(51, 65, 85, 0.5);
    border-color: rgba(255, 255, 255, 0.2);
 }
 
-.edit-nav-item.active {
+.edit-nav-item.active,
+.create-nav-item.active {
    background-color: rgb(79, 70, 229);
    border-color: rgb(99, 102, 241);
    color: rgb(255, 255, 255);
    box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.2), 0 4px 6px -4px rgba(79, 70, 229, 0.2);
 }
 
-.edit-nav-item.active::before {
+.edit-nav-item.active::before,
+.create-nav-item.active::before {
    background-color: rgb(34, 211, 238);
 }
 
-.edit-nav-item i.fa-chevron-right {
+.edit-nav-item i.fa-chevron-right,
+.edit-nav-item.active i.fa-chevron-right {
    opacity: 0;
    transition: opacity 0.2s ease;
 }
 
 .edit-nav-item:hover i.fa-chevron-right,
-.edit-nav-item.active i.fa-chevron-right {
+.edit-nav-item.active i.fa-chevron-right,
+.create-nav-item:hover i.fa-chevron-right,
+.create-nav-item.active i.fa-chevron-right {
    opacity: 1;
 }
 

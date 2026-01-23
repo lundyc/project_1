@@ -237,15 +237,16 @@ ob_start();
 ?>
 
         <?php
-            $matchTitle = 'Edit Match';
-            $homeTeamName = isset($homeTeamName) ? $homeTeamName : ($match['home_team'] ?? 'Home');
-            $awayTeamName = isset($awayTeamName) ? $awayTeamName : ($match['away_team'] ?? 'Away');
-            $matchDescription = 'Manual entry for ' . htmlspecialchars($homeTeamName) . ' vs ' . htmlspecialchars($awayTeamName) . '.';
-            $clubContextName = $selectedClub['name'] ?? 'Saltcoats Victoria F.C.';
-            $showClubSelector = true;
-            include __DIR__ . '/../../partials/match_context_header.php';
+        // Set header/title/description for Edit Match only
+        $matchTitle = 'Edit Match';
+        $homeTeamName = isset($homeTeamName) ? $homeTeamName : ($match['home_team'] ?? 'Home');
+        $awayTeamName = isset($awayTeamName) ? $awayTeamName : ($match['away_team'] ?? 'Away');
+        $matchDescription = 'Manual entry for ' . htmlspecialchars($homeTeamName) . ' vs ' . htmlspecialchars($awayTeamName) . '.';
+        $clubContextName = $selectedClub['name'] ?? 'Saltcoats Victoria F.C.';
+        $showClubSelector = true;
+        include __DIR__ . '/../../partials/match_context_header.php';
         ?>
-        <div class="flex items-center justify-end gap-2 mb-6">
+                    <div class="flex items-center justify-end gap-2 mb-6">
             <a href="<?= htmlspecialchars($base) ?>/matches" class="inline-flex items-center rounded-md bg-slate-700/60 px-2 py-1 text-xs text-slate-200 hover:bg-slate-700/80 transition" aria-label="Back to matches">
                 ← Back to matches
             </a>
@@ -260,6 +261,8 @@ ob_start();
             </span>
             <?php endif; ?>
         </div>
+
+
 
 <div class="px-4 md:px-6 lg:px-8">
                 <?php if ($error): ?>
@@ -340,6 +343,7 @@ ob_start();
                         </div>
                         <div class="p-6">
                             <form id="match-details-form" method="post" action="<?= htmlspecialchars($base) ?>/api/matches/<?= $matchId ?>/update-details" class="space-y-6">
+                                <input type="hidden" name="club_id" value="<?= htmlspecialchars($selectedClubId) ?>">
                                 <input type="hidden" name="match_id" value="<?= $matchId ?>">
                                 
                                 <!-- Teams -->
