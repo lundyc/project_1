@@ -6,7 +6,6 @@ public/videos/
 *.avi
 
 # Python
-py/
 .venv/
 __pycache__/
 *.pyc

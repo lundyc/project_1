@@ -215,8 +215,9 @@ log_veo_activity($matchId, 'Start payload recorded', [
 ]);
 
 
-// New structure: videos/matches/video_{id}.mp4
-$filename = 'video_' . $matchId . '.mp4';
+
+// New structure: videos/matches/match_{id}_standard.mp4
+$filename = 'match_' . $matchId . '_standard.mp4';
 $publicPath = $filename; // Only store filename in DB
 $absolutePath = $projectRoot . DIRECTORY_SEPARATOR . 'videos' . DIRECTORY_SEPARATOR . 'matches' . DIRECTORY_SEPARATOR . $filename;
 @mkdir(dirname($absolutePath), 0777, true);

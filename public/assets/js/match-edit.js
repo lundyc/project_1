@@ -344,6 +344,80 @@
 
        // ====================================
        // Video Source Toggle (Upload vs VEO vs No Video)
+       // VEO Download button logic
+       // Fix: Ensure DOM elements are available before attaching listeners
+       document.addEventListener('DOMContentLoaded', function () {
+              const veoDownloadBtn = document.getElementById('veoDownloadBtn');
+              const veoDownloadStatus = document.getElementById('veoDownloadStatus');
+              const videoUrlInput = document.getElementById('video_url_input');
+              if (veoDownloadBtn && videoUrlInput && window.MatchEditConfig && window.MatchEditConfig.matchId) {
+                     veoDownloadBtn.addEventListener('click', function (e) {
+                            e.preventDefault();
+                            const veo_url = videoUrlInput.value.trim();
+                            const match_id = window.MatchEditConfig.matchId;
+                            if (!veo_url) {
+                                   veoDownloadStatus.textContent = 'Please enter a VEO match URL.';
+                                   return;
+                            }
+                            veoDownloadStatus.textContent = 'Starting download...';
+                            veoDownloadBtn.disabled = true;
+                            // Use the new public-facing endpoint
+                            fetch('/api/video_veo.php', {
+                                   method: 'POST',
+                                   headers: { 'Content-Type': 'application/json' },
+                                   body: JSON.stringify({ match_id, veo_url })
+                            })
+                                   .then(resp => resp.json())
+                                   .then(data => {
+                                          if (data.ok && (data.status === 'starting' || data.status === 'started')) {
+                                                 veoDownloadStatus.textContent = 'Download started. Please wait...';
+                                                 pollVeoDownloadProgress(match_id);
+                                          } else {
+                                                 veoDownloadStatus.textContent = data.error || 'Failed to start download.';
+                                                 veoDownloadBtn.disabled = false;
+                                          }
+                                   })
+                                   .catch(() => {
+                                          veoDownloadStatus.textContent = 'Network error.';
+                                          veoDownloadBtn.disabled = false;
+                                   });
+                     });
+              }
+       });
+
+       // Poll for VEO download progress
+       function pollVeoDownloadProgress(matchId) {
+              let attempts = 0;
+              function poll() {
+                     fetch(`/api/veo-progress.php?match_id=${matchId}`)
+                            .then(resp => resp.json())
+                            .then(data => {
+                                   if (data.ok && data.progress !== undefined) {
+                                          veoDownloadStatus.textContent = `Download progress: ${data.progress}%`;
+                                          if (data.progress < 100) {
+                                                 setTimeout(poll, 2000);
+                                          } else {
+                                                 veoDownloadStatus.textContent = 'Download complete!';
+                                                 veoDownloadBtn.disabled = false;
+                                                 // Optionally update video file select here
+                                          }
+                                   } else {
+                                          veoDownloadStatus.textContent = data.error || 'Download failed.';
+                                          veoDownloadBtn.disabled = false;
+                                   }
+                            })
+                            .catch(() => {
+                                   attempts++;
+                                   if (attempts < 10) {
+                                          setTimeout(poll, 3000);
+                                   } else {
+                                          veoDownloadStatus.textContent = 'Download status unavailable.';
+                                          veoDownloadBtn.disabled = false;
+                                   }
+                            });
+              }
+              poll();
+       }
        // ====================================
        const videoModeUpload = document.getElementById('videoTypeUpload');
        const videoModeVeo = document.getElementById('videoTypeVeo');
@@ -352,6 +426,116 @@
        const videoUrlInput = document.getElementById('video_url_input');
        const videoInputsSection = document.getElementById('videoInputsSection');
 
+       // Dropzone and Upload Now logic
+       const videoUploadDropzone = document.getElementById('video-upload-dropzone');
+       const videoUploadForm = document.getElementById('videoUploadForm');
+       const videoFileInput = document.getElementById('videoFileInput');
+       const uploadNowBtn = document.getElementById('uploadNowBtn');
+       const uploadProgressBar = document.getElementById('uploadProgressBar');
+       const uploadProgress = document.getElementById('uploadProgress');
+       const uploadStatus = document.getElementById('uploadStatus');
+       const videoUploadPreview = document.getElementById('videoUploadPreview');
+
+       // Show/hide dropzone based on radio
+       function syncDropzoneUI() {
+              if (videoUploadDropzone) {
+                     videoUploadDropzone.style.display = videoModeUpload?.checked ? 'block' : 'none';
+              }
+       }
+       if (videoModeUpload) {
+              videoModeUpload.addEventListener('change', syncDropzoneUI);
+              syncDropzoneUI();
+       }
+
+       // Drag & drop support
+       if (videoUploadDropzone && videoFileInput) {
+              videoUploadDropzone.addEventListener('dragover', function (e) {
+                     e.preventDefault();
+                     videoUploadDropzone.style.background = '#334155';
+              });
+              videoUploadDropzone.addEventListener('dragleave', function (e) {
+                     e.preventDefault();
+                     videoUploadDropzone.style.background = '#1e293b';
+              });
+              videoUploadDropzone.addEventListener('drop', function (e) {
+                     e.preventDefault();
+                     videoUploadDropzone.style.background = '#1e293b';
+                     if (e.dataTransfer.files.length > 0) {
+                            videoFileInput.files = e.dataTransfer.files;
+                            showFilePreview(videoFileInput.files[0]);
+                     }
+              });
+              videoFileInput.addEventListener('change', function () {
+                     if (videoFileInput.files.length > 0) {
+                            showFilePreview(videoFileInput.files[0]);
+                     }
+              });
+       }
+
+       function showFilePreview(file) {
+              if (!file) return;
+              videoUploadPreview.textContent = `Selected: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+       }
+
+       // Upload Now button logic
+       if (uploadNowBtn && videoUploadForm && videoFileInput) {
+              uploadNowBtn.addEventListener('click', function (e) {
+                     e.preventDefault();
+                     if (!videoFileInput.files.length) {
+                            uploadStatus.textContent = 'Please select a video file.';
+                            return;
+                     }
+                     const file = videoFileInput.files[0];
+                     const formData = new FormData();
+                     formData.append('video_file', file);
+                     uploadProgressBar.style.display = 'block';
+                     uploadProgress.style.width = '0%';
+                     uploadStatus.textContent = 'Uploading...';
+
+                     // AJAX upload
+                     const xhr = new XMLHttpRequest();
+                     xhr.open('POST', videoUploadForm.action, true);
+                     xhr.upload.onprogress = function (e) {
+                            if (e.lengthComputable) {
+                                   const percent = Math.round((e.loaded / e.total) * 100);
+                                   uploadProgress.style.width = percent + '%';
+                            }
+                     };
+                     xhr.onload = function () {
+                            if (xhr.status === 200) {
+                                   let resp;
+                                   try { resp = JSON.parse(xhr.responseText); } catch { resp = {}; }
+                                   if (resp.ok && resp.path) {
+                                          uploadStatus.textContent = 'Upload complete!';
+                                          uploadProgress.style.width = '100%';
+                                          // Set the raw video select to the new file
+                                          if (videoFileSelect) {
+                                                 const opt = document.createElement('option');
+                                                 opt.value = resp.path;
+                                                 opt.textContent = resp.filename || resp.path.split('/').pop();
+                                                 opt.selected = true;
+                                                 videoFileSelect.appendChild(opt);
+                                                 videoFileSelect.value = resp.path;
+                                          }
+                                          // Mark form dirty
+                                          formDirty = true;
+                                   } else {
+                                          uploadStatus.textContent = resp.error || 'Upload failed.';
+                                          uploadProgressBar.style.display = 'none';
+                                   }
+                            } else {
+                                   uploadStatus.textContent = 'Upload failed. Server error.';
+                                   uploadProgressBar.style.display = 'none';
+                            }
+                     };
+                     xhr.onerror = function () {
+                            uploadStatus.textContent = 'Upload failed. Network error.';
+                            uploadProgressBar.style.display = 'none';
+                     };
+                     xhr.send(formData);
+              });
+       }
+
        function syncVideoSourceUI() {
               const isVeo = videoModeVeo?.checked;
               const isNone = videoModeNone?.checked;
@@ -359,6 +543,11 @@
               if (videoFileSelect) videoFileSelect.disabled = Boolean(isVeo || isNone);
               if (videoUrlInput) videoUrlInput.disabled = !isVeo;
               if (videoInputsSection) videoInputsSection.style.display = isNone ? 'none' : 'grid';
+
+              // Hide Dropzone and VEO controls if No Video
+              if (videoUploadDropzone) videoUploadDropzone.style.display = (videoModeUpload?.checked && !isNone) ? 'block' : 'none';
+              if (veoDownloadBtn) veoDownloadBtn.disabled = !isVeo || isNone;
+              if (veoDownloadStatus) veoDownloadStatus.style.display = (isVeo && !isNone) ? 'block' : 'none';
        }
 
        if (videoModeUpload && videoModeVeo) {

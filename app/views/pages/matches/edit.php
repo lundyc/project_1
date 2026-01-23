@@ -519,7 +519,22 @@ ob_start();
                                                 <span class="text-xs text-emerald-400">Currently selected</span>
                                             <?php endif; ?>
                                         </div>
-                                        <p class="text-sm text-slate-400">Select a raw video already on the server.</p>
+                                        <p class="text-sm text-slate-400">Select a raw video already on the server or upload a new one.</p>
+                                        <div id="video-upload-dropzone" class="mt-3" style="display:<?= $videoType === 'upload' ? 'block' : 'none' ?>;">
+                                            <form id="videoUploadForm" enctype="multipart/form-data" method="post" action="<?= htmlspecialchars($base) ?>/api/videos/upload" style="border: 2px dashed #3b82f6; padding: 20px; border-radius: 8px; background: #1e293b; text-align: center;">
+                                                <input type="file" name="video_file" id="videoFileInput" accept="video/mp4,video/webm,video/mov" style="display:none;">
+                                                <label for="videoFileInput" class="cursor-pointer text-blue-400 hover:text-blue-300">
+                                                    <i class="fa-solid fa-cloud-arrow-up text-2xl"></i>
+                                                    <div class="mt-2">Drag & drop or click to select video</div>
+                                                </label>
+                                                <div id="videoUploadPreview" class="mt-2 text-slate-400"></div>
+                                                <button type="button" id="uploadNowBtn" class="mt-4 px-4 py-2 rounded bg-blue-600 text-white font-semibold hover:bg-blue-700 transition">Upload Now</button>
+                                                <div id="uploadProgressBar" class="w-full h-2 bg-slate-700 rounded-full overflow-hidden mt-3" style="display:none;">
+                                                    <div id="uploadProgress" class="h-full bg-blue-500 transition-all duration-300" style="width:0%"></div>
+                                                </div>
+                                                <div id="uploadStatus" class="mt-2 text-xs text-slate-400"></div>
+                                            </form>
+                                        </div>
                                     </div>
                                 </label>
 
@@ -538,25 +553,12 @@ ob_start();
                             </div>
 
                             <div class="grid md:grid-cols-2 gap-6" id="videoInputsSection" <?= $videoType === 'none' ? 'style="display:none;"' : '' ?>>
-                                <div class="space-y-2">
-                                    <label class="block text-sm font-medium text-slate-200">Raw video file</label>
-                                    <select name="video_source_path" id="video_file_select" form="match-details-form" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40" <?= $videoType === 'veo' || $videoType === 'none' ? 'disabled' : '' ?> <?= empty($videoFiles) ? 'disabled' : '' ?>>
-                                        <option value="">Select raw video</option>
-                                        <?php foreach ($videoFiles as $file): ?>
-                                            <option value="<?= htmlspecialchars($file['web_path']) ?>" <?= $videoPath === $file['web_path'] ? 'selected' : '' ?>><?= htmlspecialchars($file['filename']) ?></option>
-                                        <?php endforeach; ?>
-                                        <?php if ($videoType === 'upload' && $videoPath && !$hasCurrentVideo): ?>
-                                            <option value="<?= htmlspecialchars($videoPath) ?>" selected>Current: <?= htmlspecialchars(basename($videoPath)) ?></option>
-                                        <?php endif; ?>
-                                    </select>
-                                    <p class="text-xs text-slate-500">
-                                        <?= empty($videoFiles) ? 'No raw videos found in /videos/raw. Upload first, or keep the existing video.' : 'Choose from the raw videos directory. Leave blank to keep current file.' ?>
-                                    </p>
-                                </div>
 
                                 <div class="space-y-2">
                                     <label class="block text-sm font-medium text-slate-200">VEO match URL</label>
                                     <input type="text" name="video_source_url" id="video_url_input" form="match-details-form" value="<?= htmlspecialchars($videoType === 'veo' ? $videoUrl : '') ?>" placeholder="https://app.veo.co/matches/..." class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40" <?= $videoType === 'veo' ? '' : 'disabled' ?>>
+                                                                        <button type="button" id="veoDownloadBtn" class="mt-2 px-4 py-2 rounded bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition" <?= $videoType === 'veo' ? '' : 'disabled' ?>>Download now</button>
+                                                                        <div id="veoDownloadStatus" class="mt-2 text-xs text-slate-400"></div>
                                     <p class="text-xs text-slate-500">Leave blank to keep existing VEO link. A new link will start a fresh download.</p>
                                 </div>
                             </div>
