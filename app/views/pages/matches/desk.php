@@ -91,6 +91,7 @@ $videoLabEnabled = phase3_is_enabled();
 $headExtras .= '<script>window.VIDEO_LAB_ENABLED = ' . ($videoLabEnabled ? 'true' : 'false') . ';</script>';
 $projectRoot = realpath(__DIR__ . '/../../../../');
 $isVeo = (($match['video_source_type'] ?? '') === 'veo');
+$showVideoProgressPanel = $videoLabEnabled && !empty($matchVideoRow);
 
 // Check if match has video from match_videos table
 $matchVideoStmt = $db->prepare('SELECT source_path, download_status FROM match_videos WHERE match_id = :match_id LIMIT 1');
@@ -205,22 +206,26 @@ $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/toast.
 $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-events.js?v=' . time() . '"></script>';
 $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-annotations.js?v=' . time() . '"></script>';
 if ($videoLabEnabled) {
-    $videoProgressConfig = [
-        'matchId' => $matchId,
-        'progressUrl' => $base . '/api/match-video/progress?match_id=' . $matchId,
-        'retryUrl' => $base . '/api/match-video/retry',
-        'standardPath' => $standardRelative,
-        'videoReady' => $videoReady,
-        'defaultFormatId' => $defaultFormatId,
-        'videoFormats' => $videoFormats,
-        'csrfToken' => $csrfToken,
-    ];
-    $footerScripts .= '<script>window.MatchVideoDeskConfig = ' . json_encode($videoProgressConfig) . ';</script>';
+    if ($showVideoProgressPanel) {
+        $videoProgressConfig = [
+            'matchId' => $matchId,
+            'progressUrl' => $base . '/api/match-video/progress?match_id=' . $matchId,
+            'retryUrl' => $base . '/api/match-video/retry',
+            'standardPath' => $standardRelative,
+            'videoReady' => $videoReady,
+            'defaultFormatId' => $defaultFormatId,
+            'videoFormats' => $videoFormats,
+            'csrfToken' => $csrfToken,
+        ];
+        $footerScripts .= '<script>window.MatchVideoDeskConfig = ' . json_encode($videoProgressConfig) . ';</script>';
+    }
     $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-video-controls.js?v=' . time() . '"></script>';
     $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-video-interactive.js?v=' . time() . '"></script>';
     $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/timeline-markers.js?v=' . time() . '"></script>';
     $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/panoramic-player.js?v=' . time() . '"></script>';
-    $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/match-video-progress.js?v=' . time() . '"></script>';
+    if ($showVideoProgressPanel) {
+        $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/match-video-progress.js?v=' . time() . '"></script>';
+    }
 }
 
 ob_start();
@@ -675,6 +680,7 @@ ob_start();
                         <div id="deskVideoPlaceholder" class="text-center text-muted mb-3<?= $videoReady ? ' d-none' : '' ?>">
                             <?= htmlspecialchars($placeholderMessage) ?>
                         </div>
+                        <?php if ($showVideoProgressPanel): ?>
                         <div class="panel p-3 rounded-md panel-dark mt-3<?= $videoReady ? ' d-none' : '' ?>" id="deskVideoProgressPanel">
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <div>
@@ -704,6 +710,7 @@ ob_start();
                                 <span class="text-muted-alt text-xs">We poll every 2 seconds; downloads continue in the background.</span>
                             </div>
                         </div>
+                        <?php endif; ?>
                     </div>
                     <!-- timeline-panel moved below desk-video section -->
                 </div>

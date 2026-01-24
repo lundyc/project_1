@@ -3,6 +3,8 @@ require_once __DIR__ . '/../app/lib/auth.php';
 auth_boot();
 require_auth();
 
+echo password_hash('lol1234', PASSWORD_BCRYPT);
+
 $title = 'Video Player Test';
 
 $headExtras = <<<'HTML'
