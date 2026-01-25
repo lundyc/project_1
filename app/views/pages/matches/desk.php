@@ -665,6 +665,12 @@ ob_start();
                                               </button>
                                               <div id="tooltip-deskFullscreen" role="tooltip" class="video-control-tooltip">Fullscreen</div>
                                           </span>
+                                          <span class="control-btn-shell">
+                                              <button id="deskDetachVideo" class="control-btn" aria-label="Detach video" aria-describedby="tooltip-deskDetachVideo" type="button">
+                                                  <i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i>
+                                              </button>
+                                              <div id="tooltip-deskDetachVideo" role="tooltip" class="video-control-tooltip">Detach video</div>
+                                          </span>
                                       </div>
                             <?php
                             /*

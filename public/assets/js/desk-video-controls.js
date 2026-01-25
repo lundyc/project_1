@@ -14,9 +14,9 @@
     const playPauseIcon = playPauseBtn ? playPauseBtn.querySelector('i') : null;
     const muteIcon = muteBtn ? muteBtn.querySelector('i') : null;
     const fullscreenIcon = fullscreenBtn ? fullscreenBtn.querySelector('i') : null;
+    const detachBtn = document.getElementById('deskDetachVideo');
     const speedLabel = speedToggle ? speedToggle.querySelector('.speed-label') : null;
     const videoFrame = video ? video.closest('.video-frame') : null;
-    const fullscreenTarget = videoFrame || video;
     const timelineTrack = document.getElementById('deskTimelineTrack');
     const timelineProgress = document.getElementById('deskTimelineProgress');
     const timelineWrapper = document.getElementById('deskTimeline');
@@ -180,6 +180,22 @@
       return;
     }
 
+    const originalVideoParent = video.parentNode;
+    const originalVideoNextSibling = video.nextSibling;
+    const styleBackup = {
+      width: video.style.width,
+      height: video.style.height,
+      maxWidth: video.style.maxWidth,
+      maxHeight: video.style.maxHeight,
+      objectFit: video.style.objectFit,
+    };
+    const DETACH_WINDOW_NAME = 'matchDeskDetachedVideo';
+    let detachedWindow = null;
+    let detachWindowUnloadHandler = null;
+    let detachWindowFullscreenHandler = null;
+    let detachMonitorId = null;
+    let isVideoDetached = false;
+
     video.playbackRate = 1;
     speedToggle.setAttribute('aria-expanded', 'false');
     speedOptions.setAttribute('aria-hidden', 'true');
@@ -198,8 +214,157 @@
       muteBtn.setAttribute('aria-label', video.muted ? 'Unmute video' : 'Mute video');
     };
 
+    const getFullscreenTarget = () => {
+      return isVideoDetached ? video : videoFrame || video;
+    };
+
+    const updateDetachButtonState = (detached) => {
+      if (!detachBtn) {
+        return;
+      }
+      detachBtn.setAttribute('aria-pressed', detached ? 'true' : 'false');
+      detachBtn.classList.toggle('is-active', detached);
+    };
+
+    const disableDetachButton = () => {
+      if (!detachBtn) {
+        return;
+      }
+      detachBtn.disabled = true;
+      detachBtn.setAttribute('aria-disabled', 'true');
+      detachBtn.title = 'Detach video (popup blocked)';
+    };
+
+    const applyDetachedStyles = () => {
+      video.setAttribute('data-video-detached', 'true');
+      video.style.width = '100%';
+      video.style.height = '100%';
+      video.style.maxWidth = '100%';
+      video.style.maxHeight = '100%';
+      video.style.objectFit = 'contain';
+    };
+
+    const restoreVideoStyles = () => {
+      Object.entries(styleBackup).forEach(([prop, value]) => {
+        video.style[prop] = value || '';
+      });
+      video.removeAttribute('data-video-detached');
+    };
+
+    const cleanupDetachedWindow = () => {
+      if (detachedWindow && detachWindowUnloadHandler) {
+        detachedWindow.removeEventListener('beforeunload', detachWindowUnloadHandler);
+        detachWindowUnloadHandler = null;
+      }
+      if (detachedWindow && detachWindowFullscreenHandler) {
+        detachedWindow.document.removeEventListener('fullscreenchange', detachWindowFullscreenHandler);
+        detachWindowFullscreenHandler = null;
+      }
+      if (detachMonitorId) {
+        clearInterval(detachMonitorId);
+        detachMonitorId = null;
+      }
+      detachedWindow = null;
+    };
+
+    const reattachVideo = () => {
+      if (!isVideoDetached || !originalVideoParent) {
+        return;
+      }
+      // Reattach before the popup finishes unloading so the desk layout stays intact.
+      cleanupDetachedWindow();
+      if (video.parentNode !== originalVideoParent) {
+        originalVideoParent.insertBefore(video, originalVideoNextSibling);
+      }
+      restoreVideoStyles();
+      isVideoDetached = false;
+      updateDetachButtonState(false);
+      updateFullscreenIcon();
+    };
+
+    const startDetachedWindowMonitor = () => {
+      if (!detachedWindow || detachMonitorId) {
+        return;
+      }
+      detachMonitorId = setInterval(() => {
+        if (!detachedWindow || !isVideoDetached) {
+          return;
+        }
+        if (detachedWindow.closed) {
+          reattachVideo();
+        }
+      }, 400);
+    };
+
+    const detachPopupFeatures = () => {
+      const width = 1360;
+      const height = 768;
+      const left = Math.max(0, window.screenX + Math.floor((window.outerWidth - width) / 2));
+      const top = Math.max(0, window.screenY + Math.floor((window.outerHeight - height) / 2));
+      return `width=${width},height=${height},left=${left},top=${top},menubar=0,toolbar=0,location=0,status=0,resizable=1,scrollbars=0`;
+    };
+
+    const detachVideo = () => {
+      if (!detachBtn) {
+        return;
+      }
+      if (detachedWindow && !detachedWindow.closed) {
+        detachedWindow.focus();
+        return;
+      }
+      // Move the single video node into a popup so playback state stays intact while controls remain docked.
+      const features = detachPopupFeatures();
+      detachedWindow = window.open('', DETACH_WINDOW_NAME, features);
+      if (!detachedWindow) {
+        console.warn('Match Desk video detach popup was blocked by the browser.');
+        disableDetachButton();
+        return;
+      }
+      const doc = detachedWindow.document;
+      detachWindowFullscreenHandler = () => {
+        updateFullscreenIcon();
+      };
+      doc.addEventListener('fullscreenchange', detachWindowFullscreenHandler);
+      doc.title = 'Match Desk Video';
+      doc.documentElement.style.height = '100%';
+      doc.documentElement.style.margin = '0';
+      doc.documentElement.style.backgroundColor = '#000';
+      doc.body.style.margin = '0';
+      doc.body.style.height = '100vh';
+      doc.body.style.display = 'flex';
+      doc.body.style.alignItems = 'center';
+      doc.body.style.justifyContent = 'center';
+      doc.body.style.backgroundColor = '#000';
+      const container = doc.createElement('div');
+      container.style.width = '100%';
+      container.style.height = '100%';
+      container.style.display = 'flex';
+      container.style.alignItems = 'center';
+      container.style.justifyContent = 'center';
+      container.appendChild(video);
+      doc.body.appendChild(container);
+      applyDetachedStyles();
+      isVideoDetached = true;
+      updateDetachButtonState(true);
+      updateFullscreenIcon();
+      const handleDetachedWindowBeforeUnload = () => {
+        reattachVideo();
+      };
+      detachWindowUnloadHandler = handleDetachedWindowBeforeUnload;
+      detachedWindow.addEventListener('beforeunload', handleDetachedWindowBeforeUnload);
+      startDetachedWindowMonitor();
+      detachedWindow.focus();
+    };
+
+    if (detachBtn) {
+      updateDetachButtonState(false);
+      detachBtn.addEventListener('click', detachVideo);
+    }
+
     const updateFullscreenIcon = () => {
-      const isVideoFullscreen = document.fullscreenElement === fullscreenTarget;
+      const target = getFullscreenTarget();
+      const targetDocument = target?.ownerDocument ?? document;
+      const isVideoFullscreen = targetDocument.fullscreenElement === target;
       fullscreenIcon.classList.remove('fa-expand', 'fa-compress');
       fullscreenIcon.classList.add(isVideoFullscreen ? 'fa-compress' : 'fa-expand');
       fullscreenBtn.setAttribute('aria-label', isVideoFullscreen ? 'Exit fullscreen' : 'Enter fullscreen');
@@ -352,13 +517,15 @@
     updateMuteIcon();
 
     fullscreenBtn.addEventListener('click', () => {
-      if (!fullscreenTarget) {
+      const target = getFullscreenTarget();
+      if (!target) {
         return;
       }
-      if (document.fullscreenElement === fullscreenTarget) {
-        document.exitFullscreen();
-      } else if (fullscreenTarget.requestFullscreen) {
-        fullscreenTarget.requestFullscreen().catch(() => {
+      const targetDocument = target.ownerDocument || document;
+      if (targetDocument.fullscreenElement === target) {
+        targetDocument.exitFullscreen();
+      } else if (target.requestFullscreen) {
+        target.requestFullscreen().catch(() => {
           /* ignore fullscreen failures */
         });
       }

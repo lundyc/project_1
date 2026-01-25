@@ -137,9 +137,14 @@ function upsert_match_period_time(
                     $updates = [];
                     $params = ['match_id' => $matchId, 'id' => $period['id']];
 
+                    // Always update start_second if provided (for period start)
                     if ($startSecond !== null) {
                               $updates[] = 'start_second = :start_second';
                               $params['start_second'] = $startSecond;
+                    } else if ($period !== null && !array_key_exists('start_second', $period)) {
+                              // If period exists but has no start_second, set it to 0
+                              $updates[] = 'start_second = :start_second';
+                              $params['start_second'] = 0;
                     }
                     if ($endSecond !== null) {
                               $updates[] = 'end_second = :end_second';

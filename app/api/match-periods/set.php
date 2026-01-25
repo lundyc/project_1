@@ -1,7 +1,16 @@
+<?php
+
 require_once __DIR__ . '/../../lib/event_repository.php';
+require_once __DIR__ . '/../../lib/auth.php';
+require_once __DIR__ . '/../../lib/match_repository.php';
+require_once __DIR__ . '/../../lib/match_permissions.php';
+require_once __DIR__ . '/../../lib/match_period_repository.php';
+
 // --- Auto-repair: ensure every ended period has a period_end event ---
 function ensure_period_end_event($matchId, $periodKey, $label, $endSecond, $userId, $clubId) {
-    if ($endSecond === null) return;
+    if ($endSecond === null) {
+        return;
+    }
     $events = event_list_for_match($matchId);
     $found = false;
     foreach ($events as $ev) {
@@ -14,7 +23,6 @@ function ensure_period_end_event($matchId, $periodKey, $label, $endSecond, $user
         }
     }
     if (!$found) {
-        // Find event_type_id for period_end
         $eventTypeId = get_event_type_id_by_key($clubId, 'period_end');
         if (!$eventTypeId) {
             $eventTypeId = ensure_event_type_exists($clubId, 'period_end', 'Period End', 3);
@@ -39,12 +47,6 @@ function ensure_period_end_event($matchId, $periodKey, $label, $endSecond, $user
         event_create($matchId, $data, [], $userId);
     }
 }
-<?php
-
-require_once __DIR__ . '/../../lib/auth.php';
-require_once __DIR__ . '/../../lib/match_repository.php';
-require_once __DIR__ . '/../../lib/match_permissions.php';
-require_once __DIR__ . '/../../lib/match_period_repository.php';
 
 auth_boot();
 require_auth();
@@ -129,12 +131,14 @@ $activeKey = $active['period_key'] ?? null;
 
 try {
           if ($periodAction === 'start') {
+                    // Allow starting a new period if there is no active period, or if the active period matches the key
                     if ($active && $activeKey !== $periodKey) {
                               http_response_code(409);
                               echo json_encode(['ok' => false, 'error' => 'another_active_period']);
                               exit;
                     }
-                    $result = upsert_match_period_time($matchId, $activeKey === $periodKey ? (int)$activePeriodId : null, $label, $currentSecond, null, $periodKey, true);
+                    // If no active period, always insert a new row for the new period
+                    $result = upsert_match_period_time($matchId, null, $label, $currentSecond, null, $periodKey, true);
                     $activeId = $result['period_id'];
 
           } else {

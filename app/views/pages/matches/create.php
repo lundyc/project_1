@@ -676,7 +676,7 @@ include __DIR__ . '/../../partials/match_context_header.php';
             </div>
             <form id="addPlayerForm">
                 <div class="modal-body space-y-4">
-                    <div class="mb-3 p-3 bg-blue-900/30 border border-blue-700 rounded-lg text-sm text-blue-200">
+                    <div id="player-modal-tip" class="mb-3 p-3 bg-blue-900/30 border border-blue-700 rounded-lg text-sm text-blue-200 flex items-center gap-2">
                         <i class="fa-solid fa-keyboard mr-2"></i>
                         <span class="font-medium">Tip:</span> Press <kbd class="px-1.5 py-0.5 bg-slate-700 rounded text-xs">ESC</kbd> to close this dialog
                     </div>

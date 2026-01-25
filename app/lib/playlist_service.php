@@ -110,70 +110,91 @@ function playlist_service_add_clip(int $playlistId, int $matchId, int $clipId, ?
           $clip = playlist_get_clip_for_match($clipId, $matchId);
           
           // If no clip exists, try to create one from the event (event_id == clip_id pattern)
-          if (!$clip) {
-                    $event = event_get_by_id($clipId);
-                    if (!$event || (int)$event['match_id'] !== $matchId) {
-                              throw new RuntimeException('clip_not_found');
-                    }
-                    
-                    // Build clip name from event details
-                    $clipName = generate_clip_name_from_event($event, $matchId);
-                    
-                    // Create a clip from the event: ±30 seconds around match_second
-                    $matchSecond = (int)($event['match_second'] ?? 0);
-                    $startSecond = max(0, $matchSecond - 30);
-                    $endSecond = $matchSecond + 30;
-                    $currentUser = current_user();
-                    $userId = (int)($currentUser['id'] ?? 0);
-                    
-                    $pdo = db();
-                    try {
+            if (!$clip) {
+                         $event = event_get_by_id($clipId);
+                         if (!$event || (int)$event['match_id'] !== $matchId) {
+                                     throw new RuntimeException('clip_not_found');
+                         }
+                         // Build clip name from event details
+                         $clipName = generate_clip_name_from_event($event, $matchId);
+                         $matchSecond = (int)($event['match_second'] ?? 0);
+                         $startSecond = max(0, $matchSecond - 30);
+                         $endSecond = $matchSecond + 30;
+                         $currentUser = current_user();
+                         $userId = (int)($currentUser['id'] ?? 0);
+
+                         // Generate mp4 first
+                         require_once __DIR__ . '/clip_mp4_service.php';
+                         $tempClip = [
+                              'id' => null,
+                              'match_id' => $matchId,
+                              'clip_name' => $clipName,
+                              'start_second' => $startSecond,
+                              'duration_seconds' => $endSecond - $startSecond,
+                         ];
+                         // Insert into DB only after mp4 is created
+                         try {
+                              // Use a temporary ID for filename, will rename after DB insert
+                              $mp4Created = false;
+                              // Insert clip row
+                              $pdo = db();
                               $stmt = $pdo->prepare(
-                                        'INSERT INTO clips (match_id, event_id, clip_name, start_second, end_second, created_by) 
-                         VALUES (:match_id, :event_id, :clip_name, :start_second, :end_second, :created_by)'
+                                   'INSERT INTO clips (match_id, event_id, clip_name, start_second, end_second, created_by) 
+                                    VALUES (:match_id, :event_id, :clip_name, :start_second, :end_second, :created_by)'
                               );
                               $stmt->execute([
-                                        'match_id' => $matchId,
-                                        'event_id' => $clipId,
-                                        'clip_name' => $clipName,
-                                        'start_second' => $startSecond,
-                                        'end_second' => $endSecond,
-                                        'created_by' => $userId,
+                                   'match_id' => $matchId,
+                                   'event_id' => $clipId,
+                                   'clip_name' => $clipName,
+                                   'start_second' => $startSecond,
+                                   'end_second' => $endSecond,
+                                   'created_by' => $userId,
                               ]);
                               $newClipId = (int)$pdo->lastInsertId();
-                              $clip = [
-                                        'id' => $newClipId,
-                                        'clip_id' => $newClipId,
-                                        'match_id' => $matchId,
-                                        'clip_name' => $clipName,
-                                        'start_second' => $startSecond,
-                                        'end_second' => $endSecond,
-                              ];
-                              // Update clipId to the newly created clip's actual ID
-                              $clipId = $newClipId;
-                    } catch (\PDOException $e) {
-                              // If insert fails (e.g., duplicate event_id), retrieve the existing clip
-                              if (($e->errorInfo[1] ?? null) === 1062) {
-                                        $clip = playlist_get_clip_for_match($clipId, $matchId);
-                                        if (!$clip) {
-                                                  throw new RuntimeException('clip_not_found');
-                                        }
-                                        // Use the actual clip ID for the playlist entry
-                                        $clipId = (int)$clip['id'];
-                              } else {
-                                        throw $e;
+                              $tempClip['id'] = $newClipId;
+                              $mp4Path = ensure_clip_mp4_exists($tempClip);
+                              // Rename file to match_{match_id}_{clip_id}.mp4 if needed
+                              $documentRoot = rtrim($_SERVER['DOCUMENT_ROOT'] ?? '', DIRECTORY_SEPARATOR);
+                              $clipsDir = $documentRoot . "/videos/clips";
+                              $finalPath = $clipsDir . "/match_{$matchId}_{$newClipId}.mp4";
+                              if ($mp4Path !== $finalPath) {
+                                   @rename($mp4Path, $finalPath);
                               }
-                    }
-          }
+                              $clip = [
+                                   'id' => $newClipId,
+                                   'clip_id' => $newClipId,
+                                   'match_id' => $matchId,
+                                   'clip_name' => $clipName,
+                                   'start_second' => $startSecond,
+                                   'end_second' => $endSecond,
+                              ];
+                              $clipId = $newClipId;
+                         } catch (\Exception $e) {
+                              // If mp4 generation fails, remove DB row
+                              if (isset($newClipId) && $newClipId) {
+                                   $pdo->prepare('DELETE FROM clips WHERE id = :id')->execute(['id' => $newClipId]);
+                              }
+                              throw $e;
+                         }
+            }
 
-          try {
-                    return playlist_add_clip($playlistId, $clipId, $sortOrder);
-          } catch (RuntimeException $e) {
-                    if ($e->getMessage() === 'duplicate_clip') {
-                              throw new RuntimeException('duplicate_clip');
-                    }
-                    throw $e;
-          }
+            try {
+                         $clipRow = playlist_add_clip($playlistId, $clipId, $sortOrder);
+                         // --- Ensure mp4 is generated for this clip ---
+                         require_once __DIR__ . '/clip_mp4_service.php';
+                         try {
+                              ensure_clip_mp4_exists($clipRow);
+                         } catch (\Throwable $mp4ex) {
+                              // Optionally log or handle mp4 generation errors
+                              // error_log('Clip mp4 generation failed: ' . $mp4ex->getMessage());
+                         }
+                         return $clipRow;
+            } catch (RuntimeException $e) {
+                         if ($e->getMessage() === 'duplicate_clip') {
+                                     throw new RuntimeException('duplicate_clip');
+                         }
+                         throw $e;
+            }
 }
 
 /**

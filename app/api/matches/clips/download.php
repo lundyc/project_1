@@ -30,11 +30,13 @@ if (!$clip) {
           api_respond_with_json(404, ['ok' => false, 'error' => 'clip_not_found']);
 }
 
+
 $documentRoot = rtrim($_SERVER['DOCUMENT_ROOT'] ?? '', DIRECTORY_SEPARATOR);
-$videoRelative = '/videos/matches/match_' . $matchId . '/source/veo/standard/match_' . $matchId . '_standard.mp4';
-$sourceVideo = $documentRoot . $videoRelative;
-if (!is_file($sourceVideo)) {
-          api_respond_with_json(404, ['ok' => false, 'error' => 'match_video_missing']);
+$clipsDir = $documentRoot . '/videos/clips/match_' . $matchId;
+$clipId = $clip['id'] ?? $clip['clip_id'] ?? null;
+$mp4Path = $clipsDir . "/clip_{$clipId}.mp4";
+if (!is_file($mp4Path) || filesize($mp4Path) === 0) {
+    api_respond_with_json(404, ['ok' => false, 'error' => 'clip_mp4_missing']);
 }
 
 set_time_limit(0);
@@ -80,26 +82,17 @@ try {
                     api_respond_with_json(422, ['ok' => false, 'error' => 'clip_has_invalid_duration']);
           }
           
-          // Generate filename
+
+          // Stream the file to the client
           $clipName = $clip['clip_name'] ?? 'clip';
           $fileName = slugify($clipName) . '.mp4';
-          $targetPath = $sessionDir . DIRECTORY_SEPARATOR . $fileName;
-          
-          create_clip_segment($sourceVideo, $targetPath, $start, $duration);
-          
-          if (!is_file($targetPath) || filesize($targetPath) <= 0) {
-                    throw new RuntimeException('clip_generation_failed');
-          }
-          
-          // Stream the file to the client
           header('Content-Type: video/mp4');
-          header('Content-Length: ' . filesize($targetPath));
+          header('Content-Length: ' . filesize($mp4Path));
           header('Content-Disposition: attachment; filename="' . basename($fileName) . '"');
           header('Cache-Control: no-cache, no-store, must-revalidate');
           header('Pragma: no-cache');
           header('Expires: 0');
-          
-          readfile($targetPath);
+          readfile($mp4Path);
           exit;
           
 } catch (\Throwable $e) {

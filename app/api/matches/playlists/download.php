@@ -34,11 +34,27 @@ if (empty($clips)) {
           api_respond_with_json(422, ['ok' => false, 'error' => 'playlist_empty']);
 }
 
+
 $documentRoot = rtrim($_SERVER['DOCUMENT_ROOT'] ?? '', DIRECTORY_SEPARATOR);
-$videoRelative = '/videos/matches/match_' . $matchId . '/source/veo/standard/match_' . $matchId . '_standard.mp4';
-$sourceVideo = $documentRoot . $videoRelative;
-if (!is_file($sourceVideo)) {
-          api_respond_with_json(404, ['ok' => false, 'error' => 'match_video_missing']);
+
+require_once __DIR__ . '/../../../lib/clip_mp4_service.php';
+
+// Check all clips have mp4s at /videos/clips/match_{match_id}_{clip_id}.mp4
+$missingMp4s = [];
+$clipMp4Paths = [];
+foreach ($clips as $clip) {
+    $clipId = $clip['id'] ?? $clip['clip_id'] ?? null;
+    $matchIdForClip = $clip['match_id'] ?? $matchId;
+    if (!$clipId || !$matchIdForClip) continue;
+    $mp4Path = $documentRoot . "/videos/clips/match_{$matchIdForClip}_{$clipId}.mp4";
+    if (!is_file($mp4Path) || filesize($mp4Path) === 0) {
+        $missingMp4s[] = $clipId;
+    } else {
+        $clipMp4Paths[] = $mp4Path;
+    }
+}
+if (!empty($missingMp4s)) {
+    api_respond_with_json(404, ['ok' => false, 'error' => 'clip_mp4_missing', 'missing_clips' => $missingMp4s]);
 }
 
 set_time_limit(0);
@@ -54,49 +70,21 @@ try {
                     remove_directory_recursive($sessionDir);
           });
 
+
           $generatedFiles = [];
           $generatedCount = 0;
-          $skipped = [];
-          foreach ($clips as $clip) {
-                    $start = isset($clip['start_second']) ? (int)$clip['start_second'] : null;
-                    $end = isset($clip['end_second']) ? (int)$clip['end_second'] : null;
-                    $duration = isset($clip['duration_seconds']) ? (int)$clip['duration_seconds'] : null;
-                    
-                    // If duration is not set, calculate from end_second
-                    if ($duration === null && $end !== null) {
-                              $duration = $end - $start;
-                    }
-                    
-                    // If no valid duration yet, try to calculate from event (for clips created with event_id as clip_id)
-                    if (($duration === null || $duration <= 0) && isset($clip['event_id']) && $clip['event_id']) {
-                              $event = event_get_by_id((int)$clip['event_id']);
-                              if ($event) {
-                                        $eventSecond = (int)($event['match_second'] ?? 0);
-                                        $start = max(0, $eventSecond - 30);
-                                        $end = $eventSecond + 30;
-                                        $duration = $end - $start;
-                              }
-                    }
-                    
-                    if ($start === null || $start < 0) {
-                              $skipped[] = ['reason' => 'missing_start', 'clip_id' => $clip['id'] ?? $clip['clip_id'] ?? '?'];
-                              continue;
-                    }
-                    if ($duration === null || $duration <= 0) {
-                              $skipped[] = ['reason' => 'missing_duration', 'clip_id' => $clip['id'] ?? $clip['clip_id'] ?? '?', 'duration' => $duration];
-                              continue;
-                    }
-                    $generatedCount += 1;
-                    $fileName = sprintf('%02d_%s.mp4', $generatedCount, slugify($clip['clip_name'] ?? 'clip'));
-                    $targetPath = $sessionDir . DIRECTORY_SEPARATOR . $fileName;
-                    create_clip_segment($sourceVideo, $targetPath, $start, $duration);
-                    if (is_file($targetPath) && filesize($targetPath) > 0) {
-                              $generatedFiles[] = $targetPath;
-                    }
+          foreach ($clipMp4Paths as $mp4Path) {
+              $generatedCount++;
+              $fileName = sprintf('%02d_clip.mp4', $generatedCount);
+              $targetPath = $sessionDir . DIRECTORY_SEPARATOR . $fileName;
+              copy($mp4Path, $targetPath);
+              if (is_file($targetPath) && filesize($targetPath) > 0) {
+                  $generatedFiles[] = $targetPath;
+              }
           }
 
           if (empty($generatedFiles)) {
-                    throw new RuntimeException('clip_generation_failed: ' . json_encode(['skipped' => $skipped, 'clips_count' => count($clips)]));
+                    throw new RuntimeException('no_clips_to_zip');
           }
 
           $zipPath = $sessionDir . DIRECTORY_SEPARATOR . 'playlist.zip';

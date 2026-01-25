@@ -27,19 +27,22 @@ if (strlen($query) < 2) {
           respond_json(200, ['ok' => true, 'players' => []]);
 }
 
-$stmt = db()->prepare(
-          'SELECT id, first_name, last_name, is_active, primary_position
-           FROM players
-           WHERE club_id = :club_id 
-           AND (first_name LIKE :query OR last_name LIKE :query)
-           ORDER BY is_active DESC, first_name ASC, last_name ASC
-           LIMIT 20'
-);
 
-$stmt->execute([
-          'club_id' => $clubId,
-          'query' => '%' . $query . '%',
-]);
+$teamId = isset($_GET['team_id']) ? (int)$_GET['team_id'] : 0;
+$sql = 'SELECT id, first_name, last_name, is_active, primary_position FROM players WHERE club_id = :club_id AND (first_name LIKE :query OR last_name LIKE :query)';
+if ($teamId > 0) {
+    $sql .= ' AND team_id = :team_id';
+}
+$sql .= ' ORDER BY is_active DESC, first_name ASC, last_name ASC LIMIT 20';
+$stmt = db()->prepare($sql);
+$params = [
+    'club_id' => $clubId,
+    'query' => '%' . $query . '%',
+];
+if ($teamId > 0) {
+    $params['team_id'] = $teamId;
+}
+$stmt->execute($params);
 
 $results = $stmt->fetchAll();
 

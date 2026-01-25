@@ -246,7 +246,7 @@ ob_start();
         $showClubSelector = true;
         include __DIR__ . '/../../partials/match_context_header.php';
         ?>
-                    <div class="flex items-center justify-end gap-2 mb-6">
+                    <div class="flex items-center justify-end gap-2 mb-0">
             <a href="<?= htmlspecialchars($base) ?>/matches" class="inline-flex items-center rounded-md bg-slate-700/60 px-2 py-1 text-xs text-slate-200 hover:bg-slate-700/80 transition" aria-label="Back to matches">
                 ← Back to matches
             </a>
@@ -1392,15 +1392,23 @@ ob_start();
     <div class="modal-backdrop" aria-hidden="true"></div>
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="add-player-modal-title" class="modal-title">Add Player</h3>
-                <button type="button" class="modal-close" data-close-modal aria-label="Close dialog (press ESC)" title="Close (ESC)">
+            <div class="modal-header flex-col items-start">
+                <h3 id="add-player-modal-title" class="modal-title text-lg font-semibold">
+                    Add Player - <span id="add-player-team-name" class="font-bold text-blue-300">
+                        <?php
+                            // Default to home team name as fallback, JS will update as needed
+                            echo htmlspecialchars($homeTeamName ?: ($teams[0]['name'] ?? ''));
+                        ?>
+                    </span>
+                </h3>
+                <div id="add-player-modal-subtitle" class="text-xs text-slate-400 mt-1 mb-1"></div>
+                <button type="button" class="modal-close absolute top-4 right-4" data-close-modal aria-label="Close dialog (press ESC)" title="Close (ESC)">
                     <i class="fa-solid fa-times"></i>
                 </button>
             </div>
             <form id="addPlayerForm">
                 <div class="modal-body space-y-4">
-                    <div class="mb-3 p-3 bg-blue-900/30 border border-blue-700 rounded-lg text-sm text-blue-200">
+                    <div id="player-modal-tip" class="mb-3 p-3 bg-blue-900/30 border border-blue-700 rounded-lg text-sm text-blue-200 flex items-center gap-2">
                         <i class="fa-solid fa-keyboard mr-2"></i>
                         <span class="font-medium">Tip:</span> Press <kbd class="px-1.5 py-0.5 bg-slate-700 rounded text-xs">ESC</kbd> to close this dialog
                     </div>
@@ -1463,15 +1471,15 @@ ob_start();
                     <div id="player-form-error" class="hidden text-sm text-rose-400 p-3 bg-rose-900/20 rounded-lg border border-rose-700/50"></div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn-secondary" data-close-modal>Cancel</button>
-                    
+                  
                     <!-- Single mode buttons -->
                     <div class="flex gap-2">
+                             <button type="button" class="btn-secondary" data-close-modal>Cancel</button>
                         <button type="submit" class="btn-primary" id="add-player-btn">
                             <i class="fa-solid fa-plus mr-2"></i>
                             Add Player
                         </button>
-                        <button type="button" class="btn-primary" id="add-another-btn" style="background-color: var(--accent-info);">
+                        <button type="button" class="btn-primary" id="add-another-btn">
                             <i class="fa-solid fa-redo mr-2"></i>
                             Save & Add Another
                         </button>

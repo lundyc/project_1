@@ -240,7 +240,7 @@ $(function () {
             free_kick_for: '#009688',
             free_kick_against: '#009688',
             penalty: '#E91E63',
-            foul: '#795548',
+            off_side: '#795548',
             card: '#FFEB3B',
             yellow_card: '#FFEB3B',
             red_card: '#D62828',
@@ -426,7 +426,7 @@ $(function () {
             if (lower.includes('corner')) return 'corner';
             if (lower.includes('free')) return 'free_kick';
             if (lower.includes('penalty')) return 'penalty';
-            if (lower.includes('foul')) return 'foul';
+            if (lower.includes('off_side')) return 'off_side';
             if (lower.includes('card')) return 'card';
             if (lower.includes('mistake') || lower.includes('error')) return 'mistake';
             if (lower.includes('good') || lower.includes('play')) return 'good_play';
@@ -846,7 +846,7 @@ $(function () {
                   'corner',
                   'free_kick',
                   'penalty',
-                  'foul',
+                  'off_side',
                   'yellow_card',
                   'red_card',
                   'mistake',
@@ -876,7 +876,7 @@ $(function () {
             corner: ['corner', 'corner_for', 'corner_against', 'set_piece'],
             freekick: ['freekick', 'free_kick', 'free_kick_for', 'free_kick_against', 'set_piece'],
             penalty: ['penalty', 'spot_kick'],
-            foul: ['foul'],
+            off_side: ['off_side'],
             card: ['card', 'yellow_card', 'red_card', 'yellow', 'red'],
             yellow_card: ['card', 'yellow_card', 'yellow'],
             red_card: ['card', 'red_card', 'red'],
@@ -2660,6 +2660,36 @@ $(function () {
             return String(label).trim().toLowerCase();
       }
 
+      function canonicalizePeriodKey(rawKey, label) {
+            const tryNormalize = (value) => {
+                  if (!value) return null;
+                  const normalizedLabel = normalizePeriodLabel(value);
+                  if (!normalizedLabel) return null;
+                  const mapped = periodLabelToKey.get(normalizedLabel);
+                  if (mapped) {
+                        return mapped;
+                  }
+                  const fallbackKey = normalizedLabel.replace(/[^a-z0-9]+/g, '_');
+                  if (periodDefinitions[fallbackKey]) {
+                        return fallbackKey;
+                  }
+                  return null;
+            };
+
+            if (rawKey && typeof rawKey === 'string') {
+                  const normalizedKey = rawKey.trim().replace(/[^a-zA-Z0-9]+/g, '_').toLowerCase();
+                  if (periodDefinitions[normalizedKey]) {
+                        return normalizedKey;
+                  }
+                  const labelFromKey = tryNormalize(rawKey);
+                  if (labelFromKey) {
+                        return labelFromKey;
+                  }
+            }
+
+            return tryNormalize(label);
+      }
+
       function createBasePeriodState() {
             const state = {};
             PERIOD_SEQUENCE.forEach((key) => {
@@ -2938,9 +2968,10 @@ $(function () {
                         if (!res.ok || !Array.isArray(res.periods)) return;
                         const nextState = createBasePeriodState();
                         (res.periods || []).forEach((p) => {
-                              const key = p.period_key;
-                              if (!nextState[key]) return;
+                              const key = canonicalizePeriodKey(p.period_key, p.label);
+                              if (!key) return;
                               const entry = nextState[key];
+                              if (!entry) return;
                               entry.started = !!p.start_second;
                               entry.ended = !!p.end_second;
                               entry.startMatchSecond = p.start_second !== null ? Number(p.start_second) : null;
@@ -3662,22 +3693,76 @@ $(function () {
                         const startLabel = formatMatchSecondWithExtra(clip.start_second, 0);
                         const durationText = clip.duration_seconds ? `${clip.duration_seconds}s` : '—';
                         const clipName = clip.clip_name || `Clip #${clipLabel}`;
+                        // --- Clip status logic ---
+                        let statusHtml = '';
+                        const clipsDir = '/videos/clips';
+                        const mp4Path = `${clipsDir}/match_${clip.match_id}_${clipIdAttr}.mp4`;
+                        if (!clipIdAttr) {
+                              statusHtml = '<span class="playlist-clip-status creating">Creating...</span>';
+                        } else {
+                              // Check if mp4 exists via a HEAD request (async, fallback to optimistic UI)
+                              statusHtml = `<span class="playlist-clip-status" data-clip-id="${clipIdAttr}">Checking...</span>`;
+                        }
                         return `<div class="playlist-clip${activeClass}" data-clip-id="${clipIdAttr}">
-                                                  <span class="playlist-clip-icon" aria-hidden="true">
-                                                            <i class="fa-solid fa-play"></i>
-                                                  </span>
-                                                  <div class="playlist-clip-body">
-                                                            <div class="playlist-clip-title">${h(clipName)}</div>
-                                                            <div class="playlist-clip-subtext">${h(startLabel)} · ${h(durationText)}</div>
-                                                            <div class="playlist-clip-meta">Clip #${h(clipLabel)}</div>
-                                                  </div>
-                                                  <button type="button" class="playlist-clip-download" data-clip-id="${clipIdAttr}" aria-label="Download clip">
-                                                            <i class="fa-solid fa-download" aria-hidden="true"></i>
-                                                  </button>
-                                                  <button type="button" class="playlist-clip-delete" data-clip-id="${clipIdAttr}" aria-label="Remove clip">
-                                                            <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
-                                                  </button>
-                                            </div>`;
+                                                                          <span class="playlist-clip-icon" aria-hidden="true">
+                                                                                          <i class="fa-solid fa-play"></i>
+                                                                          </span>
+                                                                          <div class="playlist-clip-body">
+                                                                                          <div class="playlist-clip-title">${h(clipName)}</div>
+                                                                                          <div class="playlist-clip-subtext">${h(startLabel)} · ${h(durationText)}</div>
+                                                                                          <div class="playlist-clip-meta">Clip #${h(clipLabel)}</div>
+                                                                                          ${statusHtml}
+                                                                          </div>
+                                                                          <button type="button" class="playlist-clip-download" data-clip-id="${clipIdAttr}" aria-label="Download clip">
+                                                                                          <i class="fa-solid fa-download" aria-hidden="true"></i>
+                                                                          </button>
+                                                                          <button type="button" class="playlist-clip-delete" data-clip-id="${clipIdAttr}" aria-label="Remove clip">
+                                                                                          <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
+                                                                          </button>
+                                                                  </div>`;
+                        // After rendering, check mp4 status for each clip
+                        setTimeout(() => {
+                              $playlistClips.find('.playlist-clip-status[data-clip-id]').each(function () {
+                                    const $status = $(this);
+                                    const clipId = $status.data('clipId');
+                                    const matchId = playlistState.matchId || ($status.closest('.playlist-clip').data('clipId') ? playlistState.clips.find(c => String(c.id) === String(clipId))?.match_id : null);
+                                    if (!clipId || !matchId) return;
+                                    const mp4Url = `/videos/clips/match_${matchId}_${clipId}.mp4`;
+                                    console.log('[Clip Status Debug] Checking mp4 status:', {
+                                          clipId,
+                                          matchId,
+                                          mp4Url,
+                                          statusElement: $status[0]
+                                    });
+                                    fetch(mp4Url, { method: 'HEAD' })
+                                          .then(resp => {
+                                                console.log('[Clip Status Debug] HEAD response:', {
+                                                      clipId,
+                                                      matchId,
+                                                      mp4Url,
+                                                      status: resp.status,
+                                                      ok: resp.ok
+                                                });
+                                                if (resp.ok) {
+                                                      $status.text('Ready');
+                                                      $status.removeClass('creating error').addClass('ready');
+                                                } else {
+                                                      $status.text('Error');
+                                                      $status.removeClass('creating ready').addClass('error');
+                                                }
+                                          })
+                                          .catch((err) => {
+                                                console.error('[Clip Status Debug] HEAD request failed:', {
+                                                      clipId,
+                                                      matchId,
+                                                      mp4Url,
+                                                      error: err
+                                                });
+                                                $status.text('Error');
+                                                $status.removeClass('creating ready').addClass('error');
+                                          });
+                              });
+                        }, 100);
                   })
                   .join('');
             $playlistClips.html(html);
@@ -3923,7 +4008,6 @@ $(function () {
             dropTargetElement = $target[0];
             $target.addClass('is-drop-target');
             event.preventDefault();
-            console.log('[Desk DnD] dragover', { playlistId: $target.data('playlistId'), draggingClipId });
             if (event.originalEvent && event.originalEvent.dataTransfer) {
                   event.originalEvent.dataTransfer.dropEffect = 'copy';
             }

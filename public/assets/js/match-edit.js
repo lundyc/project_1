@@ -272,7 +272,20 @@
               if (e.key === 'Escape') {
                      const openModal = document.querySelector('.modal[style*="display: block"]');
                      if (openModal) {
-                            closeModal(openModal.id);
+                            // Try to close using a helper, or fallback to hiding
+                            if (typeof closeModal === 'function') {
+                                   closeModal(openModal.id);
+                            } else {
+                                   openModal.style.display = 'none';
+                            }
+                     }
+              }
+
+              // Helper to close modals by id
+              function closeModal(modalId) {
+                     const modal = document.getElementById(modalId);
+                     if (modal) {
+                            modal.style.display = 'none';
                      }
               }
        });
@@ -576,6 +589,12 @@
                      document.getElementById('player-team-side').value = currentTeamSide;
                      document.getElementById('player-is-starting').value = currentIsStarting;
 
+                     // Set team name in modal header
+                     const teamName = currentTeamSide === 'home' ? config.homeTeamName : config.awayTeamName;
+                     document.getElementById('add-player-team-name').textContent = teamName;
+                     // Set subtitle
+                     document.getElementById('add-player-modal-subtitle').textContent = currentIsStarting === '1' ? 'Starting XI' : 'Substitute';
+
                      window.populatePlayerSelect(currentTeamSide);
                      form.reset();
 
@@ -594,6 +613,25 @@
                      errorDiv.classList.add('hidden');
                      modal.style.display = 'block';
 
+                     // Show tip only the first time ever
+                     const tip = document.getElementById('player-modal-tip');
+                     const tipKey = 'addPlayerTipShown';
+                     if (tip) {
+                            if (!localStorage.getItem(tipKey)) {
+                                   tip.classList.remove('hidden');
+                                   tip.classList.add('flash-tip');
+                                   setTimeout(() => {
+                                          tip.classList.remove('flash-tip');
+                                   }, 600);
+                                   setTimeout(() => {
+                                          tip.classList.add('hidden');
+                                          localStorage.setItem(tipKey, '1');
+                                   }, 5000);
+                            } else {
+                                   tip.classList.add('hidden');
+                            }
+                     }
+
                      // Focus on player input
                      setTimeout(() => {
                             const playerInput = document.getElementById('player-id') || document.getElementById('player-name-search');
@@ -601,6 +639,25 @@
                      }, 100);
               });
        });
+
+       // Add CSS for flash-tip effect if not present
+       (function addFlashTipStyle() {
+              if (!document.getElementById('flash-tip-style')) {
+                     const style = document.createElement('style');
+                     style.id = 'flash-tip-style';
+                     style.innerHTML = `
+                            .flash-tip {
+                                   animation: flash-tip-bg 0.6s;
+                            }
+                            @keyframes flash-tip-bg {
+                                   0% { background-color: #2563eb; color: #fff; }
+                                   60% { background-color: #2563eb; color: #fff; }
+                                   100% { background-color: inherit; color: inherit; }
+                            }
+                     `;
+                     document.head.appendChild(style);
+              }
+       })();
 
        // Captain toggle button
        const captainToggleBtn = document.getElementById('captain-toggle-btn');
@@ -796,9 +853,20 @@
                             return;
                      }
 
+                     // Determine team_id based on currentTeamSide
+                     let teamId = '';
+                     if (typeof currentTeamSide !== 'undefined') {
+                            if (currentTeamSide === 'home') {
+                                   teamId = config.homeTeamId;
+                            } else if (currentTeamSide === 'away') {
+                                   teamId = config.awayTeamId;
+                            }
+                     }
+
                      playerSearchTimeout = setTimeout(async () => {
                             try {
-                                   const response = await fetch(`${config.endpoints.playerSearch}?club_id=${config.clubId}&q=${encodeURIComponent(query)}`);
+                                   const url = `${config.endpoints.playerSearch}?club_id=${config.clubId}&q=${encodeURIComponent(query)}${teamId ? `&team_id=${teamId}` : ''}`;
+                                   const response = await fetch(url);
                                    const result = await response.json();
 
                                    if (!result.ok || !result.players || result.players.length === 0) {
@@ -1342,11 +1410,18 @@
                             }, 50);
 
                             // Show success message
-                            const successMsg = document.createElement('div');
-                            successMsg.className = 'text-sm text-green-400 p-3 bg-green-900/20 rounded-lg border border-green-700/50';
-                            successMsg.textContent = 'Player added! Ready for next player.';
-                            errorDiv.parentElement.insertBefore(successMsg, errorDiv.nextSibling);
-                            setTimeout(() => successMsg.remove(), 3000);
+                            const tipDiv = document.getElementById('player-modal-tip');
+                            if (tipDiv) {
+                                   const originalTip = tipDiv.innerHTML;
+                                   tipDiv.innerHTML = '<span class="text-green-400">Player added! Ready for next player.</span>';
+                                   tipDiv.classList.remove('bg-blue-900/30', 'text-blue-200');
+                                   tipDiv.classList.add('bg-green-900/20');
+                                   setTimeout(() => {
+                                          tipDiv.innerHTML = originalTip;
+                                          tipDiv.classList.remove('bg-green-900/20');
+                                          tipDiv.classList.add('bg-blue-900/30', 'text-blue-200');
+                                   }, 5000);
+                            }
 
                             // Focus on player input
                             setTimeout(() => {
@@ -1354,8 +1429,21 @@
                                    if (playerInput) playerInput.focus();
                             }, 100);
                      } catch (error) {
-                            errorDiv.textContent = error.message;
-                            errorDiv.classList.remove('hidden');
+                            const tipDiv = document.getElementById('player-modal-tip');
+                            if (tipDiv) {
+                                   const originalTip = tipDiv.innerHTML;
+                                   tipDiv.innerHTML = `<span class="text-rose-400">${error.message}</span>`;
+                                   tipDiv.classList.remove('bg-blue-900/30', 'text-blue-200');
+                                   tipDiv.classList.add('bg-rose-900/20');
+                                   setTimeout(() => {
+                                          tipDiv.innerHTML = originalTip;
+                                          tipDiv.classList.remove('bg-rose-900/20');
+                                          tipDiv.classList.add('bg-blue-900/30', 'text-blue-200');
+                                   }, 5000);
+                            } else {
+                                   errorDiv.textContent = error.message;
+                                   errorDiv.classList.remove('hidden');
+                            }
                      }
               });
        }
