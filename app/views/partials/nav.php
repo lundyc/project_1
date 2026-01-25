@@ -18,12 +18,14 @@ $playersHref = $navBase . '/admin/players';
 $adminHref = $navBase . '/admin';
 $settingsHref = $navBase . '/settings';
 $logoutHref = $navBase . '/logout';
+$leagueHref = $navBase . '/league-intelligence';
 
 $dashboardActive = $currentPath === $dashboardHref || $currentPath === rtrim($navBase, '/');
 $matchesActive = str_starts_with($currentPath, $matchesHref);
 $statsActive = str_starts_with($currentPath, $statsHref);
 $playersActive = str_starts_with($currentPath, $playersHref);
 $adminActive = str_starts_with($currentPath, $adminHref) && !$playersActive;
+$leagueActive = str_starts_with($currentPath, $leagueHref);
 
 $displayName = trim($user['display_name'] ?? 'User');
 $displayEmail = $user['email'] ?? '';
@@ -58,6 +60,14 @@ $primaryNavLinks = [
                     'active' => $statsActive,
           ],
 ];
+
+if ($isPlatformAdmin) {
+           $primaryNavLinks[] = [
+                     'label' => 'League Intelligence',
+                     'href' => $leagueHref,
+                     'active' => $leagueActive,
+           ];
+}
 
 $navLinks = $primaryNavLinks;
 

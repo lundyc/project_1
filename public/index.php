@@ -279,6 +279,61 @@ route('/stats/match/{id}', function () {
           StatsController::match((int)($_GET['id'] ?? 0));
 });
 
+route('/league-intelligence', function () {
+          require_role('platform_admin');
+          $seasonId = !empty($_GET['season_id']) ? (int)$_GET['season_id'] : null;
+          $competitionId = !empty($_GET['competition_id']) ? (int)$_GET['competition_id'] : null;
+
+          require_once __DIR__ . '/../app/lib/league_intelligence_service.php';
+          $service = new LeagueIntelligenceService($seasonId, $competitionId);
+
+          $leagueTable = $service->getLeagueTable();
+          $resultsFixtures = $service->getResultsAndFixtures(5);
+          $leagueTrends = $service->getLeagueTrends();
+          $teamNavigation = $service->getTeamNavigation();
+          $seasonOptions = $service->getSeasonOptions();
+          $competitionOptions = $service->getCompetitionOptions();
+          $selectedSeason = $service->getSelectedSeason();
+          $selectedCompetition = $service->getSelectedCompetition();
+
+          $title = 'League Intelligence';
+          require __DIR__ . '/../app/views/pages/league-intelligence/index.php';
+});
+
+route('/league-intelligence/team/{id}', function () {
+          require_role('platform_admin');
+          $teamId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+          if ($teamId <= 0) {
+                    http_response_code(404);
+                    echo '404 Not Found';
+                    return;
+          }
+
+          $seasonId = !empty($_GET['season_id']) ? (int)$_GET['season_id'] : null;
+          $competitionId = !empty($_GET['competition_id']) ? (int)$_GET['competition_id'] : null;
+
+          require_once __DIR__ . '/../app/lib/league_intelligence_service.php';
+          $service = new LeagueIntelligenceService($seasonId, $competitionId);
+
+          $teamInsights = $service->getTeamInsights($teamId);
+          if (!$teamInsights) {
+                    http_response_code(404);
+                    echo '404 Not Found';
+                    return;
+          }
+
+          $leagueTable = $service->getLeagueTable();
+          $teamNavigation = $service->getTeamNavigation();
+          $seasonOptions = $service->getSeasonOptions();
+          $competitionOptions = $service->getCompetitionOptions();
+          $selectedSeason = $service->getSelectedSeason();
+          $selectedCompetition = $service->getSelectedCompetition();
+          $resultsFixtures = $service->getResultsAndFixtures(5);
+
+          $title = 'Team Profile – ' . $teamInsights['team_name'];
+          require __DIR__ . '/../app/views/pages/league-intelligence/team.php';
+});
+
 route('/', function () {
           require_auth();
           require __DIR__ . '/../app/views/pages/dashboard.php';
