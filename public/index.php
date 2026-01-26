@@ -730,7 +730,29 @@ route('/api/matches/(\d+)/delete', function ($matchId) {
           return true;
 });
 
+route('/matches/(\d+)/repair-lineups', function ($matchId) {
+    require_auth();
+    require_once __DIR__ . '/../app/lib/match_repository.php';
+    require_once __DIR__ . '/../app/lib/match_permissions.php';
 
+    $match = get_match($matchId);
+    if (!$match) {
+        http_response_code(404);
+        echo '404 Not Found';
+        return true;
+    }
+    $user = current_user();
+    $roles = $_SESSION['roles'] ?? [];
+    if (!can_manage_match_for_club($user, $roles, (int)$match['club_id'])) {
+        http_response_code(403);
+        echo '403 Forbidden';
+        return true;
+    }
+    // Pass match_id as GET param for the view
+    $_GET['match_id'] = $matchId;
+    require __DIR__ . '/../app/views/pages/matches/repair-lineups.php';
+    return true;
+});
 
 $__uri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?? '/';
 $__basePath = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? ''));

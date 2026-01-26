@@ -11,7 +11,7 @@ use Dompdf\Dompdf;
 use Dompdf\Options;
 
 
-$_GET['testing'] = 1;
+// $_GET['testing'] = 1; // Remove or comment out to enable PDF output
 $matchId = isset($_GET['match_id']) ? (int)$_GET['match_id'] : 0;
 $clubId = isset($_GET['club_id']) ? (int)$_GET['club_id'] : null;
 
@@ -41,10 +41,11 @@ $clubId_for_report = $clubId;
 include __DIR__ . '/../../../../app/views/pages/stats/match_report.php';
 $html = ob_get_clean();
 
+// Only output HTML if explicitly requested for debugging
 if (!empty($_GET['testing'])) {
-    header('Content-Type: text/html; charset=utf-8');
-    echo $html;
-    exit;
+	header('Content-Type: text/html; charset=utf-8');
+	echo $html;
+	exit;
 }
 
 $options = new Options();

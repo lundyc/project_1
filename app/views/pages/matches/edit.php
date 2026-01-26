@@ -58,7 +58,7 @@ $success = $_SESSION['match_form_success'] ?? null;
 unset($_SESSION['match_form_error']);
 unset($_SESSION['match_form_success']);
 
-$title = 'Edit Match EEEEEEEE';
+$title = 'Edit Match';
 $kickoffValue = !empty($match['kickoff_at']) ? date('Y-m-d\TH:i', strtotime($match['kickoff_at'])) : '';
 $matchSeasonId = $match['season_id'] ?? null;
 $matchCompetitionId = $match['competition_id'] ?? null;
@@ -255,10 +255,14 @@ ob_start();
                 Next Match <span aria-hidden="true">→</span>
             </a>
             <?php endif; ?>
-            <?php if (isset($matchStatus)): ?>
-            <span class="inline-flex items-center rounded-md bg-slate-700/60 px-2 py-1 text-xs text-slate-200" aria-label="Match Status">
-                Status: <?= htmlspecialchars(ucfirst($matchStatus)) ?>
-            </span>
+            <?php if (isset($matchStatus) && $matchStatus === 'ready'): ?>
+                <a href="/matches/<?= urlencode($matchId) ?>/repair-lineups" class="inline-flex items-center rounded-md bg-green-700/80 px-2 py-1 text-xs text-white hover:bg-green-800 transition shadow" aria-label="Repair Starting Lineups">
+                    <i class="fa-solid fa-wrench mr-1"></i> Repair Lineups
+                </a>
+            <?php elseif (isset($matchStatus)): ?>
+                <span class="inline-flex items-center rounded-md bg-slate-700/60 px-2 py-1 text-xs text-slate-200" aria-label="Match Status">
+                    Status: <?= htmlspecialchars(ucfirst($matchStatus)) ?>
+                </span>
             <?php endif; ?>
         </div>
 

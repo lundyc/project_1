@@ -68,13 +68,8 @@ try {
         throw new Exception('Failed to delete substitution');
     }
     
-    // Optionally restore is_starting flags (revert the substitution)
-    // This is a design choice - you may want to keep the current state
-    $stmt = $pdo->prepare('UPDATE match_players SET is_starting = 1 WHERE id = :id');
-    $stmt->execute(['id' => $sub['player_off_match_player_id']]);
-    
-    $stmt = $pdo->prepare('UPDATE match_players SET is_starting = 0 WHERE id = :id');
-    $stmt->execute(['id' => $sub['player_on_match_player_id']]);
+    // Football logic: Deleting a substitution must NOT change is_starting. Starters are fixed at kickoff.
+    // Only the substitution record is deleted. No changes to match_players.is_starting.
     
     echo json_encode(['success' => true]);
     

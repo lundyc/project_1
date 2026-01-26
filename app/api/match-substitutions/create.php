@@ -76,9 +76,42 @@ try {
     $stmt->execute([$matchId, $teamSide, $minute, $playerOffId, $playerOnId, $reasonValue, (int)$user['id']]);
     $subId = (int)$conn->lastInsertId();
 
-    // Update is_starting flags for the players
-    $conn->prepare('UPDATE match_players SET is_starting = 0 WHERE id = ?')->execute([$playerOffId]);
-    $conn->prepare('UPDATE match_players SET is_starting = 1 WHERE id = ?')->execute([$playerOnId]);
+    // Football logic: Substitutions must NOT change is_starting. Starters are fixed at kickoff.
+    // Validation: Ensure player_off is on pitch, player_on is not yet on pitch at this time.
+    // (Basic validation, can be extended for more complex scenarios)
+    $onPitch = [];
+    $stmt = $conn->prepare('SELECT id, is_starting FROM match_players WHERE match_id = ? AND team_side = ?');
+    $stmt->execute([$matchId, $teamSide]);
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $onPitch[$row['id']] = (int)$row['is_starting'] === 1;
+    }
+
+    // Get all substitutions for this match/team, ordered by minute
+    $subsStmt = $conn->prepare('SELECT minute, player_off_match_player_id, player_on_match_player_id FROM match_substitutions WHERE match_id = ? AND team_side = ? ORDER BY minute ASC, id ASC');
+    $subsStmt->execute([$matchId, $teamSide]);
+    $subs = $subsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Simulate pitch state up to this substitution
+    foreach ($subs as $sub) {
+        if ((int)$sub['minute'] >= $minute) break;
+        if (isset($onPitch[$sub['player_off_match_player_id']])) {
+            $onPitch[$sub['player_off_match_player_id']] = false;
+        }
+        if (isset($onPitch[$sub['player_on_match_player_id']])) {
+            $onPitch[$sub['player_on_match_player_id']] = true;
+        }
+    }
+
+    if (empty($onPitch[$playerOffId])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Player to be substituted off is not currently on the pitch.']);
+        exit;
+    }
+    if (!empty($onPitch[$playerOnId])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Player to be substituted on is already on the pitch.']);
+        exit;
+    }
 
     // Fetch the created substitution with player details
     $getStmt = $conn->prepare('

@@ -150,11 +150,7 @@ ob_start();
 ?>
 <div class="stats-page w-full mt-4 text-slate-200">
     <div class="max-w-full">
-        <?php
-            $pageTitle = 'Matches';
-            $pageDescription = 'Review upcoming matches and check statuses.';
-            include __DIR__ . '/../../partials/club_context_header.php';
-        ?>
+
         <div class="stats-three-col grid grid-cols-12 gap-2 px-4 md:px-6 lg:px-8 w-full">
             <!-- Left Sidebar -->
             <aside class="stats-col-left col-span-2 space-y-4 min-w-0">

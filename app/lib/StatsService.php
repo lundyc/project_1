@@ -864,6 +864,7 @@ class StatsService
         // Get all match_players for this match, with fallback to players table for names
         $sql = '
             SELECT 
+                mp.id AS match_player_id,
                 mp.player_id,
                 p.first_name,
                 p.last_name,
@@ -942,9 +943,9 @@ class StatsService
         foreach ($players as $player) {
             $playerId = (int)($player['player_id'] ?? 0);
             $events = $eventsByPlayer[$playerId] ?? ['goals' => 0, 'yellow_cards' => 0, 'red_cards' => 0];
-            
             $playerData = [
                 'player_id' => $playerId,
+                'match_player_id' => (int)($player['match_player_id'] ?? 0),
                 'name' => trim($player['name'] ?? ''),
                 'shirt_number' => (int)($player['shirt_number'] ?? 0),
                 'position' => trim($player['position'] ?? 'N/A'),
@@ -953,7 +954,6 @@ class StatsService
                 'red_cards' => $events['red_cards'],
                 'is_captain' => (bool)($player['is_captain'] ?? false),
             ];
-            
             if ((int)($player['is_starting'] ?? 0) === 1) {
                 $startingXI[] = $playerData;
             } else {
