@@ -86,6 +86,29 @@ $(function () {
             teamFilter: '',
             searchQuery: '',
       };
+      const regenerateModalHtml = `
+<div id="playlist-clip-regenerate-modal" aria-hidden="true" style="display:none;position:fixed;inset:0;z-index:1500;">
+      <div data-regenerate-backdrop style="position:absolute;inset:0;background:rgba(15,23,42,0.55);backdrop-filter:blur(2px);"></div>
+      <div role="dialog" aria-modal="true" style="position:relative;max-width:460px;margin:7vh auto;background:#fff;border-radius:0.85rem;padding:1.5rem 1.75rem 1.25rem;box-shadow:0 35px 65px rgba(15,23,42,0.35);">
+            <h3 style="margin-top:0;margin-bottom:0.75rem;font-size:1.25rem;">Regenerate clip</h3>
+            <p data-regenerate-message style="margin:0 0 1rem;font-size:0.95rem;color:#334155;">
+                  This will permanently replace the clip using the latest naming and generation logic.
+            </p>
+            <div data-regenerate-error style="display:none;color:#b91c1c;font-size:0.92rem;margin-bottom:0.75rem;"></div>
+            <div style="display:flex;justify-content:flex-end;gap:0.5rem;">
+                  <button type="button" data-regenerate-cancel style="background:none;border:1px solid #e2e8f0;border-radius:0.35rem;padding:0.45rem 1.1rem;font-size:0.9rem;">Cancel</button>
+                  <button type="button" data-regenerate-confirm style="background:#0f172a;color:#fff;border:none;border-radius:0.35rem;padding:0.45rem 1.2rem;font-size:0.9rem;">Regenerate clip</button>
+            </div>
+      </div>
+</div>`;
+      const $regenerateModal = $(regenerateModalHtml).appendTo('body');
+      const $regenerateModalMessage = $regenerateModal.find('[data-regenerate-message]');
+      const $regenerateModalError = $regenerateModal.find('[data-regenerate-error]');
+      const $regenerateModalConfirm = $regenerateModal.find('[data-regenerate-confirm]');
+      const $regenerateModalCancel = $regenerateModal.find('[data-regenerate-cancel]');
+      const $regenerateModalBackdrop = $regenerateModal.find('[data-regenerate-backdrop]');
+      let regenerateModalClipId = null;
+      let regenerateModalPending = false;
       let missingClipToastShown = false;
       let playlistFilterPopoverOpen = false;
       const clipPlaybackState = {
@@ -3693,15 +3716,19 @@ $(function () {
                         const startLabel = formatMatchSecondWithExtra(clip.start_second, 0);
                         const durationText = clip.duration_seconds ? `${clip.duration_seconds}s` : '—';
                         const clipName = clip.clip_name || `Clip #${clipLabel}`;
+                        const showRegenerate = clipIdAttr && !!clip.is_legacy_auto_clip;
+                        const regenerateButton = showRegenerate
+                              ? `<button type="button" class="playlist-clip-regenerate playlist-clip-action" data-clip-id="${clipIdAttr}" aria-label="Regenerate clip">Regenerate clip</button>`
+                              : '';
                         // --- Clip status logic ---
                         let statusHtml = '';
-                        const clipsDir = '/videos/clips';
-                        const mp4Path = `${clipsDir}/match_${clip.match_id}_${clipIdAttr}.mp4`;
                         if (!clipIdAttr) {
                               statusHtml = '<span class="playlist-clip-status creating">Creating...</span>';
                         } else {
-                              // Check if mp4 exists via a HEAD request (async, fallback to optimistic UI)
-                              statusHtml = `<span class="playlist-clip-status" data-clip-id="${clipIdAttr}">Checking...</span>`;
+                              const mp4Url = clip.mp4_path || '';
+                              const statusClass = mp4Url ? '' : ' pending';
+                              const statusText = mp4Url ? 'Checking...' : 'Waiting…';
+                              statusHtml = `<span class="playlist-clip-status${statusClass}" data-clip-id="${clipIdAttr}" data-mp4-url="${h(mp4Url)}">${statusText}</span>`;
                         }
                         return `<div class="playlist-clip${activeClass}" data-clip-id="${clipIdAttr}">
                                                                           <span class="playlist-clip-icon" aria-hidden="true">
@@ -3712,25 +3739,28 @@ $(function () {
                                                                                           <div class="playlist-clip-subtext">${h(startLabel)} · ${h(durationText)}</div>
                                                                                           <div class="playlist-clip-meta">Clip #${h(clipLabel)}</div>
                                                                                           ${statusHtml}
-                                                                          </div>
-                                                                          <button type="button" class="playlist-clip-download" data-clip-id="${clipIdAttr}" aria-label="Download clip">
-                                                                                          <i class="fa-solid fa-download" aria-hidden="true"></i>
-                                                                          </button>
-                                                                          <button type="button" class="playlist-clip-delete" data-clip-id="${clipIdAttr}" aria-label="Remove clip">
-                                                                                          <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
-                                                                          </button>
+                          </div>
+                          ${regenerateButton}
+                          <button type="button" class="playlist-clip-download" data-clip-id="${clipIdAttr}" aria-label="Download clip">
+                                          <i class="fa-solid fa-download" aria-hidden="true"></i>
+                          </button>
+                          <button type="button" class="playlist-clip-delete" data-clip-id="${clipIdAttr}" aria-label="Remove clip">
+                                          <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
+                          </button>
                                                                   </div>`;
                         // After rendering, check mp4 status for each clip
                         setTimeout(() => {
                               $playlistClips.find('.playlist-clip-status[data-clip-id]').each(function () {
                                     const $status = $(this);
                                     const clipId = $status.data('clipId');
-                                    const matchId = playlistState.matchId || ($status.closest('.playlist-clip').data('clipId') ? playlistState.clips.find(c => String(c.id) === String(clipId))?.match_id : null);
-                                    if (!clipId || !matchId) return;
-                                    const mp4Url = `/videos/clips/match_${matchId}_${clipId}.mp4`;
+                                    const mp4Url = $status.data('mp4Url');
+                                    if (!clipId || !mp4Url) {
+                                          $status.text('Waiting…');
+                                          $status.removeClass('creating ready error').addClass('pending');
+                                          return;
+                                    }
                                     console.log('[Clip Status Debug] Checking mp4 status:', {
                                           clipId,
-                                          matchId,
                                           mp4Url,
                                           statusElement: $status[0]
                                     });
@@ -3738,7 +3768,6 @@ $(function () {
                                           .then(resp => {
                                                 console.log('[Clip Status Debug] HEAD response:', {
                                                       clipId,
-                                                      matchId,
                                                       mp4Url,
                                                       status: resp.status,
                                                       ok: resp.ok
@@ -3754,7 +3783,6 @@ $(function () {
                                           .catch((err) => {
                                                 console.error('[Clip Status Debug] HEAD request failed:', {
                                                       clipId,
-                                                      matchId,
                                                       mp4Url,
                                                       error: err
                                                 });
@@ -3794,6 +3822,90 @@ $(function () {
             if (clip) {
                   goToVideoTime(clip.start_second);
             }
+      }
+
+      function handleRegenerateClip(event) {
+            event.stopPropagation();
+            event.preventDefault();
+            const clipId = $(event.currentTarget).data('clipId');
+            if (!clipId) {
+                  return;
+            }
+            const clip = playlistState.clips.find((row) => String(row.id) === String(clipId));
+            if (!clip) {
+                  return;
+            }
+            openRegenerateModal(clip);
+      }
+
+      function openRegenerateModal(clip) {
+            if (!clip || !clip.id) {
+                  return;
+            }
+            regenerateModalClipId = clip.id;
+            const label = clip.clip_name ? clip.clip_name.toString() : 'clip';
+            $regenerateModalMessage.text(`This will permanently replace "${label}" using the latest naming and generation logic.`);
+            $regenerateModalError.hide().text('');
+            $regenerateModal.attr('aria-hidden', 'false').css('display', 'block');
+            $regenerateModalConfirm.prop('disabled', false).text('Regenerate clip');
+      }
+
+      function closeRegenerateModal(force = false) {
+            if (regenerateModalPending && !force) {
+                  return;
+            }
+            regenerateModalClipId = null;
+            regenerateModalPending = false;
+            $regenerateModal.attr('aria-hidden', 'true').css('display', 'none');
+            $regenerateModalError.hide().text('');
+            $regenerateModalConfirm.prop('disabled', false).text('Regenerate clip');
+      }
+
+      function showRegenerateModalError(message) {
+            if (!message) {
+                  message = 'Regeneration failed.';
+            }
+            $regenerateModalError.text(message).show();
+      }
+
+      function submitRegenerateClip() {
+            if (!regenerateModalClipId || regenerateModalPending) {
+                  return;
+            }
+            regenerateModalPending = true;
+            $regenerateModalError.hide().text('');
+            $regenerateModalConfirm.prop('disabled', true).text('Regenerating…');
+            const url = `/api/clips/${regenerateModalClipId}/regenerate`;
+            postJson(url, {})
+                  .done((res) => {
+                        if (!res || res.ok === false) {
+                              showRegenerateModalError(res && res.error ? res.error : 'Regeneration failed');
+                              return;
+                        }
+                        const updatedClip = res.clip;
+                        if (updatedClip) {
+                              const idx = playlistState.clips.findIndex((row) => String(row.id) === String(updatedClip.id));
+                              if (idx >= 0) {
+                                    playlistState.clips[idx] = updatedClip;
+                              }
+                        }
+                        closeRegenerateModal(true);
+                        renderPlaylistClips();
+                        showToast('Clip regenerated');
+                  })
+                  .fail((xhr) => {
+                        const message =
+                              xhr && xhr.responseJSON && xhr.responseJSON.error
+                                    ? xhr.responseJSON.error
+                                    : xhr && xhr.responseText
+                                    ? xhr.responseText
+                                    : 'Regeneration failed';
+                        showRegenerateModalError(message);
+                  })
+                  .always(() => {
+                        regenerateModalPending = false;
+                        $regenerateModalConfirm.prop('disabled', false).text('Regenerate clip');
+                  });
       }
 
       function navigatePlaylist(step) {
@@ -4546,9 +4658,19 @@ $(function () {
                   $playlistClips.on('click', '.playlist-clip', handleClipClick);
                   $playlistClips.on('click', '.playlist-clip-download', handleDownloadClip);
                   $playlistClips.on('click', '.playlist-clip-delete', handleRemoveClip);
+                  $playlistClips.on('click', '.playlist-clip-regenerate', handleRegenerateClip);
                   $playlistPrevBtn.on('click', () => navigatePlaylist(-1));
                   $playlistNextBtn.on('click', () => navigatePlaylist(1));
             }
+
+            $regenerateModalConfirm.on('click', submitRegenerateClip);
+            $regenerateModalCancel.on('click', () => closeRegenerateModal());
+            $regenerateModalBackdrop.on('click', () => closeRegenerateModal());
+            $regenerateModal.on('click', (event) => {
+                  if (event.target === $regenerateModal[0]) {
+                        closeRegenerateModal();
+                  }
+            });
 
             // Bind drag-and-drop handlers unconditionally so DnD always works
             $timelineMatrix.on('dragstart', '.matrix-dot, .matrix-clip', handleMatrixItemDragStart);
@@ -4665,6 +4787,11 @@ $(function () {
             $(document).on('keydown', (e) => {
                   if (e.key === 'Escape' && editorOpen) {
                         attemptCloseEditor();
+                  }
+            });
+            $(document).on('keydown', (event) => {
+                  if (event.key === 'Escape' && $regenerateModal.is(':visible')) {
+                        closeRegenerateModal();
                   }
             });
 

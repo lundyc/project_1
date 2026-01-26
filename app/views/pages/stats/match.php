@@ -3,6 +3,10 @@ require_auth();
 
 $base = base_path();
 $title = 'Match Statistics';
+global $clubId, $selectedClub;
+
+$base = base_path();
+$title = 'Match Statistics';
 $match = $match ?? [];
 $homeTeam = $match['home_team'] ?? ($match['home_team_name'] ?? 'Home');
 $awayTeam = $match['away_team'] ?? ($match['away_team_name'] ?? 'Away');
@@ -88,8 +92,18 @@ function build_overview_gauge(int $home, int $away): array
 
 function render_graph_card(string $label, int $homeVal, int $awayVal, string $note = ''): string
 {
+    global $match, $selectedClub, $primaryTeamId;
     $gauge = build_overview_gauge($homeVal, $awayVal);
-    $ariaLabel = htmlspecialchars(sprintf('%s home share %d%% away share %d%%', $label, $gauge['homePercent'], $gauge['awayPercent']));
+    $clubName = $selectedClub['name'] ?? ($match['club_name'] ?? 'Club');
+    $isHome = isset($match['home_team_id'], $primaryTeamId) && ((int)$primaryTeamId === (int)$match['home_team_id']);
+    $isAway = isset($match['away_team_id'], $primaryTeamId) && ((int)$primaryTeamId === (int)$match['away_team_id']);
+    // Always show the selected club's share and value
+    $clubValue = $isHome ? $homeVal : ($isAway ? $awayVal : 0);
+    $clubPercent = $isHome ? $gauge['homePercent'] : ($isAway ? $gauge['awayPercent'] : 0);
+    $oppValue = $isHome ? $awayVal : ($isAway ? $homeVal : 0);
+    $oppPercent = $isHome ? $gauge['awayPercent'] : ($isAway ? $gauge['homePercent'] : 0);
+    $shareLabel = $isHome ? 'Home Share' : ($isAway ? 'Away Share' : ($clubName . ' Share'));
+    $ariaLabel = htmlspecialchars(sprintf('%s %s %d%% Opponent %d%%', $label, $shareLabel, $clubPercent, $oppPercent));
     ob_start();
     ?>
     <div class="overview-graph-card">
@@ -109,18 +123,18 @@ function render_graph_card(string $label, int $homeVal, int $awayVal, string $no
                     <?php endif; ?>
                 </svg>
                 <div class="overview-gauge-labels">
-                    <span class="overview-gauge-label-home"><?= $gauge['homePercent'] ?>%</span>
-                    <span class="overview-gauge-label-away"><?= $gauge['awayPercent'] ?>%</span>
+                    <span class="overview-gauge-label-home"><?= $isHome ? $gauge['homePercent'] : ($isAway ? $gauge['awayPercent'] : 0) ?>%</span>
+                    <span class="overview-gauge-label-away"><?= $isHome ? $gauge['awayPercent'] : ($isAway ? $gauge['homePercent'] : 0) ?>%</span>
                 </div>
                 <div class="overview-gauge-center">
-                    <div class="overview-gauge-percent"><?= $gauge['homePercent'] ?>%</div>
-                    <div class="overview-gauge-caption">Home share</div>
+                    <div class="overview-gauge-percent"><?= $clubPercent ?>%</div>
+                    <div class="overview-gauge-caption"><?= $shareLabel ?></div>
                 </div>
             </div>
             <div class="overview-stats">
                 <div class="overview-stats-row overview-stats-values">
-                    <span><?= $homeVal ?></span>
-                    <span><?= $awayVal ?></span>
+                    <span><?= $clubValue ?></span>
+                    <span><?= $oppValue ?></span>
                 </div>
             </div>
             <?php if ($note): ?>
@@ -417,19 +431,32 @@ function display_event_label(array $event): string {
     return $event['event_type_label'] ?? $event['label'] ?? $event['type'] ?? $event['event_type_key'] ?? 'Event';
 }
 
+
 ob_start();
+// --- Club context switcher for platform admins ---
+$isPlatformAdmin = user_has_role('platform_admin');
+$availableClubs = $availableClubs ?? (function_exists('get_all_clubs') ? get_all_clubs() : []);
+$selectedClubId = $clubId ?? 0;
+$selectedClub = $selectedClub ?? null;
+$clubContextName = $selectedClub['name'] ?? ($match['club_name'] ?? 'Club');
+$showClubSelector = $isPlatformAdmin && !empty($availableClubs);
+$pageTitle = 'Match Statistics';
+$pageDescription = 'Match-level context for ' . htmlspecialchars($homeTeam) . ' vs ' . htmlspecialchars($awayTeam) . '.';
+
 ?>
+<header class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 px-4 md:px-6 mb-6">
+    <div>
+        <h1 class="text-2xl md:text-3xl font-bold tracking-tight">Match Statistics</h1>
+        <p class="text-slate-400 text-sm">Match-level context for <?= htmlspecialchars($homeTeam) ?> vs <?= htmlspecialchars($awayTeam) ?>.</p>
+    </div>
+    <div class="flex items-center gap-3">
+        <a href="<?= htmlspecialchars($base) ?>/stats" class="px-4 py-2 text-sm font-medium rounded-lg border bg-slate-800/40 border-white/10 text-slate-300 hover:bg-slate-700/50 hover:border-white/20 transition-all duration-200">← Back to club dashboard</a>
+        <a href="/api/stats/match/report_pdf?match_id=<?=urlencode($matchId)?>&club_id=<?=urlencode($clubId ?? '')?>" target="_blank" class="px-4 py-2 text-sm font-medium rounded-lg border bg-blue-700 border-blue-800 text-white hover:bg-blue-800 hover:border-blue-900 transition-all duration-200 ml-2">EXPORT PDF</a>
+    </div>
+</header>
+
 <div class="w-full mt-4 text-slate-200">
     <div class="max-w-full">
-        <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 px-4 md:px-6 mb-6">
-            <div>
-                <h1 class="text-2xl md:text-3xl font-bold tracking-tight">Match Statistics</h1>
-                <p class="text-slate-400 text-sm">Match-level context for <?= htmlspecialchars($homeTeam) ?> vs <?= htmlspecialchars($awayTeam) ?>.</p>
-            </div>
-            <div class="flex items-center gap-3">
-                <a href="<?= htmlspecialchars($base) ?>/stats" class="px-4 py-2 text-sm font-medium rounded-lg border bg-slate-800/40 border-white/10 text-slate-300 hover:bg-slate-700/50 hover:border-white/20 transition-all duration-200">← Back to club dashboard</a>
-            </div>
-        </header>
 
         <div class="grid grid-cols-12 gap-2 px-4 md:px-6 lg:px-8 w-full">
             <aside class="col-span-2 space-y-4 min-w-0">
@@ -467,7 +494,7 @@ ob_start();
                 <div class="summary-score summary-score-card mb-3">
                     <div class="summary-team summary-team-home">
                         <div class="summary-team-label">Home</div>
-                        <div class="summary-team-name" id="summary-home-name"><?= htmlspecialchars($homeTeam) ?></div>
+                        <div class="summary-team-name" id="summary-home-name">—</div>
                     </div>
                     <div class="summary-scoreline">
                         <div class="summary-score-digits">
@@ -475,92 +502,46 @@ ob_start();
                             <span class="score-separator">:</span>
                             <span class="score-number" id="summary-away-score">—</span>
                         </div>
-                        <div class="text-muted-alt text-xs" id="summary-competition"><?= htmlspecialchars($competition) ?></div>
+                        <div class="text-muted-alt text-xs" id="summary-competition">—</div>
                     </div>
                     <div class="summary-team summary-team-away text-end">
                         <div class="summary-team-label text-end">Away</div>
-                        <div class="summary-team-name" id="summary-away-name"><?= htmlspecialchars($awayTeam) ?></div>
+                        <div class="summary-team-name" id="summary-away-name">—</div>
                     </div>
                 </div>
 
                 <div class="match-events-summary mb-3" id="match-events-summary">
-                    <div class="text-xs text-slate-500">Event summary will appear here.</div>
+                    <div class="text-xs text-slate-500">Loading events…</div>
                 </div>
 
                 <div id="match-overview-comparison" class="comparison-list"></div>
 
-                <div class="match-overview-graphs" id="match-overview-gauges"></div>
+                <div class="match-overview-graphs" id="match-overview-gauges">
+                    <!-- JS will render gauge cards here -->
+                </div>
 
                 <div class="mb-3">
                     <h5 class="text-sm font-semibold text-slate-100 mb-2">Shot Accuracy</h5>
-                    <div class="match-overview-graphs">
-                        <?= render_shot_accuracy_card(
-                            'Home shot accuracy',
-                            $match['home_team'] ?? 'Home',
-                            'On Target',
-                            'Off Target',
-                            $homeOnTargetCount,
-                            $homeOffTargetCount,
-                            $homeShotGauge['homePercent'],
-                            $homeShotGauge['awayPercent'],
-                            $homeTotalForDisplay
-                        ) ?>
-                        <?= render_shot_accuracy_card(
-                            'Away shot accuracy',
-                            $match['away_team'] ?? 'Away',
-                            'On Target',
-                            'Off Target',
-                            $awayOnTargetCount,
-                            $awayOffTargetCount,
-                            $awayShotGauge['homePercent'],
-                            $awayShotGauge['awayPercent'],
-                            $awayTotalForDisplay
-                        ) ?>
+                    <div class="match-overview-graphs" id="match-overview-accuracy">
+                        <!-- JS will render shot accuracy cards here -->
                     </div>
+                    <!-- Debug output removed -->
                 </div>
 
                 <div class="mb-3">
                     <h5 class="text-sm font-semibold text-slate-100 mb-2">First Half vs Second Half</h5>
-                    <div class="match-overview-graphs">
-                        <?= render_graph_card('First Half', (int)$firstHalfCounts['home'], (int)$firstHalfCounts['away'], 'Events tagged to first half') ?>
-                        <?= render_graph_card('Second Half', (int)$secondHalfCounts['home'], (int)$secondHalfCounts['away'], 'Events tagged to second half') ?>
+                    <div class="match-overview-graphs" id="match-overview-halves">
+                        <!-- JS will render half comparison cards here -->
                     </div>
                 </div>
 
                 <div class="mb-3">
                     <h5 class="text-sm font-semibold text-slate-100 mb-2">Set Pieces & Discipline</h5>
-                    <div class="match-overview-graphs">
-                        <?= render_graph_card('Set pieces (corners + free kicks + penalties)', (int)$setPieces['home'], (int)$setPieces['away'], 'Aggregated from derived stats totals') ?>
-                        <?= render_graph_card('Cards (yellow + red)', (int)$cards['home'], (int)$cards['away'], 'Discipline totals from derived stats') ?>
+                    <div class="match-overview-graphs" id="match-overview-set-pieces">
+                        <!-- JS will render set pieces and discipline cards here -->
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3" id="match-overview-graphs">
-                    <div class="rounded-lg border border-white/10 bg-slate-800/40 p-3">
-                        <div class="flex items-center justify-between mb-2">
-                            <span class="text-xs text-slate-400">Goals</span>
-                            <span class="text-sm font-semibold text-slate-100" id="match-overview-goals-label">—</span>
-                        </div>
-                        <div class="stats-bar" aria-hidden="true">
-                            <div class="stats-bar-fill stats-bar-fill-home" data-bar="goals" data-side="home"></div>
-                        </div>
-                        <div class="stats-bar" aria-hidden="true">
-                            <div class="stats-bar-fill stats-bar-fill-away" data-bar="goals" data-side="away"></div>
-                        </div>
-                    </div>
-                    <div class="rounded-lg border border-white/10 bg-slate-800/40 p-3">
-                        <div class="flex items-center justify-between mb-2">
-                            <span class="text-xs text-slate-400">Shots</span>
-                            <span class="text-sm font-semibold text-slate-100" id="match-overview-shots-label">—</span>
-                        </div>
-                        <div class="stats-bar" aria-hidden="true">
-                            <div class="stats-bar-fill stats-bar-fill-home" data-bar="shots" data-side="home"></div>
-                        </div>
-                        <div class="stats-bar" aria-hidden="true">
-                            <div class="stats-bar-fill stats-bar-fill-away" data-bar="shots" data-side="away"></div>
-                        </div>
-                    </div>
-                </div>
 
                 <div id="match-overview-loading" class="text-xs text-slate-500 mt-3">Loading match statistics…</div>
                 <div id="match-overview-error" class="text-xs text-red-400 mt-3" style="display:none;">Unable to load match overview.</div>
@@ -1486,12 +1467,19 @@ ob_start();
 }
 </style>
 
+
 <script>
+
 (function () {
     const baseMeta = document.querySelector('meta[name="base-path"]');
-    const basePath = baseMeta ? baseMeta.content.trim().replace(/^\/+/, '').replace(/\/+$/, '') : '';
+    const basePath = baseMeta ? baseMeta.content.trim().replace(/^\/+/,'').replace(/\/+$/,'') : '';
     const apiBase = (basePath ? '/' + basePath : '') + '/api/stats/match';
     const matchId = <?= json_encode($matchId) ?>;
+    const selectedClubId = <?= json_encode($clubId) ?>;
+    const primaryTeamId = <?= json_encode($primaryTeamId ?? null) ?>;
+    const matchHomeTeamId = <?= json_encode($match['home_team_id'] ?? null) ?>;
+    const matchAwayTeamId = <?= json_encode($match['away_team_id'] ?? null) ?>;
+    const selectedClubName = <?= json_encode($selectedClub['name'] ?? ($selectedClub ?? null)) ?>;
     const tabButtons = document.querySelectorAll('[data-tab-id]');
     const panels = document.querySelectorAll('[data-panel-id]');
     const derivedUrl = `${apiBase}/derived?match_id=${encodeURIComponent(matchId)}`;
@@ -1507,8 +1495,13 @@ ob_start();
             cache: 'no-cache',
         })
             .then((response) => {
+                // Debug: show API URL and status
+                const debugPre = document.getElementById('derived-stats-debug-pre');
+                if (debugPre) {
+                    debugPre.textContent = `Request: ${derivedUrl}\nStatus: ${response.status} ${response.statusText}`;
+                }
                 if (!response.ok) {
-                    throw new Error('Network response was not ok');
+                    throw new Error('Network response was not ok: ' + response.status + ' ' + response.statusText);
                 }
                 return response.json();
             })
@@ -1521,6 +1514,11 @@ ob_start();
             .catch((error) => {
                 console.error('[Match Derived]', error);
                 derivedDataPromise = null;
+                // Debug: show error
+                const debugPre = document.getElementById('derived-stats-debug-pre');
+                if (debugPre) {
+                    debugPre.textContent += `\nError: ${error}`;
+                }
                 throw error;
             });
 
@@ -1626,7 +1624,21 @@ ob_start();
 
         function renderGaugeCard(label, homeVal, awayVal, note = '') {
             const gauge = buildGauge(homeVal, awayVal);
-            const aria = `${label} home share ${gauge.homePercent}% away share ${gauge.awayPercent}%`;
+            // Determine if selected club is home or away
+            const isHome = primaryTeamId && matchHomeTeamId && Number(primaryTeamId) === Number(matchHomeTeamId);
+            const isAway = primaryTeamId && matchAwayTeamId && Number(primaryTeamId) === Number(matchAwayTeamId);
+            const clubPercent = isHome ? gauge.homePercent : (isAway ? gauge.awayPercent : 0);
+            const oppPercent = isHome ? gauge.awayPercent : (isAway ? gauge.homePercent : 0);
+            const clubValue = isHome ? homeVal : (isAway ? awayVal : 0);
+            const oppValue = isHome ? awayVal : (isAway ? homeVal : 0);
+            const shareLabel = isHome ? 'Home Share' : (isAway ? 'Away Share' : (selectedClubName ? selectedClubName + ' Share' : 'Share'));
+            const aria = `${label} ${shareLabel} ${clubPercent}% Opponent ${oppPercent}%`;
+            // Always show the selected club's share on the right if away, left if home
+            const leftPercent = isHome ? clubPercent : oppPercent;
+            const rightPercent = isHome ? oppPercent : clubPercent;
+            // For values: left is always home, right is always away
+            const leftValue = homeVal;
+            const rightValue = awayVal;
             return `
                 <div class="overview-graph-card">
                     <div class="phase2-card-label">${label}</div>
@@ -1639,26 +1651,18 @@ ob_start();
                                 ${gauge.awayPath ? `<path class="overview-gauge-fill overview-gauge-away" d="${gauge.awayPath}"></path>` : ''}
                             </svg>
                             <div class="overview-gauge-labels">
-                                <span class="overview-gauge-label-home">${gauge.homePercent}%</span>
-                                <span class="overview-gauge-label-away">${gauge.awayPercent}%</span>
+                                <span class="overview-gauge-label-home">${leftPercent}%</span>
+                                <span class="overview-gauge-label-away">${rightPercent}%</span>
                             </div>
                             <div class="overview-gauge-center">
-                                <div class="overview-gauge-percent">${gauge.homePercent}%</div>
-                                <div class="overview-gauge-caption">Home share</div>
+                                <div class="overview-gauge-percent">${clubPercent}%</div>
+                                <div class="overview-gauge-caption">${shareLabel}</div>
                             </div>
                         </div>
                         <div class="overview-stats">
-                            <div class="overview-stats-row overview-stats-labels">
-                                <span class="overview-stats-label">Home</span>
-                                <span class="overview-stats-label">Away</span>
-                            </div>
                             <div class="overview-stats-row overview-stats-values">
-                                <span>${homeVal}</span>
-                                <span>${awayVal}</span>
-                            </div>
-                            <div class="overview-stats-row overview-stats-values">
-                                <span>${gauge.homePercent}%</span>
-                                <span>${gauge.awayPercent}%</span>
+                                <span>${leftValue}</span>
+                                <span>${rightValue}</span>
                             </div>
                         </div>
                         ${note ? `<div class="overview-gauge-note">${note}</div>` : ''}
@@ -2012,6 +2016,80 @@ ob_start();
     })();
 
     const matchTeamPerformanceModule = (() => {
+                        function renderPeriodPhase(derived) {
+                            if (!periodPhaseContainer) return;
+                            const byPeriod = derived?.derived?.phase_2?.by_period || {};
+                            const phaseTeamCounts = derived?.derived?.phase_2?.phase_team_counts || {};
+                            const periodRows = Object.entries(byPeriod).map(([label, counts]) => ({ label, home: counts.home || 0, away: counts.away || 0 }));
+                            const phaseBuckets = Object.keys(phaseTeamCounts.home || {});
+                            periodPhaseContainer.innerHTML = `
+                                <div class="comparison-extension">
+                                    <div class="period-comparison">
+                                        <div class="d-flex align-items-center justify-content-between">
+                                            <div class="text-light fw-semibold">Events per period</div>
+                                        </div>
+                                        <div class="period-table">
+                                            <div class="period-row period-row-header">
+                                                <span>Period</span>
+                                                <span>Home</span>
+                                                <span>Away</span>
+                                            </div>
+                                            ${periodRows.map(row => `
+                                                <div class="period-row">
+                                                    <span class="period-label">${row.label}</span>
+                                                    <span>H ${row.home}</span>
+                                                    <span>A ${row.away}</span>
+                                                </div>
+                                            `).join('')}
+                                        </div>
+                                        <div class="period-section-note">Source: derived_stats.phase_2.by_period</div>
+                                    </div>
+                                    <div class="phase-comparison">
+                                        <div class="d-flex align-items-center justify-content-between">
+                                            <div class="text-light fw-semibold">Phase distribution</div>
+                                        </div>
+                                        <div class="phase-table">
+                                            <div class="phase-row phase-row-header">
+                                                <span>Phase</span>
+                                                <span>Home</span>
+                                                <span>Away</span>
+                                            </div>
+                                            ${phaseBuckets.map(bucket => `
+                                                <div class="phase-row">
+                                                    <span class="phase-label">${bucket.replace(/_/g, ' ')}</span>
+                                                    <span>H ${phaseTeamCounts.home[bucket] || 0}</span>
+                                                    <span>A ${phaseTeamCounts.away[bucket] || 0}</span>
+                                                </div>
+                                            `).join('')}
+                                        </div>
+                                        <div class="phase-section-note">Phase tags pulled directly from event.phase (unknown shown when missing)</div>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                function renderStats(stats) {
+                    if (!tableBody) return;
+                    const metrics = [
+                        { key: 'goals', label: 'Goals' },
+                        { key: 'shots', label: 'Shots' },
+                        { key: 'corners', label: 'Corners' },
+                        { key: 'free_kicks', label: 'Free kicks' },
+                        { key: 'penalties', label: 'Penalties' },
+                        { key: 'fouls', label: 'Fouls' },
+                        { key: 'yellow_cards', label: 'Yellow cards' },
+                        { key: 'red_cards', label: 'Red cards' },
+                        { key: 'substitutions', label: 'Substitutions' },
+                    ];
+                    tableBody.innerHTML = metrics.map(metric => {
+                        const homeVal = Number(stats?.home?.[metric.key] ?? 0);
+                        const awayVal = Number(stats?.away?.[metric.key] ?? 0);
+                        return `<tr>
+                            <td class="px-3 py-2 text-left">${metric.label}</td>
+                            <td class="px-3 py-2 text-center">${homeVal}</td>
+                            <td class="px-3 py-2 text-center">${awayVal}</td>
+                        </tr>`;
+                    }).join('');
+                }
         const url = `${apiBase}/team-performance?match_id=${encodeURIComponent(matchId)}`;
         const tableBody = document.getElementById('match-team-performance-table');
         const loadingEl = document.getElementById('match-team-performance-loading');
@@ -2020,103 +2098,34 @@ ob_start();
         const zeroCounts = { home: 0, away: 0, unknown: 0 };
         let initialized = false;
 
-        function renderStats(stats) {
-            if (!tableBody) {
-                return;
+        function loadDerivedData() {
+            if (derivedDataPromise) {
+                return derivedDataPromise;
             }
-            const rows = eventMetrics.map((metric) => {
-                const homeValue = stats?.home?.[metric.key] ?? 0;
-                const awayValue = stats?.away?.[metric.key] ?? 0;
-                return `
-                    <tr>
-                        <td>${metric.label}</td>
-                        <td class="text-center">${Number(homeValue).toLocaleString()}</td>
-                        <td class="text-center">${Number(awayValue).toLocaleString()}</td>
-                    </tr>
-                `;
-            }).join('');
-            tableBody.innerHTML = rows;
-        }
+            derivedDataPromise = fetch(derivedUrl, {
+                credentials: 'same-origin',
+                headers: { Accept: 'application/json' },
+                cache: 'no-cache',
+            })
+                .then((response) => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok: ' + response.status + ' ' + response.statusText);
+                    }
+                    return response.json();
+                })
+                .then((payload) => {
+                    if (payload.success && payload.data) {
+                        return payload.data;
+                    }
+                    throw new Error(payload.error || 'Invalid payload');
+                })
+                .catch((error) => {
+                    console.error('[Match Derived]', error);
+                    derivedDataPromise = null;
+                    throw error;
+                });
 
-        function renderPeriodPhase(data) {
-            if (!periodPhaseContainer) return;
-            const derived = data?.derived || {};
-            const byPeriod = derived.phase_2?.by_period || {};
-            const events = Array.isArray(data?.events) ? data.events : [];
-
-            const periodRows = [
-                { label: 'First Half', counts: byPeriod['1H'] || zeroCounts },
-                { label: 'Second Half', counts: byPeriod['2H'] || zeroCounts },
-                { label: 'Extra Time', counts: byPeriod['ET'] || zeroCounts },
-            ];
-
-            const phaseBuckets = ['build_up', 'transition', 'defensive_block', 'set_piece', 'unknown'];
-            const phaseCounts = { home: {}, away: {}, unknown: {} };
-            phaseBuckets.forEach((bucket) => {
-                phaseCounts.home[bucket] = 0;
-                phaseCounts.away[bucket] = 0;
-                phaseCounts.unknown[bucket] = 0;
-            });
-
-            events.forEach((ev) => {
-                let phase = (ev.phase || '').trim();
-                if (!phaseBuckets.includes(phase)) {
-                    phase = 'unknown';
-                }
-                const side = ev.team_side === 'away' ? 'away' : ev.team_side === 'home' ? 'home' : 'unknown';
-                phaseCounts[side][phase] = (phaseCounts[side][phase] || 0) + 1;
-            });
-
-            const periodTable = periodRows
-                .map((row) => `
-                    <div class="period-row">
-                        <span class="period-label">${row.label}</span>
-                        <span>H ${Number(row.counts.home || 0)}</span>
-                        <span>A ${Number(row.counts.away || 0)}</span>
-                    </div>
-                `)
-                .join('');
-
-            const phaseTable = phaseBuckets
-                .map((bucket) => `
-                    <div class="phase-row">
-                        <span class="phase-label">${bucket.replace(/_/g, ' ')}</span>
-                        <span>H ${Number(phaseCounts.home[bucket] || 0)}</span>
-                        <span>A ${Number(phaseCounts.away[bucket] || 0)}</span>
-                    </div>
-                `)
-                .join('');
-
-            periodPhaseContainer.innerHTML = `
-                <div class="period-comparison">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div class="text-light fw-semibold">Events per period</div>
-                    </div>
-                    <div class="period-table">
-                        <div class="period-row period-row-header">
-                            <span>Period</span>
-                            <span>Home</span>
-                            <span>Away</span>
-                        </div>
-                        ${periodTable}
-                    </div>
-                    <div class="period-section-note">Source: derived per-period counts</div>
-                </div>
-                <div class="phase-comparison">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div class="text-light fw-semibold">Phase distribution</div>
-                    </div>
-                    <div class="phase-table">
-                        <div class="phase-row phase-row-header">
-                            <span>Phase</span>
-                            <span>Home</span>
-                            <span>Away</span>
-                        </div>
-                        ${phaseTable}
-                    </div>
-                    <div class="phase-section-note">Phase tags pulled from event.phase</div>
-                </div>
-            `;
+            return derivedDataPromise;
         }
 
         function fetchStats() {
@@ -2669,3 +2678,5 @@ ob_start();
 <?php
 $content = ob_get_clean();
 require __DIR__ . '/../../layout.php';
+?>
+

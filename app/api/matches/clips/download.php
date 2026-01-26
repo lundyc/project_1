@@ -5,6 +5,8 @@ require_once __DIR__ . '/../../../lib/api_helpers.php';
 require_once __DIR__ . '/../../../lib/match_permissions.php';
 require_once __DIR__ . '/../../../lib/match_repository.php';
 require_once __DIR__ . '/../../../lib/clip_repository.php';
+require_once __DIR__ . '/../../../lib/playlist_service.php';
+require_once __DIR__ . '/../../../lib/clip_mp4_service.php';
 
 auth_boot();
 require_auth();
@@ -30,14 +32,10 @@ if (!$clip) {
           api_respond_with_json(404, ['ok' => false, 'error' => 'clip_not_found']);
 }
 
-
-$documentRoot = rtrim($_SERVER['DOCUMENT_ROOT'] ?? '', DIRECTORY_SEPARATOR);
-$clipsDir = $documentRoot . '/videos/clips/match_' . $matchId;
-$clipId = $clip['id'] ?? $clip['clip_id'] ?? null;
-$mp4Path = $clipsDir . "/clip_{$clipId}.mp4";
-if (!is_file($mp4Path) || filesize($mp4Path) === 0) {
-    api_respond_with_json(404, ['ok' => false, 'error' => 'clip_mp4_missing']);
-}
+          $mp4Path = clip_mp4_service_get_clip_filesystem_path($clip);
+          if (!$mp4Path || !is_file($mp4Path) || filesize($mp4Path) === 0) {
+                    api_respond_with_json(404, ['ok' => false, 'error' => 'clip_mp4_missing']);
+          }
 
 set_time_limit(0);
 
@@ -85,7 +83,7 @@ try {
 
           // Stream the file to the client
           $clipName = $clip['clip_name'] ?? 'clip';
-          $fileName = slugify($clipName) . '.mp4';
+          $fileName = playlist_service_slugify_filename($clipName) . '.mp4';
           header('Content-Type: video/mp4');
           header('Content-Length: ' . filesize($mp4Path));
           header('Content-Disposition: attachment; filename="' . basename($fileName) . '"');

@@ -44,6 +44,7 @@ class StatsController
         }
 
         $context = resolve_club_context_for_stats();
+        global $clubId, $selectedClub;
         $clubId = $context['club_id'];
         $selectedClub = $context['club'] ?? null;
 
@@ -82,11 +83,19 @@ class StatsController
 
         // Load derived stats and events for server-side rendering
         $statsService = new StatsService($clubId);
+        global $primaryTeamId;
+        $primaryTeamId = $statsService->getPrimaryTeamId();
+        // Fallback: if null, use home_team_id from match (should not happen, but ensures JS logic works)
+        if ($primaryTeamId === null && isset($match['home_team_id'])) {
+            $primaryTeamId = (int)$match['home_team_id'];
+        }
         $derivedData = $statsService->getMatchDerivedData($matchId);
         $derivedStats = $derivedData['derived'] ?? [];
         $events = $derivedData['events'] ?? [];
         $periods = $derivedData['periods'] ?? [];
 
+        // Expose $clubId and $primaryTeamId to the view
+        global $clubId, $primaryTeamId;
         require __DIR__ . '/../views/pages/stats/match.php';
     }
 }

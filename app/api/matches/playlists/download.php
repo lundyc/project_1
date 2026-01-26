@@ -39,19 +39,23 @@ $documentRoot = rtrim($_SERVER['DOCUMENT_ROOT'] ?? '', DIRECTORY_SEPARATOR);
 
 require_once __DIR__ . '/../../../lib/clip_mp4_service.php';
 
-// Check all clips have mp4s at /videos/clips/match_{match_id}_{clip_id}.mp4
+// Check each clip has an mp4
 $missingMp4s = [];
-$clipMp4Paths = [];
+$clipEntries = [];
 foreach ($clips as $clip) {
-    $clipId = $clip['id'] ?? $clip['clip_id'] ?? null;
-    $matchIdForClip = $clip['match_id'] ?? $matchId;
-    if (!$clipId || !$matchIdForClip) continue;
-    $mp4Path = $documentRoot . "/videos/clips/match_{$matchIdForClip}_{$clipId}.mp4";
-    if (!is_file($mp4Path) || filesize($mp4Path) === 0) {
-        $missingMp4s[] = $clipId;
-    } else {
-        $clipMp4Paths[] = $mp4Path;
-    }
+          $clipId = $clip['id'] ?? $clip['clip_id'] ?? null;
+          if (!$clipId) {
+                    continue;
+          }
+          $mp4Path = clip_mp4_service_get_clip_filesystem_path($clip);
+          if (!$mp4Path || !is_file($mp4Path) || filesize($mp4Path) === 0) {
+                    $missingMp4s[] = $clipId;
+                    continue;
+          }
+          $clipEntries[] = [
+                    'clip' => $clip,
+                    'path' => $mp4Path,
+          ];
 }
 if (!empty($missingMp4s)) {
     api_respond_with_json(404, ['ok' => false, 'error' => 'clip_mp4_missing', 'missing_clips' => $missingMp4s]);
@@ -73,14 +77,35 @@ try {
 
           $generatedFiles = [];
           $generatedCount = 0;
-          foreach ($clipMp4Paths as $mp4Path) {
-              $generatedCount++;
-              $fileName = sprintf('%02d_clip.mp4', $generatedCount);
-              $targetPath = $sessionDir . DIRECTORY_SEPARATOR . $fileName;
-              copy($mp4Path, $targetPath);
-              if (is_file($targetPath) && filesize($targetPath) > 0) {
-                  $generatedFiles[] = $targetPath;
-              }
+          $fileNameRegistry = [];
+          $totalClips = count($clipEntries);
+          $padWidth = max(2, strlen((string)$totalClips));
+
+          foreach ($clipEntries as $entryIndex => $entry) {
+                    $clipRow = $entry['clip'];
+                    $isLegacy = is_legacy_auto_clip($clipRow);
+                    if ($isLegacy) {
+                              $eventName = null;
+                              if (!empty($clipRow['event_id'])) {
+                                        $eventData = event_get_by_id((int)$clipRow['event_id']);
+                                        if ($eventData) {
+                                                  $eventName = generate_clip_name_from_event($eventData, $matchId);
+                                        }
+                              }
+                              $baseName = $eventName !== null
+                                        ? $eventName
+                                        : playlist_service_slugify_filename($clipRow['clip_name'] ?? 'clip', 'clip', ['_', '(', ')', '+']);
+                    } else {
+                              $baseName = playlist_service_slugify_filename($clipRow['clip_name'] ?? 'clip', 'clip', ['_', '(', ')', '+']);
+                    }
+                    $uniqueBase = playlist_service_make_unique_clip_name($baseName, $fileNameRegistry);
+                    $generatedCount++;
+                    $fileName = sprintf('%0' . $padWidth . 'd_%s.mp4', $generatedCount, $uniqueBase);
+                    $targetPath = $sessionDir . DIRECTORY_SEPARATOR . $fileName;
+                    copy($entry['path'], $targetPath);
+                    if (is_file($targetPath) && filesize($targetPath) > 0) {
+                              $generatedFiles[] = $targetPath;
+                    }
           }
 
           if (empty($generatedFiles)) {
@@ -99,8 +124,10 @@ try {
 
           $zip->close();
 
-          $downloadName = slugify($playlist['title'] ?? 'playlist_' . $playlistId) . '.zip';
-          if (!$downloadName) {
+          $match = get_match($matchId);
+          $zipBase = playlist_service_build_playlist_zip_filename($playlist, $match);
+          $downloadName = $zipBase . '.zip';
+          if (trim($downloadName) === '.zip') {
                     $downloadName = 'playlist.zip';
           }
 
@@ -136,13 +163,6 @@ try {
                     'error' => 'playlist_download_failed',
                     'detail' => $ex->getMessage(),
           ]);
-}
-
-function slugify(string $text): string
-{
-          $slug = preg_replace('/[^A-Za-z0-9]+/', '_', $text);
-          $slug = trim($slug ?? '', '_');
-          return $slug !== '' ? $slug : 'playlist';
 }
 
 function create_temp_playlist_dir(string $base, int $playlistId): string

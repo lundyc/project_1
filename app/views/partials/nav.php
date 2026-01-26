@@ -111,18 +111,59 @@ if ($isPlatformAdmin) {
                     </div>
 
                     <div class="top-nav__user">
-                              <span class="top-nav__avatar"><?= htmlspecialchars($initials) ?></span>
-                              <div class="top-nav__user-meta">
-                                        <span class="top-nav__user-name"><?= htmlspecialchars($displayName) ?></span>
-                                        <?php if ($displayEmail): ?>
-                                                  <span class="top-nav__user-email"><?= htmlspecialchars($displayEmail) ?></span>
-                                        <?php endif; ?>
-                              </div>
-                              <div class="top-nav__user-actions">
-                                        <a href="<?= htmlspecialchars($settingsHref) ?>" class="top-nav__user-link">Settings</a>
-                                        <span aria-hidden="true" class="top-nav__user-separator">·</span>
-                                        <a href="<?= htmlspecialchars($logoutHref) ?>" class="top-nav__user-link">Logout</a>
-                              </div>
+                        <div class="top-nav__user-meta">
+                            <span class="top-nav__user-name"><?= htmlspecialchars($displayName) ?></span>
+                            <?php if ($isPlatformAdmin): ?>
+                                <span class="block text-xs text-slate-400 mt-0.5"><?= htmlspecialchars($clubContextName ?? 'Club') ?></span>
+                            <?php endif; ?>
+                            <?php if ($displayEmail): ?>
+                                <span class="top-nav__user-email"><?= htmlspecialchars($displayEmail) ?></span>
+                            <?php endif; ?>
+                        </div>
+                        <div class="top-nav__user-actions">
+                            <?php if ($isPlatformAdmin): ?>
+                                <div class="relative inline-block text-left ml-2">
+                                    <button type="button" class="top-nav__user-link" id="club-switcher-btn" aria-haspopup="true" aria-expanded="false">
+                                        <span class="font-semibold">Club</span>
+                                        <svg class="inline w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    </button>
+                                    <div id="club-switcher-dropdown" class="hidden absolute right-0 z-10 mt-2 w-48 rounded-md shadow-lg bg-slate-900 ring-1 ring-black ring-opacity-5 focus:outline-none">
+                                        <form method="get" id="club-context-form-nav" class="py-1">
+                                            <label class="block px-4 py-2 text-xs text-slate-400">Change Club</label>
+                                            <?php
+                                            require_once __DIR__ . '/../../../app/lib/club_repository.php';
+                                            $availableClubs = get_all_clubs();
+                                            $selectedClubId = $_SESSION['stats_club_id'] ?? ($availableClubs[0]['id'] ?? 1);
+                                            foreach ($availableClubs as $club): ?>
+                                                <button type="submit" name="club_id" value="<?= (int)$club['id'] ?>" class="block w-full text-left px-4 py-2 text-sm <?= ((int)$club['id'] === (int)$selectedClubId) ? 'bg-indigo-600 text-white font-semibold' : 'text-slate-200 hover:bg-slate-800' ?>">
+                                                    <?= htmlspecialchars($club['name']) ?><?= ((int)$club['id'] === (int)$selectedClubId) ? ' (current)' : '' ?>
+                                                </button>
+                                            <?php endforeach; ?>
+                                        </form>
+                                    </div>
+                                </div>
+                                <script>
+                                // Simple dropdown toggle
+                                document.addEventListener('DOMContentLoaded', function() {
+                                    var btn = document.getElementById('club-switcher-btn');
+                                    var dropdown = document.getElementById('club-switcher-dropdown');
+                                    if (btn && dropdown) {
+                                        btn.addEventListener('click', function(e) {
+                                            e.preventDefault();
+                                            dropdown.classList.toggle('hidden');
+                                        });
+                                        document.addEventListener('click', function(e) {
+                                            if (!btn.contains(e.target) && !dropdown.contains(e.target)) {
+                                                dropdown.classList.add('hidden');
+                                            }
+                                        });
+                                    }
+                                });
+                                </script>
+                            <?php endif; ?>
+                            <span aria-hidden="true" class="top-nav__user-separator">·</span>
+                            <a href="<?= htmlspecialchars($logoutHref) ?>" class="top-nav__user-link">Logout</a>
+                        </div>
                     </div>
           </div>
 </nav>

@@ -156,11 +156,9 @@ ob_start();
 ?>
 <div class="w-full mt-4 text-slate-200">
     <div class="max-w-full">
-        <?php
-            $pageTitle = 'Statistics Dashboard';
-            $pageDescription = 'View club-wide analytics and performance indicators.';
-            include __DIR__ . '/../../partials/club_context_header.php';
-        ?>
+
+        <!-- Club context header removed. -->
+        <?php $pageTitle = 'Statistics Dashboard'; $pageDescription = 'View club-wide analytics and performance indicators.'; ?>
 
         <div class="grid grid-cols-12 gap-2 px-4 md:px-6 lg:px-8 w-full">
             <aside class="col-span-2 space-y-4 min-w-0">

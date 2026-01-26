@@ -28,6 +28,14 @@ require_once __DIR__ . '/match_period_repository.php';
  */
 class StatsService
 {
+    /**
+     * Get the primary team ID for this club context
+     * @return int|null
+     */
+    public function getPrimaryTeamId(): ?int
+    {
+        return $this->primaryTeamId;
+    }
     private $pdo;
     private $clubId;
     private $primaryTeamId;
@@ -464,6 +472,53 @@ class StatsService
         $eventTypes = $this->getEventTypesForClub();
         $eventsVersion = (int)($match['events_version'] ?? 0);
         $derived = get_or_compute_match_stats($matchId, $eventsVersion, $events, $eventTypes);
+
+        // Remap home/away buckets if selected team is away
+        $selectedTeamId = $this->primaryTeamId ?? null;
+        $isHome = isset($match['home_team_id'], $selectedTeamId) && ((int)$selectedTeamId === (int)$match['home_team_id']);
+        $isAway = isset($match['away_team_id'], $selectedTeamId) && ((int)$selectedTeamId === (int)$match['away_team_id']);
+        if ($isAway) {
+            // Swap home/away buckets in derived stats
+            if (isset($derived['by_type_team'])) {
+                foreach ($derived['by_type_team'] as &$bucket) {
+                    $tmp = $bucket['home'];
+                    $bucket['home'] = $bucket['away'];
+                    $bucket['away'] = $tmp;
+                }
+                unset($bucket);
+            }
+            if (isset($derived['phase_2']['by_period'])) {
+                foreach ($derived['phase_2']['by_period'] as &$period) {
+                    $tmp = $period['home'];
+                    $period['home'] = $period['away'];
+                    $period['away'] = $tmp;
+                }
+                unset($period);
+            }
+            if (isset($derived['phase_2']['per_15_minute'])) {
+                foreach ($derived['phase_2']['per_15_minute'] as &$bucket) {
+                    $tmp = $bucket['home'];
+                    $bucket['home'] = $bucket['away'];
+                    $bucket['away'] = $tmp;
+                }
+                unset($bucket);
+            }
+            if (isset($derived['totals']['set_pieces'])) {
+                $tmp = $derived['totals']['set_pieces']['home'];
+                $derived['totals']['set_pieces']['home'] = $derived['totals']['set_pieces']['away'];
+                $derived['totals']['set_pieces']['away'] = $tmp;
+            }
+            if (isset($derived['totals']['cards'])) {
+                $tmp = $derived['totals']['cards']['home'];
+                $derived['totals']['cards']['home'] = $derived['totals']['cards']['away'];
+                $derived['totals']['cards']['away'] = $tmp;
+            }
+            if (isset($derived['totals']['highlights']['by_team'])) {
+                $tmp = $derived['totals']['highlights']['by_team']['home'];
+                $derived['totals']['highlights']['by_team']['home'] = $derived['totals']['highlights']['by_team']['away'];
+                $derived['totals']['highlights']['by_team']['away'] = $tmp;
+            }
+        }
         $periods = get_match_periods($matchId);
 
         $kickoffAt = null;

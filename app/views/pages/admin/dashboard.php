@@ -7,11 +7,9 @@ $base = base_path();
 
 ob_start();
 ?>
-<?php
-    $pageTitle = 'Platform Admin';
-    $pageDescription = 'Manage platform-level data for clubs and users.';
-    include __DIR__ . '/../../partials/club_context_header.php';
-?>
+
+<!-- Club context header removed. -->
+<?php $pageTitle = 'Platform Admin'; $pageDescription = 'Manage platform-level data for clubs and users.'; ?>
 
 <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           <div>

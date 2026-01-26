@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/playlist_repository.php';
 require_once __DIR__ . '/clip_repository.php';
+require_once __DIR__ . '/clip_file_helper.php';
+require_once __DIR__ . '/clip_mp4_service.php';
 
 /**
  * Return all active playlists for a match.
@@ -90,6 +92,12 @@ function playlist_service_get_with_clips(int $playlistId, int $matchId): array
           $playlist = playlist_service_require_playlist_for_match($playlistId, $matchId);
           $clips = playlist_get_clips($playlistId);
 
+          $clips = array_map(function ($clip) {
+                    $clip['is_legacy_auto_clip'] = is_legacy_auto_clip($clip);
+                    $clip['mp4_path'] = clip_mp4_service_get_clip_web_path($clip);
+                    return $clip;
+          }, $clips);
+
           return [
                     'playlist' => $playlist,
                     'clips' => $clips,
@@ -104,97 +112,93 @@ function playlist_service_add_clip(int $playlistId, int $matchId, int $clipId, ?
 {
           require_once __DIR__ . '/event_repository.php';
           require_once __DIR__ . '/match_repository.php';
-          
           playlist_service_require_playlist_for_match($playlistId, $matchId);
 
           $clip = playlist_get_clip_for_match($clipId, $matchId);
-          
-          // If no clip exists, try to create one from the event (event_id == clip_id pattern)
-            if (!$clip) {
-                         $event = event_get_by_id($clipId);
-                         if (!$event || (int)$event['match_id'] !== $matchId) {
-                                     throw new RuntimeException('clip_not_found');
-                         }
-                         // Build clip name from event details
-                         $clipName = generate_clip_name_from_event($event, $matchId);
-                         $matchSecond = (int)($event['match_second'] ?? 0);
-                         $startSecond = max(0, $matchSecond - 30);
-                         $endSecond = $matchSecond + 30;
-                         $currentUser = current_user();
-                         $userId = (int)($currentUser['id'] ?? 0);
+          $createdNewClip = false;
+          $generatedClipPath = null;
 
-                         // Generate mp4 first
-                         require_once __DIR__ . '/clip_mp4_service.php';
-                         $tempClip = [
+          // If no clip exists, try to create one from the event (event_id == clip_id pattern)
+          if (!$clip) {
+                    $event = event_get_by_id($clipId);
+                    if (!$event || (int)$event['match_id'] !== $matchId) {
+                              throw new RuntimeException('clip_not_found');
+                    }
+                    // Build clip name from event details
+                    $clipName = generate_clip_name_from_event($event, $matchId);
+                    $matchSecond = (int)($event['match_second'] ?? 0);
+                    $startSecond = max(0, $matchSecond - 30);
+                    $endSecond = $matchSecond + 30;
+                    $currentUser = current_user();
+                    $userId = (int)($currentUser['id'] ?? 0);
+
+                    // Generate mp4 first
+                    require_once __DIR__ . '/clip_mp4_service.php';
+                    $tempClip = [
                               'id' => null,
                               'match_id' => $matchId,
                               'clip_name' => $clipName,
                               'start_second' => $startSecond,
                               'duration_seconds' => $endSecond - $startSecond,
-                         ];
-                         // Insert into DB only after mp4 is created
-                         try {
-                              // Use a temporary ID for filename, will rename after DB insert
-                              $mp4Created = false;
+                    ];
+                    // Insert into DB only after mp4 is created
+                    try {
+                              // Generate using descriptive base name (no clip_id yet)
+                              $generatedClipPath = ensure_clip_mp4_exists($tempClip);
                               // Insert clip row
                               $pdo = db();
                               $stmt = $pdo->prepare(
-                                   'INSERT INTO clips (match_id, event_id, clip_name, start_second, end_second, created_by) 
-                                    VALUES (:match_id, :event_id, :clip_name, :start_second, :end_second, :created_by)'
+                                        'INSERT INTO clips (match_id, event_id, clip_name, start_second, end_second, created_by) 
+                                         VALUES (:match_id, :event_id, :clip_name, :start_second, :end_second, :created_by)'
                               );
                               $stmt->execute([
-                                   'match_id' => $matchId,
-                                   'event_id' => $clipId,
-                                   'clip_name' => $clipName,
-                                   'start_second' => $startSecond,
-                                   'end_second' => $endSecond,
-                                   'created_by' => $userId,
+                                        'match_id' => $matchId,
+                                        'event_id' => $clipId,
+                                        'clip_name' => $clipName,
+                                        'start_second' => $startSecond,
+                                        'end_second' => $endSecond,
+                                        'created_by' => $userId,
                               ]);
                               $newClipId = (int)$pdo->lastInsertId();
                               $tempClip['id'] = $newClipId;
-                              $mp4Path = ensure_clip_mp4_exists($tempClip);
-                              // Rename file to match_{match_id}_{clip_id}.mp4 if needed
-                              $documentRoot = rtrim($_SERVER['DOCUMENT_ROOT'] ?? '', DIRECTORY_SEPARATOR);
-                              $clipsDir = $documentRoot . "/videos/clips";
-                              $finalPath = $clipsDir . "/match_{$matchId}_{$newClipId}.mp4";
-                              if ($mp4Path !== $finalPath) {
-                                   @rename($mp4Path, $finalPath);
-                              }
+                              $tempClip['mp4_file_path'] = $generatedClipPath;
                               $clip = [
-                                   'id' => $newClipId,
-                                   'clip_id' => $newClipId,
-                                   'match_id' => $matchId,
-                                   'clip_name' => $clipName,
-                                   'start_second' => $startSecond,
-                                   'end_second' => $endSecond,
+                                        'id' => $newClipId,
+                                        'clip_id' => $newClipId,
+                                        'match_id' => $matchId,
+                                        'clip_name' => $clipName,
+                                        'start_second' => $startSecond,
+                                        'end_second' => $endSecond,
                               ];
                               $clipId = $newClipId;
-                         } catch (\Exception $e) {
+                              $createdNewClip = true;
+                              clip_file_helper_register_clip_path($newClipId, $generatedClipPath);
+                    } catch (\Exception $e) {
                               // If mp4 generation fails, remove DB row
                               if (isset($newClipId) && $newClipId) {
-                                   $pdo->prepare('DELETE FROM clips WHERE id = :id')->execute(['id' => $newClipId]);
+                                        $pdo->prepare('DELETE FROM clips WHERE id = :id')->execute(['id' => $newClipId]);
                               }
                               throw $e;
-                         }
-            }
-
-            try {
-                         $clipRow = playlist_add_clip($playlistId, $clipId, $sortOrder);
-                         // --- Ensure mp4 is generated for this clip ---
-                         require_once __DIR__ . '/clip_mp4_service.php';
-                         try {
-                              ensure_clip_mp4_exists($clipRow);
-                         } catch (\Throwable $mp4ex) {
-                              // Optionally log or handle mp4 generation errors
-                              // error_log('Clip mp4 generation failed: ' . $mp4ex->getMessage());
-                         }
-                         return $clipRow;
-            } catch (RuntimeException $e) {
-                         if ($e->getMessage() === 'duplicate_clip') {
-                                     throw new RuntimeException('duplicate_clip');
-                         }
-                         throw $e;
-            }
+                    }
+          }
+          try {
+                    $clipRow = playlist_add_clip($playlistId, $clipId, $sortOrder);
+                    if (!$createdNewClip) {
+                              require_once __DIR__ . '/clip_mp4_service.php';
+                              try {
+                                        ensure_clip_mp4_exists($clipRow);
+                              } catch (\Throwable $mp4ex) {
+                                        // Optionally log or handle mp4 generation errors
+                                        // error_log('Clip mp4 generation failed: ' . $mp4ex->getMessage());
+                              }
+                    }
+                    return $clipRow;
+          } catch (RuntimeException $e) {
+                    if ($e->getMessage() === 'duplicate_clip') {
+                              throw new RuntimeException('duplicate_clip');
+                    }
+                    throw $e;
+          }
 }
 
 /**
@@ -294,40 +298,142 @@ function playlist_service_parse_order_input(array $orderInput): array
 
 /**
  * Generate a meaningful clip name from event details.
- * Format: EventType_PlayerName_TeamName_Date
- * Example: Goal_John_Smith_Home_2026-01-18
+ * Format: EventType_PlayerName_(TimeInMinutes)
+ * Example: Goal_John_Smith_(12)
  */
 function generate_clip_name_from_event(array $event, int $matchId): string
 {
-          $parts = [];
-          
-          // Add event type label (Goal, Shot, Foul, etc.)
-          if (!empty($event['event_type_label'])) {
-                    $parts[] = str_replace(' ', '_', $event['event_type_label']);
-          }
-          
-          // Add player name if available
-          if (!empty($event['match_player_name'])) {
-                    // Remove extra spaces and replace with underscore
-                    $playerName = str_replace(' ', '_', trim($event['match_player_name']));
-                    $parts[] = $playerName;
-          }
-          
-          // Add team side (Home/Away)
-          if (!empty($event['match_player_team_side'])) {
-                    $parts[] = ucfirst($event['match_player_team_side']);
-          }
-          
-          // Add match date if available
-          if (!empty($event['match_id'])) {
-                    $match = get_match((int)$event['match_id']);
-                    if ($match && !empty($match['kickoff_at'])) {
-                              $date = date('Y-m-d', strtotime($match['kickoff_at']));
-                              $parts[] = $date;
+           $eventLabel = playlist_service_slugify_clip_component($event['event_type_label'] ?? $event['event_type_key'] ?? '', 'Event');
+           $playerLabel = playlist_service_slugify_clip_component($event['match_player_name'] ?? '', 'Unknown_Player');
+           $timeLabel = playlist_service_format_event_time_label($event);
+
+          $prefixParts = array_filter([$eventLabel, $playerLabel]);
+          $prefix = $prefixParts !== [] ? implode('_', $prefixParts) . '_' : 'clip_';
+
+          return $prefix . '(' . $timeLabel . ')';
+}
+
+function playlist_service_slugify_clip_component(string $value, string $fallback): string
+{
+          return playlist_service_slugify_filename($value, $fallback, ['_']);
+}
+
+function playlist_service_format_event_time_label(array $event): string
+{
+          $minute = isset($event['minute']) ? (int)$event['minute'] : null;
+          $extra = isset($event['minute_extra']) ? (int)$event['minute_extra'] : 0;
+
+          if ($minute !== null && $minute >= 0) {
+                    $label = (string)$minute;
+                    if ($extra > 0) {
+                              $label .= '+' . $extra;
                     }
+                    return $label;
           }
-          
-          // Join all parts with underscore; if empty, use generic name
-          $clipName = implode('_', array_filter($parts));
-          return !empty($clipName) ? $clipName : 'clip';
+
+          $matchSecond = isset($event['match_second']) ? (int)$event['match_second'] : null;
+          if ($matchSecond !== null && $matchSecond >= 0) {
+                    return (string)floor($matchSecond / 60);
+          }
+
+          return '0';
+}
+
+function playlist_service_slugify_filename(string $text, string $fallback = 'clip', array $allowed = ['_', '-', '(', ')', '+']): string
+{
+          $value = trim($text);
+          if ($value === '') {
+                    return $fallback;
+          }
+
+          $transliterated = @iconv('UTF-8', 'ASCII//TRANSLIT', $value);
+          if ($transliterated !== false) {
+                    $value = $transliterated;
+          }
+
+          $value = preg_replace('/\s+/', '_', $value);
+          $allowedPattern = $allowed ? preg_quote(implode('', $allowed), '/') : '';
+          $value = preg_replace('/[^A-Za-z0-9' . $allowedPattern . ']+/', '_', $value);
+          $value = preg_replace('/_+/', '_', $value);
+          $value = trim($value, '_');
+
+          return $value !== '' ? $value : $fallback;
+}
+
+function playlist_service_build_playlist_zip_filename(array $playlist, ?array $match): string
+{
+          $segments = [];
+          $segments[] = playlist_service_slugify_filename($playlist['title'] ?? 'playlist', 'playlist', ['_']);
+
+          $homeTeam = $match['home_team'] ?? '';
+          $awayTeam = $match['away_team'] ?? '';
+          if ($homeTeam !== '' || $awayTeam !== '') {
+                    $homeSlug = playlist_service_slugify_filename($homeTeam, 'home', ['_']);
+                    $awaySlug = playlist_service_slugify_filename($awayTeam, 'away', ['_']);
+                    $segments[] = $homeSlug . '-vs-' . $awaySlug;
+          }
+
+          $dateLabel = playlist_service_format_kickoff_date($match['kickoff_at'] ?? null);
+          if ($dateLabel !== '') {
+                    $segments[] = $dateLabel;
+          }
+
+          $raw = implode('_', array_filter($segments));
+          return playlist_service_slugify_filename($raw, 'playlist', ['_', '-', '+']);
+}
+
+function playlist_service_format_kickoff_date(?string $kickoffAt): string
+{
+          if (empty($kickoffAt)) {
+                    return '';
+          }
+
+          $timestamp = strtotime($kickoffAt);
+          if ($timestamp === false) {
+                    return '';
+          }
+
+          return date('Y-m-d', $timestamp);
+}
+
+function playlist_service_make_unique_clip_name(string $base, array &$seen): string
+{
+          $candidate = $base;
+          $suffix = 1;
+
+          while (isset($seen[$candidate])) {
+                    $suffix++;
+                    $candidate = $base . '_' . $suffix;
+          }
+
+          $seen[$candidate] = true;
+          return $candidate;
+}
+
+function is_legacy_auto_clip(array $clip): bool
+{
+          $source = strtolower(trim((string)($clip['generation_source'] ?? '')));
+          if ($source === 'event_auto') {
+                    return true;
+          }
+
+          $clipName = trim((string)($clip['clip_name'] ?? ''));
+          if ($clipName === '') {
+                    return true;
+          }
+
+          if (stripos($clipName, 'Auto clip') === 0 || stripos($clipName, 'Auto_clip') === 0) {
+                    return true;
+          }
+
+          if (preg_match('/@[^@]*s$/i', $clipName)) {
+                    return true;
+          }
+
+          $version = isset($clip['generation_version']) ? (int)$clip['generation_version'] : 0;
+          if ($version > 0 && $version < 4) {
+                    return true;
+          }
+
+          return false;
 }

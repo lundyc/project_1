@@ -4,9 +4,19 @@ function auth_boot()
 {
           if (session_status() === PHP_SESSION_NONE) {
                     $config = require __DIR__ . '/../../config/config.php';
-
                     session_name($config['session']['name']);
                     session_start();
+          }
+
+          // Set default club ID for platform admins if not set
+          if (isset($_SESSION['roles']) && in_array('platform_admin', $_SESSION['roles'], true)) {
+                    if (empty($_SESSION['admin_player_club_id'])) {
+                              require_once __DIR__ . '/club_repository.php';
+                              $clubs = get_all_clubs();
+                              if (!empty($clubs)) {
+                                        $_SESSION['admin_player_club_id'] = (int)$clubs[0]['id'];
+                              }
+                    }
           }
 }
 
