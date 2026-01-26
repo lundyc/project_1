@@ -355,7 +355,7 @@ ob_start();
                                         </td>
                                         <td class="px-3 py-3 whitespace-nowrap text-center">
                                             <div class="flex justify-center">
-                                                <a href="<?= $matchUrl ?>" class="inline-flex items-center rounded-md bg-slate-700/60 px-2 py-1 text-xs text-slate-200 hover:bg-slate-700/80 transition" aria-label="View match">
+                                                <a href="<?= htmlspecialchars($base . '/stats/match/' . $matchId) ?>" class="inline-flex items-center rounded-md bg-slate-700/60 px-2 py-1 text-xs text-slate-200 hover:bg-slate-700/80 transition" aria-label="View match">
                                                     <i class="fa-solid fa-eye"></i>
                                                 </a>
                                                 <a href="<?= htmlspecialchars($base . '/matches/' . $matchId . '/edit') ?>" class="inline-flex items-center rounded-md bg-indigo-700/60 px-2 py-1 text-xs text-white hover:bg-indigo-700 transition" aria-label="Edit match">

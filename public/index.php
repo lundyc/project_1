@@ -11,6 +11,11 @@ auth_boot();
 require_once __DIR__ . '/../app/routes/admin_players.php';
 require_once __DIR__ . '/../app/routes/admin_playlists.php';
 
+route('/', function () {
+    require_auth();
+    redirect('/stats');
+});
+
 route('/login', function () {
           require __DIR__ . '/../app/views/pages/login.php';
 });
@@ -345,6 +350,7 @@ route('/matches/(\d+)/desk', function ($matchId) {
           require_once __DIR__ . '/../app/lib/match_permissions.php';
           require_once __DIR__ . '/../app/lib/match_stats_service.php';
           require_once __DIR__ . '/../app/lib/match_period_repository.php';
+          require_once __DIR__ . '/../app/lib/event_repository.php';
 
           $match = get_match($matchId);
 
@@ -374,7 +380,7 @@ route('/matches/(\d+)/desk', function ($matchId) {
           $derivedStats = get_or_compute_match_stats((int)$match['id'], (int)$match['events_version'], $events, $eventTypes);
           $matchPeriods = get_match_periods($matchId);
 
-          require __DIR__ . '/../app/views/pages/matches/stats.php';
+          require __DIR__ . '/../app/views/pages/matches/desk.php';
           return true;
 });
 
