@@ -148,17 +148,22 @@ $buildTabUrl = static function (?string $status) use ($tabBasePath, $searchQuery
 
 ob_start();
 ?>
+<?php
+$headerTitle = 'Matches';
+$headerDescription = 'Description here';
+$headerButtons = [];
+if ($canManage) {
+    $headerButtons[] = '<a href="' . htmlspecialchars($base) . '/matches/create" class="stats-tab w-full justify-start text-left px-4 py-2.5 text-sm font-medium rounded-lg border transition-all duration-200 bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20 flex">Create Match</a>';
+}
+include __DIR__ . '/../../partials/header.php';
+?>
 <div class="stats-page w-full mt-4 text-slate-200">
     <div class="max-w-full">
 
         <div class="stats-three-col grid grid-cols-12 gap-2 px-4 md:px-6 lg:px-8 w-full">
             <!-- Left Sidebar -->
             <aside class="stats-col-left col-span-2 space-y-4 min-w-0">
-           
-                    <?php if ($canManage): ?>
-                        <a href="<?= htmlspecialchars($base) ?>/matches/create" class="stats-tab w-full justify-start text-left px-4 py-2.5 text-sm font-medium rounded-lg border transition-all duration-200 bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20 mb-4 flex">Create Match</a>
-                    <?php endif; ?>
-                    <div class="rounded-xl bg-slate-900/80 border border-white/10 p-3 mt-4">
+                    <div class="rounded-xl bg-slate-900/80 border border-white/10 p-3">
                         <h6 class="text-slate-300 text-xs font-semibold mb-2">Filters</h6>
                         <form method="get" class="flex flex-col gap-3" role="search">
                             <div>
@@ -215,9 +220,9 @@ ob_start();
             </aside>
             <!-- Main Content -->
             <main class="stats-col-main col-span-7 space-y-4 min-w-0">
-                <div class="rounded-xl bg-slate-900/80 border border-white/10 p-3">
+                <div class="rounded-xl bg-slate-800 border border-white/10 p-3">
                     <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-2 mb-2">
-                        <h4 class="mb-0">Matches</h4>
+                        <h4 class="text-slate-200 font-semibold mb-1">Matches</h4>
                     </div>
                     <?php if ($error): ?>
                         <div class="rounded-lg bg-red-900/80 border border-red-700 text-red-200 px-4 py-3 mb-4 text-sm"><?= htmlspecialchars($error) ?></div>
@@ -374,17 +379,17 @@ ob_start();
             </main>
             <!-- Right Sidebar -->
             <aside class="stats-col-right col-span-3 min-w-0">
-                <div class="rounded-xl bg-slate-900/80 border border-white/10 p-4">
+                <div class="rounded-xl bg-slate-800 border border-white/10 p-3">
                     <h5 class="text-slate-200 font-semibold mb-1">Match Stats</h5>
                     <div class="text-slate-400 text-xs mb-4">Overview of matches</div>
                     <div class="space-y-3">
-                        <article class="rounded-lg border border-white/10 bg-slate-800/40 px-3 py-3">
+                        <article class="rounded-lg border border-white/10 bg-slate-900/80 px-3 py-3">
                             <div class="text-xs font-semibold text-slate-300 mb-2 text-center">Total Matches</div>
                             <div class="text-2xl font-bold text-slate-100 text-center"><?= $totalMatches ?></div>
                         </article>
                         <div class="border-t border-white/10"></div>
                         <?php foreach ($orderedStatuses as $status => $count): ?>
-                            <article class="rounded-lg border border-white/10 bg-slate-800/40 px-3 py-3">
+                            <article class="rounded-lg border border-white/10 bg-slate-900/80 px-3 py-3">
                                 <div class="text-xs font-semibold text-slate-300 mb-2 text-center"><?= htmlspecialchars($formatStatusLabel($status)) ?></div>
                                 <div class="text-xl font-bold text-indigo-400 text-center"><?= $count ?></div>
                             </article>

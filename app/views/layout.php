@@ -20,7 +20,7 @@ auth_boot();
 </head>
 
 <?php
-$bodyClasses = ['bg-dark', 'text-light'];
+$bodyClasses = [];
 if (is_logged_in()) {
           $bodyClasses[] = 'has-top-nav';
 }

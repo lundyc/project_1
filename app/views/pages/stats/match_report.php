@@ -31,348 +31,302 @@ $substitutions = get_match_substitutions($matchId);
 $homeTeam = get_team_by_id($match['home_team_id']);
 $awayTeam = get_team_by_id($match['away_team_id']);
 
+$matchNotes = htmlspecialchars($match['notes'] ?? '-');
+$attendanceDisplay = htmlspecialchars($match['attendance'] ?? '-');
+$refereeDisplay = htmlspecialchars($match['referee'] ?? '-');
+$statusDisplay = htmlspecialchars($match['status'] ?? '-');
+
+$kickoffDisplay = '-';
+if (!empty($match['kickoff_at']) && strtotime($match['kickoff_at']) !== false) {
+    $dt = new DateTime($match['kickoff_at']);
+    $kickoffDisplay = $dt->format('d/m/Y @ H:i');
+}
+
+$seasonDisplay = '-';
+if (!empty($match['season'])) {
+    $seasonDisplay = htmlspecialchars($match['season']);
+} elseif (!empty($match['season_id'])) {
+    $pdo = db();
+    $stmt = $pdo->prepare('SELECT name FROM seasons WHERE id = ?');
+    $stmt->execute([$match['season_id']]);
+    $seasonName = $stmt->fetchColumn();
+    $seasonDisplay = $seasonName ? htmlspecialchars($seasonName) : '-';
+}
+
+$homeShots = (int)($matchStats['home']['shots'] ?? 0);
+$awayShots = (int)($matchStats['away']['shots'] ?? 0);
+
+$homeShotsOnTarget = $matchStats['home']['shots_on_target'] ?? null;
+if ($homeShotsOnTarget === null || $homeShotsOnTarget === 0) {
+    $homeShotsOnTarget = $derivedData['derived']['by_type_team']['shot_on_target']['home'] ?? 0;
+}
+$homeShotsOnTarget = (int)$homeShotsOnTarget;
+
+$awayShotsOnTarget = $matchStats['away']['shots_on_target'] ?? null;
+if ($awayShotsOnTarget === null || $awayShotsOnTarget === 0) {
+    $awayShotsOnTarget = $derivedData['derived']['by_type_team']['shot_on_target']['away'] ?? 0;
+}
+$awayShotsOnTarget = (int)$awayShotsOnTarget;
+
+$homeShotsOffTarget = $matchStats['home']['shots_off_target'] ?? null;
+if ($homeShotsOffTarget === null || $homeShotsOffTarget === 0) {
+    $homeShotsOffTarget = $derivedData['derived']['by_type_team']['shot_off_target']['home'] ?? 0;
+}
+$homeShotsOffTarget = (int)$homeShotsOffTarget;
+
+$awayShotsOffTarget = $matchStats['away']['shots_off_target'] ?? null;
+if ($awayShotsOffTarget === null || $awayShotsOffTarget === 0) {
+    $awayShotsOffTarget = $derivedData['derived']['by_type_team']['shot_off_target']['away'] ?? 0;
+}
+$awayShotsOffTarget = (int)$awayShotsOffTarget;
+
+$derivedByType = $derivedData['derived']['by_type_team'] ?? [];
+
 header('Content-Type: text/html; charset=utf-8');
 ?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Match Report</title>
+    <style>
+        table { border-collapse: collapse; width: 100%; font-size: 13px; }
+        th { background: #e3e6f3; text-align: left; padding: 4px; }
+        td { padding: 4px; vertical-align: top; }
+        h1, h2, h3 { margin: 1em 0 0.5em; font-family: sans-serif; }
+        .divider { height: 1px; margin: 1em 0; background: #ccc; }
+        .section-table td { border-bottom: 1px solid #e3e6f3; }
+        .match-score td { border: none; }
+        .info-table td { border: none; }
+        .event-list { margin: 0; padding-left: 1.1em; }
+    </style>
+</head>
 <body>
-<table class="report-container noborder" style="width:100%; max-width:900px; margin:0 auto; padding:32px; border:0;">
-    <tr><td colspan="2" style="border:0; padding:0;"><h1>Match Report</h1></td></tr>
+<h1>Match Report</h1>
+<table class="match-score" style="margin-bottom: 1em;">
     <tr>
-        <td colspan="2" style="border:0; padding:0;">
-            <table style="width:100%; border:0;">
-                <tr>
-                    <td class="team-name" style="width:33%; text-align:left; border:0;">Home: <?= htmlspecialchars($homeTeam['name']) ?></td>
-                    <td class="scoreline" style="width:34%; text-align:center; border:0; font-size:2.5em; font-weight:bold;">
-                        <?= (int)($matchStats['home']['goals'] ?? 0) ?> : <?= (int)($matchStats['away']['goals'] ?? 0) ?>
-                    </td>
-                    <td class="team-name" style="width:33%; text-align:right; border:0;">Away: <?= htmlspecialchars($awayTeam['name']) ?></td>
-                </tr>
+        <td style="text-align:left; font-weight:600;">
+            <span style="font-size:0.95em; color:#444;">Home</span><br>
+            <span style="font-size:1.5em; font-weight:bold; color:#222; line-height:1.1; display:inline-block; margin-top:2px;">
+                <?= htmlspecialchars($homeTeam['name']) ?>
+            </span>
+        </td>
+        <td style="text-align:center; font-size:2.5em; font-weight:bold;"><?= (int)($matchStats['home']['goals'] ?? 0) ?> : <?= (int)($matchStats['away']['goals'] ?? 0) ?></td>
+        <td style="text-align:right; font-weight:600;">
+            <span style="font-size:0.95em; color:#444;">Away</span><br>
+            <span style="font-size:1.5em; font-weight:bold; color:#222; line-height:1.1; display:inline-block; margin-top:2px;">
+                <?= htmlspecialchars($awayTeam['name']) ?>
+            </span>
+        </td>
+    </tr>
+</table>
+<div class="divider"></div>
+<h2>Match Info</h2>
+<table class="info-table" style="margin-bottom: 1em;">
+    <tr>
+        <td style="width:55%;">
+            <table style="width:100%;">
+                <tr><td><strong>Date / Time:</strong> <?= htmlspecialchars($kickoffDisplay) ?></td></tr>
+                <tr><td><strong>Venue:</strong> <?= htmlspecialchars($match['venue'] ?? '-') ?></td></tr>
+                <tr><td><strong>Competition:</strong> <?= htmlspecialchars($match['competition'] ?? '-') ?></td></tr>
+                <tr><td><strong>Season:</strong> <?= $seasonDisplay ?></td></tr>
+            </table>
+        </td>
+        <td style="width:45%;">
+            <table style="width:100%;">
+                <tr><td><strong>Attendance:</strong> <?= $attendanceDisplay ?></td></tr>
+                <tr><td><strong>Referee:</strong> <?= $refereeDisplay ?></td></tr>
+                <tr><td><strong>Status:</strong> <?= $statusDisplay ?></td></tr>
             </table>
         </td>
     </tr>
-    <tr>
-        <td style="vertical-align:top; width:50%; border:0; padding-right:1em; min-width:220px;">
-            <table style="width:100%; border:0;">
-                <tr><td style="border:0;"><span class="label">Match Info:</span> <?= htmlspecialchars($match['notes'] ?? '-') ?></td></tr>
-                <tr><td style="border:0;"><span class="label">Date / Time:</span> <?php
-                    $dateStr = $match['kickoff_at'] ?? '';
-                    if ($dateStr && strtotime($dateStr) !== false) {
-                        $dt = new DateTime($dateStr);
-                        echo $dt->format('d/m/Y @ H:i');
-                    } else {
-                        echo '-';
-                    }
-                ?></td></tr>
-                <tr><td style="border:0;"><span class="label">Venue:</span> <?= htmlspecialchars($match['venue'] ?? '-') ?></td></tr>
-                <tr><td style="border:0;"><span class="label">Competition:</span> <?= htmlspecialchars($match['competition'] ?? '-') ?></td></tr>
-                <tr><td style="border:0;"><span class="label">Season:</span> <?php
-                    if (!empty($match['season'])) {
-                        echo htmlspecialchars($match['season']);
-                    } elseif (!empty($match['season_id'])) {
-                        $pdo = db();
-                        $stmt = $pdo->prepare('SELECT name FROM seasons WHERE id = ?');
-                        $stmt->execute([$match['season_id']]);
-                        $season = $stmt->fetchColumn();
-                        echo $season ? htmlspecialchars($season) : '-';
-                    } else {
-                        echo '-';
-                    }
-                ?></td></tr>
-            </table>
-        </td>
-        <td style="vertical-align:top; width:50%; border:0; min-width:180px;">
-            <table style="width:100%; border:0;">
-                <tr><td style="border:0;"><span class="label">&nbsp;</span></td></tr>
-                <tr><td style="border:0;"><span class="label">Attendance:</span> <?= htmlspecialchars($match['attendance'] ?? '-') ?></td></tr>
-                <tr><td style="border:0;"><span class="label">Referee:</span> <?= htmlspecialchars($match['referee'] ?? '-') ?></td></tr>
-                <tr><td style="border:0;"><span class="label">Status:</span> <?= htmlspecialchars($match['status'] ?? '-') ?></td></tr>
-            </table>
-        </td>
-    </tr>
-    <tr><td colspan="2" style="border:0; padding:0;"><div class="divider"></div></td></tr>
-                    echo $dt->format('d/m/Y @ H:i');
-                } else {
-                    echo '-';
-                }
-            ?></div>
-            <div><span class="label">Venue:</span> <?= htmlspecialchars($match['venue'] ?? '-') ?></div>
-            <div><span class="label">Competition:</span> <?= htmlspecialchars($match['competition'] ?? '-') ?></div>
-            <div><span class="label">Season:</span> <?php
-                if (!empty($match['season'])) {
-                    echo htmlspecialchars($match['season']);
-                } elseif (!empty($match['season_id'])) {
-                    $pdo = db();
-                    $stmt = $pdo->prepare('SELECT name FROM seasons WHERE id = ?');
-                    $stmt->execute([$match['season_id']]);
-                    $season = $stmt->fetchColumn();
-                    echo $season ? htmlspecialchars($season) : '-';
-                } else {
-                    echo '-';
-                }
-            ?></div>
-        </div>
-        <div style="flex:1; min-width:180px;">
-        <div><span class="label"> </span></div>    
-        <div><span class="label">Attendance:</span> <?= htmlspecialchars($match['attendance'] ?? '-') ?></div>
-            <div><span class="label">Referee:</span> <?= htmlspecialchars($match['referee'] ?? '-') ?></div>
-            <div><span class="label">Status:</span> <?= htmlspecialchars($match['status'] ?? '-') ?></div>
-        </div>
-    </div>
-    <div class="divider"></div>
+</table>
+<div class="divider"></div>
 
-    <h1>Overview</h1>
-    <table>
-        <tr><th>Metric</th><th><?= htmlspecialchars($homeTeam['name']) ?></th><th><?= htmlspecialchars($awayTeam['name']) ?></th></tr>
-        <tr>
-            <td>Goals</td>
-            <td><?= (int)($matchStats['home']['goals'] ?? 0) ?></td>
-            <td><?= (int)($matchStats['away']['goals'] ?? 0) ?></td>
-        </tr>
-        <tr>
-            <td>Shots</td>
-            <td><?= (int)($matchStats['home']['shots'] ?? 0) ?></td>
-            <td><?= (int)($matchStats['away']['shots'] ?? 0) ?></td>
-        </tr>
-        <tr>
-            <td>&nbsp;&nbsp;&nbsp;On Target</td>
-            <td><?php
-                $onTarget = $matchStats['home']['shots_on_target'] ?? null;
-                if ($onTarget === null || $onTarget === 0) {
-                    $onTarget = $derivedData['derived']['by_type_team']['shot_on_target']['home'] ?? 0;
-                }
-                echo (int)$onTarget;
-            ?></td>
-            <td><?php
-                $onTarget = $matchStats['away']['shots_on_target'] ?? null;
-                if ($onTarget === null || $onTarget === 0) {
-                    $onTarget = $derivedData['derived']['by_type_team']['shot_on_target']['away'] ?? 0;
-                }
-                echo (int)$onTarget;
-            ?></td>
-        </tr>
-        <tr>
-            <td>&nbsp;&nbsp;&nbsp;Off Target</td>
-            <td><?php
-                $offTarget = $matchStats['home']['shots_off_target'] ?? null;
-                if ($offTarget === null || $offTarget === 0) {
-                    $offTarget = $derivedData['derived']['by_type_team']['shot_off_target']['home'] ?? 0;
-                }
-                echo (int)$offTarget;
-            ?></td>
-            <td><?php
-                $offTarget = $matchStats['away']['shots_off_target'] ?? null;
-                if ($offTarget === null || $offTarget === 0) {
-                    $offTarget = $derivedData['derived']['by_type_team']['shot_off_target']['away'] ?? 0;
-                }
-                echo (int)$offTarget;
-            ?></td>
-        </tr>
-        <tr>
-            <td>Corners</td>
-            <td><?= (int)($matchStats['home']['corners'] ?? 0) ?></td>
-            <td><?= (int)($matchStats['away']['corners'] ?? 0) ?></td>
-        </tr>
-        <tr>
-            <td>Free Kicks</td>
-            <td><?= (int)($matchStats['home']['free_kicks'] ?? 0) ?></td>
-            <td><?= (int)($matchStats['away']['free_kicks'] ?? 0) ?></td>
-        </tr>
-        <tr>
-            <td>Penalties</td>
-            <td><?= (int)($matchStats['home']['penalties'] ?? 0) ?></td>
-            <td><?= (int)($matchStats['away']['penalties'] ?? 0) ?></td>
-        </tr>
-        <tr>
-            <td>Yellow Cards</td>
-            <td><?= (int)($matchStats['home']['yellow_cards'] ?? 0) ?></td>
-            <td><?= (int)($matchStats['away']['yellow_cards'] ?? 0) ?></td>
-        </tr>
-        <tr>
-            <td>Red Cards</td>
-            <td><?= (int)($matchStats['home']['red_cards'] ?? 0) ?></td>
-            <td><?= (int)($matchStats['away']['red_cards'] ?? 0) ?></td>
-        </tr>
-        <!-- Exploited Event Types (Team Level) -->
-        <tr><th colspan="3" style="background:#e3e6f3;">Exploited Event Types</th></tr>
-        <?php
-        // Use derivedData['derived']['by_type_team'] for event types
-        $eventTypes = [
-            'offside' => 'Offsides',
-            'chance' => 'Chances Created',
-            'mistake' => 'Mistakes',
-            'turnover' => 'Turnovers',
-            'good_play' => 'Good Plays',
-            'highlight' => 'Highlights',
-        ];
-        foreach ($eventTypes as $key => $label):
-        ?>
+<h2>Overview</h2>
+<table class="section-table">
+    <tr><th>Metric</th><th><?= htmlspecialchars($homeTeam['name']) ?></th><th><?= htmlspecialchars($awayTeam['name']) ?></th></tr>
+    <tr><td>Goals</td><td><?= (int)($matchStats['home']['goals'] ?? 0) ?></td><td><?= (int)($matchStats['away']['goals'] ?? 0) ?></td></tr>
+    <tr><td>Shots</td><td><?= $homeShots ?></td><td><?= $awayShots ?></td></tr>
+    <tr><td>&nbsp;&nbsp;&nbsp;On Target</td><td><?= $homeShotsOnTarget ?></td><td><?= $awayShotsOnTarget ?></td></tr>
+    <tr><td>&nbsp;&nbsp;&nbsp;Off Target</td><td><?= $homeShotsOffTarget ?></td><td><?= $awayShotsOffTarget ?></td></tr>
+    <tr><td>Corners</td><td><?= (int)($matchStats['home']['corners'] ?? 0) ?></td><td><?= (int)($matchStats['away']['corners'] ?? 0) ?></td></tr>
+    <tr><td>Free Kicks</td><td><?= (int)($matchStats['home']['free_kicks'] ?? 0) ?></td><td><?= (int)($matchStats['away']['free_kicks'] ?? 0) ?></td></tr>
+    <tr><td>Penalties</td><td><?= (int)($matchStats['home']['penalties'] ?? 0) ?></td><td><?= (int)($matchStats['away']['penalties'] ?? 0) ?></td></tr>
+    <tr><td>Yellow Cards</td><td><?= (int)($matchStats['home']['yellow_cards'] ?? 0) ?></td><td><?= (int)($matchStats['away']['yellow_cards'] ?? 0) ?></td></tr>
+    <tr><td>Red Cards</td><td><?= (int)($matchStats['home']['red_cards'] ?? 0) ?></td><td><?= (int)($matchStats['away']['red_cards'] ?? 0) ?></td></tr>
+</table>
+
+<h2>Exploited Event Types</h2>
+<table class="section-table">
+    <tr><th>Event Type</th><th><?= htmlspecialchars($homeTeam['name']) ?></th><th><?= htmlspecialchars($awayTeam['name']) ?></th></tr>
+    <?php
+    $eventTypes = [
+        'offside' => 'Offsides',
+        'chance' => 'Chances Created',
+        'mistake' => 'Mistakes',
+        'turnover' => 'Turnovers',
+        'good_play' => 'Good Plays',
+        'highlight' => 'Highlights',
+    ];
+    foreach ($eventTypes as $key => $label):
+    ?>
         <tr>
             <td><?= $label ?></td>
-            <td><?= (int)($derivedData['derived']['by_type_team'][$key]['home'] ?? 0) ?></td>
-            <td><?= (int)($derivedData['derived']['by_type_team'][$key]['away'] ?? 0) ?></td>
+            <td><?= (int)($derivedByType[$key]['home'] ?? 0) ?></td>
+            <td><?= (int)($derivedByType[$key]['away'] ?? 0) ?></td>
         </tr>
-        <?php endforeach; ?>
+    <?php endforeach; ?>
+    <tr>
+        <td>Set Pieces (Corners+FK+Pens)</td>
+        <td><?= (int)($matchStats['home']['corners'] ?? 0) + (int)($matchStats['home']['free_kicks'] ?? 0) + (int)($matchStats['home']['penalties'] ?? 0) ?></td>
+        <td><?= (int)($matchStats['away']['corners'] ?? 0) + (int)($matchStats['away']['free_kicks'] ?? 0) + (int)($matchStats['away']['penalties'] ?? 0) ?></td>
+    </tr>
+</table>
+
+<h2>Efficiency & Discipline</h2>
+<table class="section-table">
+    <tr><th>Metric</th><th><?= htmlspecialchars($homeTeam['name']) ?></th><th><?= htmlspecialchars($awayTeam['name']) ?></th></tr>
+    <?php
+    $hShots = $homeShots;
+    $aShots = $awayShots;
+    $hOnTarget = $homeShotsOnTarget;
+    $aOnTarget = $awayShotsOnTarget;
+    $hGoals = (int)($matchStats['home']['goals'] ?? 0);
+    $aGoals = (int)($matchStats['away']['goals'] ?? 0);
+    $hCards = (int)($matchStats['home']['yellow_cards'] ?? 0) + (int)($matchStats['home']['red_cards'] ?? 0);
+    $aCards = (int)($matchStats['away']['yellow_cards'] ?? 0) + (int)($matchStats['away']['red_cards'] ?? 0);
+    $hFouls = (int)($derivedByType['foul']['home'] ?? 0);
+    $aFouls = (int)($derivedByType['foul']['away'] ?? 0);
+    $hSetPieces = (int)($matchStats['home']['corners'] ?? 0) + (int)($matchStats['home']['free_kicks'] ?? 0) + (int)($matchStats['home']['penalties'] ?? 0);
+    $aSetPieces = (int)($matchStats['away']['corners'] ?? 0) + (int)($matchStats['away']['free_kicks'] ?? 0) + (int)($matchStats['away']['penalties'] ?? 0);
+    $hShotAcc = $hShots > 0 ? round($hOnTarget / $hShots * 100, 1) : '—';
+    $aShotAcc = $aShots > 0 ? round($aOnTarget / $aShots * 100, 1) : '—';
+    $hShotConv = $hShots > 0 ? round($hGoals / $hShots * 100, 1) : '—';
+    $aShotConv = $aShots > 0 ? round($aGoals / $aShots * 100, 1) : '—';
+    $hGPSOT = $hOnTarget > 0 ? round($hGoals / $hOnTarget, 2) : '—';
+    $aGPSOT = $aOnTarget > 0 ? round($aGoals / $aOnTarget, 2) : '—';
+    $hFPC = $hCards > 0 ? round($hFouls / $hCards, 2) : '—';
+    $aFPC = $aCards > 0 ? round($aFouls / $aCards, 2) : '—';
+    $hSPPS = $hShots > 0 ? round($hSetPieces / $hShots, 2) : '—';
+    $aSPPS = $aShots > 0 ? round($aSetPieces / $aShots, 2) : '—';
+    ?>
+    <tr><td>Shot Accuracy (%)</td><td><?= $hShotAcc ?></td><td><?= $aShotAcc ?></td></tr>
+    <tr><td>Shot Conversion (%)</td><td><?= $hShotConv ?></td><td><?= $aShotConv ?></td></tr>
+    <tr><td>Goals per Shot on Target</td><td><?= $hGPSOT ?></td><td><?= $aGPSOT ?></td></tr>
+    <tr><td>Fouls per Card</td><td><?= $hFPC ?></td><td><?= $aFPC ?></td></tr>
+    <tr><td>Set Pieces per Shot</td><td><?= $hSPPS ?></td><td><?= $aSPPS ?></td></tr>
+</table>
+
+<h2>Match Events</h2>
+<table class="section-table">
+    <tr><td>
+        <ul class="event-list">
+            <?php foreach (($overview['events']['home_goals'] ?? []) as $goal): ?>
+                <li>Home Goal: <?= htmlspecialchars($goal['player'] ?? 'Unknown') ?> <?= htmlspecialchars($goal['minute'] ?? '') ?>'</li>
+            <?php endforeach; ?>
+            <?php foreach (($overview['events']['away_goals'] ?? []) as $goal): ?>
+                <li>Away Goal: <?= htmlspecialchars($goal['player'] ?? 'Unknown') ?> <?= htmlspecialchars($goal['minute'] ?? '') ?>'</li>
+            <?php endforeach; ?>
+        </ul>
+    </td></tr>
+</table>
+
+<h2>Player Performance</h2>
+<h3>Starting XI</h3>
+<?php
+$subOffByMatchPlayerId = [];
+foreach ($substitutions as $sub) {
+    if (!empty($sub['player_off_match_player_id'])) {
+        $subOffByMatchPlayerId[$sub['player_off_match_player_id']] = $sub;
+    }
+}
+$matchDuration = (int)($match['duration_minutes'] ?? 90);
+$hasRedCards = ((int)($matchStats['home']['red_cards'] ?? 0) + (int)($matchStats['away']['red_cards'] ?? 0)) > 0;
+?>
+<table class="section-table">
+    <tr>
+        <th>#</th><th>Player</th><th>Position</th><th>Goals</th><th>Yellow Cards</th><?php if ($hasRedCards): ?><th>Red Cards</th><?php endif; ?><th>Minutes Played</th>
+    </tr>
+    <?php foreach (($playerPerformance['starting_xi'] ?? []) as $player): ?>
+        <?php
+        $mpid = $player['match_player_id'] ?? null;
+        $minutes = '—';
+        if ($mpid && isset($subOffByMatchPlayerId[$mpid])) {
+            $minutes = (int)($subOffByMatchPlayerId[$mpid]['minute'] ?? 0);
+        } elseif ($mpid) {
+            $minutes = $matchDuration;
+        }
+        $goals = (int)($player['goals'] ?? 0);
+        ?>
         <tr>
-            <td>Set Pieces (Corners+FK+Pens)</td>
-            <td><?= (int)($matchStats['home']['corners'] ?? 0) + (int)($matchStats['home']['free_kicks'] ?? 0) + (int)($matchStats['home']['penalties'] ?? 0) ?></td>
-            <td><?= (int)($matchStats['away']['corners'] ?? 0) + (int)($matchStats['away']['free_kicks'] ?? 0) + (int)($matchStats['away']['penalties'] ?? 0) ?></td>
+            <td><?= htmlspecialchars($player['shirt_number'] ?? '-') ?></td>
+            <td><?= htmlspecialchars($player['name'] ?? '-') ?></td>
+            <td><?= htmlspecialchars($player['position'] ?? '-') ?></td>
+            <td><?= $goals > 0 ? $goals : '' ?></td>
+            <td><?= ($player['yellow_cards'] ?? 0 ? (int)$player['yellow_cards'] : '') ?></td>
+            <?php if ($hasRedCards): ?><td><?= ($player['red_cards'] ?? 0 ? (int)$player['red_cards'] : '') ?></td><?php endif; ?>
+            <td><?= $minutes !== '' ? $minutes : '—' ?></td>
         </tr>
+    <?php endforeach; ?>
+</table>
 
-        <!-- Efficiency & Discipline Section -->
-        <h2>Efficiency & Discipline</h2>
-        <table>
-            <tr><th>Metric</th><th><?= htmlspecialchars($homeTeam['name']) ?></th><th><?= htmlspecialchars($awayTeam['name']) ?></th></tr>
-            <?php
-            // Gather values
-            $hShots = (int)($matchStats['home']['shots'] ?? 0);
-            $aShots = (int)($matchStats['away']['shots'] ?? 0);
-            $hOnTarget = (int)($matchStats['home']['shots_on_target'] ?? ($derivedData['derived']['by_type_team']['shot_on_target']['home'] ?? 0));
-            $aOnTarget = (int)($matchStats['away']['shots_on_target'] ?? ($derivedData['derived']['by_type_team']['shot_on_target']['away'] ?? 0));
-            $hGoals = (int)($matchStats['home']['goals'] ?? 0);
-            $aGoals = (int)($matchStats['away']['goals'] ?? 0);
-            $hCards = (int)($matchStats['home']['yellow_cards'] ?? 0) + (int)($matchStats['home']['red_cards'] ?? 0);
-            $aCards = (int)($matchStats['away']['yellow_cards'] ?? 0) + (int)($matchStats['away']['red_cards'] ?? 0);
-            $hFouls = (int)($derivedData['derived']['by_type_team']['foul']['home'] ?? 0);
-            $aFouls = (int)($derivedData['derived']['by_type_team']['foul']['away'] ?? 0);
-            $hSetPieces = (int)($matchStats['home']['corners'] ?? 0) + (int)($matchStats['home']['free_kicks'] ?? 0) + (int)($matchStats['home']['penalties'] ?? 0);
-            $aSetPieces = (int)($matchStats['away']['corners'] ?? 0) + (int)($matchStats['away']['free_kicks'] ?? 0) + (int)($matchStats['away']['penalties'] ?? 0);
-            // Shot Accuracy
-            $hShotAcc = $hShots > 0 ? round($hOnTarget / $hShots * 100, 1) : '—';
-            $aShotAcc = $aShots > 0 ? round($aOnTarget / $aShots * 100, 1) : '—';
-            // Shot Conversion
-            $hShotConv = $hShots > 0 ? round($hGoals / $hShots * 100, 1) : '—';
-            $aShotConv = $aShots > 0 ? round($aGoals / $aShots * 100, 1) : '—';
-            // Goals per Shot on Target
-            $hGPSOT = $hOnTarget > 0 ? round($hGoals / $hOnTarget, 2) : '—';
-            $aGPSOT = $aOnTarget > 0 ? round($aGoals / $aOnTarget, 2) : '—';
-            // Fouls per Card
-            $hFPC = $hCards > 0 ? round($hFouls / $hCards, 2) : '—';
-            $aFPC = $aCards > 0 ? round($aFouls / $aCards, 2) : '—';
-            // Set Pieces per Shot
-            $hSPPS = $hShots > 0 ? round($hSetPieces / $hShots, 2) : '—';
-            $aSPPS = $aShots > 0 ? round($aSetPieces / $aShots, 2) : '—';
-            ?>
-            <tr><td>Shot Accuracy (%)</td><td><?= $hShotAcc ?></td><td><?= $aShotAcc ?></td></tr>
-            <tr><td>Shot Conversion (%)</td><td><?= $hShotConv ?></td><td><?= $aShotConv ?></td></tr>
-            <tr><td>Goals per Shot on Target</td><td><?= $hGPSOT ?></td><td><?= $aGPSOT ?></td></tr>
-            <tr><td>Fouls per Card</td><td><?= $hFPC ?></td><td><?= $aFPC ?></td></tr>
-            <tr><td>Set Pieces per Shot</td><td><?= $hSPPS ?></td><td><?= $aSPPS ?></td></tr>
-        </table>
-    </table>
-
-    <table class="subsection" style="width:100%; margin-top:1.2em; border:0;">
+<?php
+/*
+<h2>Shot Map</h2>
+<table style="border:2px dashed #bbb; height:180px; background:#f9f9f9; margin-bottom:2em; text-align:center; vertical-align:middle;">
+    <tr style="height:180px;">
+        <td style="color:#888; font-size:1.2em;">Shot map visualization coming soon</td>
+    </tr>
+</table>
+*/
+?>
+<h3>Substitutes</h3>
+<?php
+$subsGoals = 0;
+$subsYellows = 0;
+$subsReds = 0;
+foreach (($playerPerformance['substitutes'] ?? []) as $player) {
+    $subsGoals += (int)($player['goals'] ?? 0);
+    $subsYellows += (int)($player['yellow_cards'] ?? 0);
+    $subsReds += (int)($player['red_cards'] ?? 0);
+}
+$showGoals = $subsGoals > 0;
+$showYellows = $subsYellows > 0;
+$showReds = $subsReds > 0;
+$subEventByMatchPlayerId = [];
+foreach ($substitutions as $sub) {
+    if (!empty($sub['player_on_match_player_id'])) {
+        $subEventByMatchPlayerId[$sub['player_on_match_player_id']] = $sub;
+    }
+}
+?>
+<table class="section-table">
+    <tr>
+        <th>#</th><th>Player</th><th>Position</th><?php if ($showGoals): ?><th>Goals</th><?php endif; ?><?php if ($showYellows): ?><th>Yellow Cards</th><?php endif; ?><?php if ($showReds): ?><th>Red Cards</th><?php endif; ?><th>Substitution</th>
+    </tr>
+    <?php foreach (($playerPerformance['substitutes'] ?? []) as $player): ?>
+        <?php
+        $matchPlayerId = $player['match_player_id'] ?? null;
+        $sub = $matchPlayerId ? ($subEventByMatchPlayerId[$matchPlayerId] ?? null) : null;
+        ?>
         <tr>
-            <td style="border:0; padding:0;">
-                <ul class="event-list" style="margin:0; padding:0;">
-                    <?php foreach (($overview['events']['home_goals'] ?? []) as $goal): ?>
-                        <li>Home Goal: <?= htmlspecialchars($goal['player'] ?? 'Unknown') ?> <?= htmlspecialchars($goal['minute'] ?? '') ?>'</li>
-                    <?php endforeach; ?>
-                    <?php foreach (($overview['events']['away_goals'] ?? []) as $goal): ?>
-                        <li>Away Goal: <?= htmlspecialchars($goal['player'] ?? 'Unknown') ?> <?= htmlspecialchars($goal['minute'] ?? '') ?>'</li>
-                    <?php endforeach; ?>
-                </ul>
+            <td><?= htmlspecialchars($player['shirt_number'] ?? '-') ?></td>
+            <td><?= htmlspecialchars($player['name'] ?? '-') ?></td>
+            <td><?= htmlspecialchars($player['position'] ?? '-') ?></td>
+            <?php if ($showGoals): ?><td><?= ((int)($player['goals'] ?? 0) > 0 ? (int)$player['goals'] : '') ?></td><?php endif; ?>
+            <?php if ($showYellows): ?><td><?= ($player['yellow_cards'] ?? 0 ? (int)$player['yellow_cards'] : '') ?></td><?php endif; ?>
+            <?php if ($showReds): ?><td><?= ($player['red_cards'] ?? 0 ? (int)$player['red_cards'] : '') ?></td><?php endif; ?>
+            <td>
+                <?php if ($sub): ?>
+                    <span style="color:green;font-weight:bold;">&#8594;</span>
+                    On for <?= htmlspecialchars($sub['player_off_name'] ?? '-') ?> (<?= (int)($sub['minute'] ?? 0) ?>')
+                <?php else: ?>
+                    <em>Unused</em>
+                <?php endif; ?>
             </td>
         </tr>
-    </table>
-
-    <tr><td colspan="2" style="border:0; padding:0;"><div class="divider"></div></td></tr>
-    <h2>Player Performance</h2>
-    <h3>Starting XI</h3>
-    <!-- Expanded Player Performance Table -->
-    <?php
-    // Build substitution lookup for minutes played
-    $subOffByMatchPlayerId = [];
-    foreach ($substitutions as $sub) {
-        if (!empty($sub['player_off_match_player_id'])) {
-            $subOffByMatchPlayerId[$sub['player_off_match_player_id']] = $sub;
-        }
-    }
-    $matchDuration = (int)($match['duration_minutes'] ?? 90);
-    // Determine if red cards present
-    $hasRedCards = ((int)($matchStats['home']['red_cards'] ?? 0) + (int)($matchStats['away']['red_cards'] ?? 0)) > 0;
-    ?>
-    <table>
-        <tr>
-            <th>#</th><th>Player</th><th>Position</th><th>Goals</th><th>Yellow Cards</th><?php if ($hasRedCards): ?><th>Red Cards</th><?php endif; ?><th>Minutes Played</th>
-        </tr>
-        <?php foreach (($playerPerformance['starting_xi'] ?? []) as $player): ?>
-            <?php
-            $mpid = $player['match_player_id'] ?? null;
-            // Minutes played: subbed off minute or full match
-            $minutes = '—';
-            if ($mpid && isset($subOffByMatchPlayerId[$mpid])) {
-                $minutes = (int)($subOffByMatchPlayerId[$mpid]['minute'] ?? 0);
-            } elseif ($mpid) {
-                $minutes = $matchDuration;
-            }
-            $goals = (int)($player['goals'] ?? 0);
-            ?>
-            <tr>
-                <td><?= htmlspecialchars($player['shirt_number'] ?? '-') ?></td>
-                <td><?= htmlspecialchars($player['name'] ?? '-') ?></td>
-                <td><?= htmlspecialchars($player['position'] ?? '-') ?></td>
-                <td><?= $goals > 0 ? $goals : '' ?></td>
-                <td><?= ($player['yellow_cards'] ?? 0 ? (int)$player['yellow_cards'] : '') ?></td>
-                <?php if ($hasRedCards): ?><td><?= ($player['red_cards'] ?? 0 ? (int)$player['red_cards'] : '') ?></td><?php endif; ?>
-                <td><?= $minutes !== '' ? $minutes : '—' ?></td>
-            </tr>
-        <?php endforeach; ?>
-    </table>
-
-        <!-- Shot Map Placeholder Section -->
-        <h2>Shot Map</h2>
-        <table style="width:100%; border:2px dashed #bbb; height:180px; background:#f9f9f9; margin-bottom:2em; text-align:center; vertical-align:middle;">
-            <tr style="height:180px;">
-                <td style="text-align:center; vertical-align:middle; color:#888; font-size:1.2em;">Shot map visualization coming soon</td>
-            </tr>
-        </table>
-    <h3>Substitutes</h3>
-    <?php
-    // Determine if any goals, yellow, or red cards for subs columns
-    $subsGoals = 0; $subsYellows = 0; $subsReds = 0;
-    foreach (($playerPerformance['substitutes'] ?? []) as $player) {
-        $subsGoals += (int)($player['goals'] ?? 0);
-        $subsYellows += (int)($player['yellow_cards'] ?? 0);
-        $subsReds += (int)($player['red_cards'] ?? 0);
-    }
-    $showGoals = $subsGoals > 0;
-    $showYellows = $subsYellows > 0;
-    $showReds = $subsReds > 0;
-    ?>
-    <table>
-        <tr>
-            <th>#</th><th>Player</th><th>Position</th><?php if ($showGoals): ?><th>Goals</th><?php endif; ?><?php if ($showYellows): ?><th>Yellow Cards</th><?php endif; ?><?php if ($showReds): ?><th>Red Cards</th><?php endif; ?><th>Substitution</th>
-        </tr>
-        <?php
-        // Build a map of match_player_id => substitution event for quick lookup
-        $subEventByMatchPlayerId = [];
-        foreach ($substitutions as $sub) {
-            if (!empty($sub['player_on_match_player_id'])) {
-                $subEventByMatchPlayerId[$sub['player_on_match_player_id']] = $sub;
-            }
-        }
-        foreach (($playerPerformance['substitutes'] ?? []) as $player) {
-            $matchPlayerId = $player['match_player_id'] ?? null;
-            $sub = $matchPlayerId ? ($subEventByMatchPlayerId[$matchPlayerId] ?? null) : null;
-            ?>
-            <tr>
-                <td><?= htmlspecialchars($player['shirt_number'] ?? '-') ?></td>
-                <td><?= htmlspecialchars($player['name'] ?? '-') ?></td>
-                <td><?= htmlspecialchars($player['position'] ?? '-') ?></td>
-                <?php if ($showGoals): ?><td><?= ((int)($player['goals'] ?? 0) > 0 ? (int)$player['goals'] : '') ?></td><?php endif; ?>
-                <?php if ($showYellows): ?><td><?= ($player['yellow_cards'] ?? 0 ? (int)$player['yellow_cards'] : '') ?></td><?php endif; ?>
-                <?php if ($showReds): ?><td><?= ($player['red_cards'] ?? 0 ? (int)$player['red_cards'] : '') ?></td><?php endif; ?>
-                <td>
-                    <?php if ($sub): ?>
-                        <span style="color:green;font-weight:bold;">&#8594;</span>
-                        On for <?= htmlspecialchars($sub['player_off_name'] ?? '-') ?> (<?= (int)($sub['minute'] ?? 0) ?>')
-                    <?php else: ?>
-                        <em class="reducetextsize3">Unused</em>
-                    <?php endif; ?>
-                </td>
-            </tr>
-        <?php }
-        ?>
-    </table>
+    <?php endforeach; ?>
 </table>
 </body>
 </html>

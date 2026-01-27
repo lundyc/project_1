@@ -1,3 +1,9 @@
+// Helper to send commands to detached popup
+function sendToDetached(action, value) {
+  if (detachedWindow && !detachedWindow.closed) {
+    detachedWindow.postMessage({ action, value }, '*');
+  }
+}
 (function () {
   const playbackRates = [0.5, 1, 2, 4, 8];
 
@@ -142,6 +148,11 @@
     const togglePlayback = () => {
       if (!video) {
         return null;
+      }
+      if (isVideoDetached && detachedWindow && !detachedWindow.closed) {
+        // We can't reliably know paused state, so just send play
+        sendToDetached('play');
+        return 'pause';
       }
       const shouldPlay = video.paused;
       if (shouldPlay) {
@@ -343,6 +354,10 @@
       container.style.justifyContent = 'center';
       container.appendChild(video);
       doc.body.appendChild(container);
+      // Inject the bridge script for remote control
+      const bridgeScript = doc.createElement('script');
+      bridgeScript.src = '/assets/js/desk-video-popup-bridge.js';
+      doc.head.appendChild(bridgeScript);
       applyDetachedStyles();
       isVideoDetached = true;
       updateDetachButtonState(true);
@@ -467,8 +482,12 @@
     };
 
     const handleSpeedSelect = (rate) => {
-      video.playbackRate = rate;
-      speedLabel.textContent = `${rate}×`;
+      if (isVideoDetached && detachedWindow && !detachedWindow.closed) {
+        sendToDetached('setPlaybackRate', rate);
+      } else {
+        video.playbackRate = rate;
+        speedLabel.textContent = `${rate}×`;
+      }
       speedOptions.classList.remove('is-open');
       speedToggle.setAttribute('aria-expanded', 'false');
       speedOptions.setAttribute('aria-hidden', 'true');
@@ -507,12 +526,28 @@
     video.addEventListener('durationchange', syncTimeline);
     video.addEventListener('loadedmetadata', syncTimeline);
 
-    rewindBtn.addEventListener('click', () => skip(-5));
-    forwardBtn.addEventListener('click', () => skip(5));
+    rewindBtn.addEventListener('click', () => {
+      if (isVideoDetached && detachedWindow && !detachedWindow.closed) {
+        sendToDetached('setCurrentTime', (video.currentTime || 0) - 5);
+      } else {
+        skip(-5);
+      }
+    });
+    forwardBtn.addEventListener('click', () => {
+      if (isVideoDetached && detachedWindow && !detachedWindow.closed) {
+        sendToDetached('setCurrentTime', (video.currentTime || 0) + 5);
+      } else {
+        skip(5);
+      }
+    });
 
     muteBtn.addEventListener('click', () => {
-      video.muted = !video.muted;
-      updateMuteIcon();
+      if (isVideoDetached && detachedWindow && !detachedWindow.closed) {
+        sendToDetached('setMuted', !(video.muted));
+      } else {
+        video.muted = !video.muted;
+        updateMuteIcon();
+      }
     });
     updateMuteIcon();
 
@@ -608,7 +643,17 @@
     document.addEventListener('keydown', handleKeyboardSeek, true);
 
     if (timelineTrack) {
-      timelineTrack.addEventListener('pointerdown', handleTimelinePointerDown);
+      timelineTrack.addEventListener('pointerdown', (event) => {
+        if (isVideoDetached && detachedWindow && !detachedWindow.closed) {
+          const rect = timelineTrack.getBoundingClientRect();
+          const offset = Math.min(Math.max(0, event.clientX - rect.left), rect.width);
+          const percent = offset / rect.width;
+          const duration = video.duration || 0;
+          sendToDetached('setCurrentTime', percent * duration);
+        } else {
+          handleTimelinePointerDown(event);
+        }
+      });
       timelineTrack.addEventListener('pointermove', handleTimelinePointerMove);
       timelineTrack.addEventListener('pointerup', handleTimelinePointerUp);
       timelineTrack.addEventListener('pointerleave', handleTimelinePointerUp);

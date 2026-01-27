@@ -1,4 +1,5 @@
 /** @type {import('tailwindcss').Config} */
+const colors = require('tailwindcss/colors');
 module.exports = {
   content: [
     './app/views/**/*.php',
@@ -30,6 +31,7 @@ module.exports = {
           warning: 'var(--accent-warning)',
           success: 'var(--accent-success)',
         },
+        // No override of default palette, so stone, slate, etc. are available
       },
     },
   },

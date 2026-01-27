@@ -446,7 +446,7 @@ $pageDescription = 'Match-level context for ' . htmlspecialchars($homeTeam) . ' 
 ?>
 <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 px-4 md:px-6 mb-6">
     <div>
-        <h1 class="text-2xl md:text-3xl font-bold tracking-tight">Match Statistics</h1>
+        <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-black">Match Statistics</h1>
         <p class="text-slate-400 text-sm">Match-level context for <?= htmlspecialchars($homeTeam) ?> vs <?= htmlspecialchars($awayTeam) ?>.</p>
     </div>
     <div class="flex items-center gap-3">
