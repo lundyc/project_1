@@ -431,7 +431,12 @@
                               return;
                     }
                     state.selectedAnnotationId = entry.id;
-                    videoEl.currentTime = Math.max(0, entry.timestamp);
+                    const session = window.DeskSession;
+                    if (session && typeof session.seek === 'function') {
+                              session.seek(Math.max(0, entry.timestamp));
+                    } else {
+                              videoEl.currentTime = Math.max(0, entry.timestamp);
+                    }
                     handleTimeUpdate();
                     if (window.DeskAnnotationTimelineBridge && typeof window.DeskAnnotationTimelineBridge.highlightAnnotation === 'function') {
                               window.DeskAnnotationTimelineBridge.highlightAnnotation(entry.id);

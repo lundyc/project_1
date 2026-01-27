@@ -1,3 +1,9 @@
+// Team side labels for player display
+const teamSideLabels = {
+      home: 'Home',
+      away: 'Away',
+      unknown: 'Unknown'
+};
 // Ensure playlist filter popover is hidden on page load
 // --- Playlist Filter Popover Dropdown ---
 $(function () {
@@ -304,6 +310,9 @@ $(function () {
 
       let heartbeatTimer = null;
       let lockOwned = false;
+      // DATASET: events
+      // Ownership: STRATEGY A (Server embeds all required events as JSON in window.DeskConfig; client reads from cfg.events)
+      // Rationale: Avoids duplicate DB/API fetches on load, ensures single source of truth for initial render
       let events = [];
       let filteredCache = [];
       let selectedId = null;
@@ -347,15 +356,65 @@ $(function () {
       const GOAL_EVENT_KEYS = new Set(['goal', 'goal_for', 'goal_against']);
       const SHOT_EVENT_KEYS = new Set(['shot', 'shot_on_target', 'shot_off_target']);
       const CARD_EVENT_KEYS = new Set(['card', 'yellow_card', 'red_card']);
+      const OFFSIDE_EVENT_KEYS = new Set(['off_side', 'offside']);
       const shotOutcomeLabels = {
             on_target: 'On Target',
             off_target: 'Off Target',
       };
+      // DATASET: players
+      // Ownership: STRATEGY A (Server embeds all required players as JSON in window.DeskConfig; client reads from cfg.players)
+      // Rationale: Avoids duplicate DB/API fetches on load, ensures single source of truth for initial render
       const players = Array.isArray(cfg.players) ? cfg.players : [];
-      const teamSideLabels = {
-            home: cfg.homeTeamName || 'Home',
-            away: cfg.awayTeamName || 'Away',
-            unknown: 'Unknown',
+
+      // --- DEFERRED: Non-critical data and actions ---
+      function deferNonCriticalWork() {
+            // DEFERRED: derived stats, playlists, annotations, lock/session
+            // Ownership: STRATEGY B (Client fetches or triggers these after first paint or user interaction)
+            // Rationale: Non-critical for first paint, can be loaded lazily to reduce TTFB and initial load cost
+            if (typeof window.DeskDeferredStats === 'function') {
+                  window.DeskDeferredStats();
+            }
+            if (typeof fetchPlaylists === 'function') {
+                  fetchPlaylists();
+            }
+            if (typeof window.DeskDeferredAnnotations === 'function') {
+                  window.DeskDeferredAnnotations();
+            }
+            if (typeof window.DeskDeferredLockSession === 'function') {
+                  window.DeskDeferredLockSession();
+            }
+      }
+
+      // Run deferred work after first paint or user interaction
+      function scheduleDeferredWork() {
+            if (window.requestIdleCallback) {
+                  window.requestIdleCallback(deferNonCriticalWork, { timeout: 2000 });
+            } else {
+                  setTimeout(deferNonCriticalWork, 1200);
+            }
+            // Also trigger on first user interaction if not already run
+            let deferredRun = false;
+            function init() {
+                  if ($jsBadge.length) {
+                        $jsBadge.text('JS');
+                  } else {
+                        console.warn('[desk-events] jsBadge not found — skipping badge logic');
+                  }
+                  applyQuickTagReplacements();
+                  buildTypeMap();
+                  // Now that eventTypeMap is ready, apply event label replacements
+                  events = Array.isArray(cfg.events) ? applyEventLabelReplacements(cfg.events) : [];
+                  rebuildQuickTagBoard();
+                  syncEventTypeOptions();
+                  renderTagGrid();
+                  renderGoalPlayerList();
+                  renderShotPlayerList();
+                  setContext(currentContext);
+                  setTeam(currentTeam);
+                  fillForm(null);
+                  setTimelineMode(timelineMode);
+                  applyMode(false, {});
+            }
       };
       const $goalPlayerModal = $('#goalPlayerModal');
       const $goalPlayerList = $('#goalPlayerList');
@@ -363,9 +422,12 @@ $(function () {
       const $shotPlayerList = $('#shotPlayerList');
       const $cardPlayerModal = $('#cardPlayerModal');
       const $cardPlayerList = $('#cardPlayerList');
+      const $offsidePlayerModal = $('#offsidePlayerModal');
+      const $offsidePlayerList = $('#offsidePlayerList');
       let goalModalState = { payload: null, label: '', wasPlaying: false };
       let shotModalState = { payload: null, label: '', wasPlaying: false, selectedPlayerId: null, selectedOutcome: null };
       let cardModalState = { payload: null, label: '', wasPlaying: false };
+      let offsideModalState = { payload: null, label: '', wasPlaying: false };
       const MATRIX_TYPE_WIDTH = 160;
       const MATRIX_GAP = 8;
       const timelineZoom = {
@@ -481,6 +543,9 @@ $(function () {
       }
 
       function applyQuickTagReplacements() {
+            // DATASET: eventTypes
+            // Ownership: STRATEGY A (Server embeds all required event types as JSON in window.DeskConfig; client reads from cfg.eventTypes)
+            // Rationale: Avoids duplicate DB/API fetches on load, ensures single source of truth for initial render
             if (!cfg.eventTypes) return;
             cfg.eventTypes = cfg.eventTypes.map(translateEventType);
       }
@@ -801,7 +866,15 @@ $(function () {
             return extra > 0 ? `${base.text}+${extra}` : base.text;
       }
 
+      function getDeskSession() {
+            return window.DeskSession || null;
+      }
+
       function getCurrentVideoSecond() {
+            const session = getDeskSession();
+            if (session && typeof session.getCurrentSecond === 'function') {
+                  return session.getCurrentSecond();
+            }
             if (!$video.length) {
                   return 0;
             }
@@ -810,6 +883,49 @@ $(function () {
                   return 0;
             }
             return Math.max(0, Math.floor(rawSeconds));
+      }
+
+      function seekPlayback(seconds, reason = 'seek') {
+            const normalized = Number(seconds);
+            if (!Number.isFinite(normalized)) {
+                  return;
+            }
+            const session = getDeskSession();
+            if (session && typeof session.seek === 'function') {
+                  session.seek(Math.max(0, normalized));
+                  return;
+            }
+            if ($video.length) {
+                  $video[0].currentTime = Math.max(0, normalized);
+            }
+      }
+
+      function pausePlayback(reason = 'pause') {
+            const session = getDeskSession();
+            if (session && typeof session.pause === 'function') {
+                  session.pause();
+                  return;
+            }
+            if ($video.length) {
+                  $video[0].pause();
+            }
+      }
+
+      function resumePlaybackIfNeeded(wasPlaying, reason = 'play') {
+            if (!wasPlaying) {
+                  return;
+            }
+            const session = getDeskSession();
+            if (session && typeof session.play === 'function') {
+                  session.play();
+                  return;
+            }
+            if ($video.length) {
+                  const videoEl = $video[0];
+                  if (videoEl.paused) {
+                        videoEl.play().catch(() => { });
+                  }
+            }
       }
 
       function showError(msg, detail) {
@@ -1170,6 +1286,11 @@ $(function () {
             return CARD_EVENT_KEYS.has(String(key).toLowerCase());
       }
 
+      function isOffsideTypeKey(key) {
+            if (!key) return false;
+            return OFFSIDE_EVENT_KEYS.has(String(key).toLowerCase());
+      }
+
       function setGoalPlayerOptionsEnabled(enabled = true) {
             if (!$goalPlayerModal.length) return;
             if ($goalPlayerList.length) {
@@ -1191,10 +1312,9 @@ $(function () {
             }
             goalModalState.payload = { ...payload };
             goalModalState.label = label || 'Goal';
-            goalModalState.wasPlaying = !!($video.length && !$video[0].paused);
-            if ($video.length) {
-                  $video[0].pause();
-            }
+            const session = getDeskSession();
+            goalModalState.wasPlaying = session ? session.isPlaying() : !!($video.length && !$video[0].paused);
+            pausePlayback('goal_modal');
             setGoalPlayerOptionsEnabled(true);
             $goalPlayerModal.removeAttr('hidden').attr('aria-hidden', 'false').addClass('is-active');
       }
@@ -1207,12 +1327,7 @@ $(function () {
             goalModalState.wasPlaying = false;
             setGoalPlayerOptionsEnabled(true);
             $goalPlayerModal.attr('aria-hidden', 'true').attr('hidden', 'hidden').removeClass('is-active');
-            if (wasPlaying && $video.length) {
-                  const videoEl = $video[0];
-                  if (videoEl.paused) {
-                        videoEl.play().catch(() => { });
-                  }
-            }
+            resumePlaybackIfNeeded(wasPlaying, 'goal_modal');
       }
 
       function handleGoalPlayerSelection(event) {
@@ -1294,10 +1409,9 @@ $(function () {
             }
             cardModalState.payload = { ...payload };
             cardModalState.label = label || 'Card';
-            cardModalState.wasPlaying = !!($video.length && !$video[0].paused);
-            if ($video.length) {
-                  $video[0].pause();
-            }
+            const session = getDeskSession();
+            cardModalState.wasPlaying = session ? session.isPlaying() : !!($video.length && !$video[0].paused);
+            pausePlayback('card_modal');
             renderCardPlayerList();
             setCardPlayerOptionsEnabled(true);
             $cardPlayerModal.removeAttr('hidden').attr('aria-hidden', 'false').addClass('is-active');
@@ -1311,12 +1425,7 @@ $(function () {
             cardModalState.wasPlaying = false;
             setCardPlayerOptionsEnabled(true);
             $cardPlayerModal.attr('aria-hidden', 'true').attr('hidden', 'hidden').removeClass('is-active');
-            if (wasPlaying && $video.length) {
-                  const videoEl = $video[0];
-                  if (videoEl.paused) {
-                        videoEl.play().catch(() => { });
-                  }
-            }
+            resumePlaybackIfNeeded(wasPlaying, 'card_modal');
       }
 
       function handleCardPlayerSelection(event) {
@@ -1377,6 +1486,104 @@ $(function () {
                   });
       }
 
+      function setOffsidePlayerOptionsEnabled(enabled = true) {
+            if (!$offsidePlayerModal.length) return;
+            if ($offsidePlayerList.length) {
+                  $offsidePlayerList.find('.goal-player-option').prop('disabled', !enabled);
+            }
+            $offsidePlayerModal.find('[data-offside-unknown]').prop('disabled', !enabled);
+      }
+
+      function renderOffsidePlayerList() {
+            if (!$offsidePlayerList.length) return;
+            $offsidePlayerList.html(buildPlayerOptionsHtml('goal-player-option'));
+      }
+
+      function openOffsidePlayerModal(payload, label) {
+            if (!$offsidePlayerModal.length) return;
+            if (!players.length) {
+                  showError('No players available', 'Add match players before logging offsides');
+                  return;
+            }
+            offsideModalState.payload = { ...payload };
+            offsideModalState.label = label || 'Offside';
+            const session = getDeskSession();
+            offsideModalState.wasPlaying = session ? session.isPlaying() : !!($video.length && !$video[0].paused);
+            pausePlayback('offside_modal');
+            renderOffsidePlayerList();
+            setOffsidePlayerOptionsEnabled(true);
+            $offsidePlayerModal.removeAttr('hidden').attr('aria-hidden', 'false').addClass('is-active');
+      }
+
+      function closeOffsidePlayerModal() {
+            if (!$offsidePlayerModal.length) return;
+            const wasPlaying = offsideModalState.wasPlaying;
+            offsideModalState.payload = null;
+            offsideModalState.label = '';
+            offsideModalState.wasPlaying = false;
+            setOffsidePlayerOptionsEnabled(true);
+            $offsidePlayerModal.attr('aria-hidden', 'true').attr('hidden', 'hidden').removeClass('is-active');
+            resumePlaybackIfNeeded(wasPlaying, 'offside_modal');
+      }
+
+      function handleOffsidePlayerSelection(event) {
+            const $btn = $(event.currentTarget);
+            if (!offsideModalState.payload) return;
+            const playerId = $btn.data('player-id');
+            if (!playerId) return;
+            setOffsidePlayerOptionsEnabled(false);
+            const payload = {
+                  ...offsideModalState.payload,
+                  match_player_id: playerId,
+            };
+            sendOffsideEventRequest(payload, offsideModalState.label);
+      }
+
+      function handleOffsideUnknownClick(event) {
+            event.preventDefault();
+            if (!offsideModalState.payload) return;
+            setOffsidePlayerOptionsEnabled(false);
+            const payload = {
+                  ...offsideModalState.payload,
+                  match_player_id: null,
+            };
+            sendOffsideEventRequest(payload, offsideModalState.label);
+      }
+
+      function sendOffsideEventRequest(payload, label) {
+            const url = endpoint('eventCreate');
+            if (!url) {
+                  showError('Save failed', 'Missing event endpoint');
+                  setOffsidePlayerOptionsEnabled(true);
+                  return;
+            }
+            $.post(url, payload)
+                  .done((res) => {
+                        if (!res.ok) {
+                              showError('Save failed', res.error || 'Unknown');
+                              setOffsidePlayerOptionsEnabled(true);
+                              return;
+                        }
+                        hideError();
+                        syncUndoRedoFromMeta(res.meta);
+                        selectedId = null;
+                        setEditorCollapsed(true, 'Click a timeline item to edit details', true);
+                        showToast(
+                              `${label || 'Offside'} tagged at ${formatMatchSecondWithExtra(
+                                    payload.match_second,
+                                    payload.minute_extra || 0
+                              )}`
+                        );
+                        setStatus('Tagged');
+                        loadEvents();
+                        closeOffsidePlayerModal();
+                  })
+                  .fail((xhr, status, error) => {
+                        showError('Save failed', xhr.responseText || error || status);
+                        setOffsidePlayerOptionsEnabled(true);
+                  });
+      }
+
       function setShotPlayerSelection(playerId) {
             shotModalState.selectedPlayerId = playerId || null;
             if (!$shotPlayerList.length) return;
@@ -1422,10 +1629,9 @@ $(function () {
             }
             shotModalState.payload = { ...payload };
             shotModalState.label = label || 'Shot';
-            shotModalState.wasPlaying = !!($video.length && !$video[0].paused);
-            if ($video.length) {
-                  $video[0].pause();
-            }
+            const session = getDeskSession();
+            shotModalState.wasPlaying = session ? session.isPlaying() : !!($video.length && !$video[0].paused);
+            pausePlayback('shot_modal');
             renderShotPlayerList();
             setShotOutcomeSelection(null);
             setShotModalControlsEnabled(true);
@@ -1443,12 +1649,7 @@ $(function () {
             setShotPlayerSelection(null);
             setShotOutcomeSelection(null);
             $shotPlayerModal.attr('aria-hidden', 'true').attr('hidden', 'hidden').removeClass('is-active');
-            if (wasPlaying && $video.length) {
-                  const videoEl = $video[0];
-                  if (videoEl.paused) {
-                        videoEl.play().catch(() => { });
-                  }
-            }
+            resumePlaybackIfNeeded(wasPlaying, 'shot_modal');
       }
 
       function handleShotPlayerSelection(event) {
@@ -1580,6 +1781,10 @@ $(function () {
                   openCardPlayerModal(payload, quickTagLabel);
                   return;
             }
+            if (isOffsideTypeKey(key)) {
+                  openOffsidePlayerModal(payload, quickTagLabel);
+                  return;
+            }
             const url = endpoint('eventCreate');
             if (!url) {
                   showError('Save failed', 'Missing event endpoint');
@@ -1687,6 +1892,16 @@ $(function () {
                   });
       }
       function loadEvents() {
+            // STRATEGY A: Use embedded events from window.DeskConfig for first paint, do not re-fetch on load
+            if (Array.isArray(cfg.events)) {
+                  events = applyEventLabelReplacements(cfg.events);
+                  refreshPeriodStateFromEvents();
+                  // meta and selectedId are not available from embedded, so skip those
+                  renderTimeline();
+                  if (selectedId) selectEvent(selectedId);
+                  return;
+            }
+            // Fallback: fetch if not present (should not happen)
             const url = endpoint('events');
             if (!url) {
                   showError('Failed to load events', 'Missing events endpoint');
@@ -2463,9 +2678,6 @@ $(function () {
       }
 
       function goToVideoTime(seconds) {
-            if (!$video.length) {
-                  return;
-            }
             if (seconds === null || seconds === undefined) {
                   return;
             }
@@ -2473,7 +2685,7 @@ $(function () {
             if (Number.isNaN(normalized)) {
                   return;
             }
-            $video[0].currentTime = Math.max(0, normalized);
+            seekPlayback(Math.max(0, normalized), 'event_jump');
       }
 
       function scrollMatrixToSecond(seconds) {
@@ -2506,10 +2718,7 @@ $(function () {
       function collectData() {
             let matchSecond = parseInt($matchSecond.val(), 10);
             if (Number.isNaN(matchSecond)) {
-                  matchSecond = 0;
-                  if ($video.length) {
-                        matchSecond = Math.floor($video[0].currentTime || 0);
-                  }
+                  matchSecond = getCurrentVideoSecond();
                   updateTimeFromSeconds(matchSecond);
             }
             matchSecond = Math.max(0, matchSecond);
@@ -2666,7 +2875,7 @@ $(function () {
       function addPeriodMarker(typeKey, note) {
             const type = (cfg.eventTypes || []).find((t) => t.type_key === typeKey);
             if (!type) return;
-            const current = $video.length ? Math.floor($video[0].currentTime) : 0;
+            const current = getCurrentVideoSecond();
             $eventId.val('');
             $eventTypeId.val(type.id);
             $teamSide.val('unknown');
@@ -2982,8 +3191,31 @@ $(function () {
       }
 
 
-      // Fetch period state from DB and update UI
+      // --- DATA OWNERSHIP: periods, events, eventTypes, players, tags ---
+      // STRATEGY A: Use embedded data from window.DeskConfig for first paint, do not re-fetch on load
+      // DATASET: tags
+      // Ownership: STRATEGY A (Server embeds all required tags as JSON in window.DeskConfig; client reads from cfg.tags)
+      // Rationale: Avoids duplicate DB/API fetches on load, ensures single source of truth for initial render
+      const tags = Array.isArray(cfg.tags) ? cfg.tags : [];
       function refreshPeriodStateFromApi() {
+            // Use embedded periods for initial load
+            if (Array.isArray(cfg.periods)) {
+                  const nextState = createBasePeriodState();
+                  (cfg.periods || []).forEach((p) => {
+                        const key = canonicalizePeriodKey(p.period_key, p.label);
+                        if (!key) return;
+                        const entry = nextState[key];
+                        if (!entry) return;
+                        entry.started = !!p.start_second;
+                        entry.ended = !!p.end_second;
+                        entry.startMatchSecond = p.start_second !== null ? Number(p.start_second) : null;
+                        entry.endMatchSecond = p.end_second !== null ? Number(p.end_second) : null;
+                        entry.label = p.label || entry.label;
+                  });
+                  setPeriodState(nextState);
+                  return;
+            }
+            // Fallback: fetch if not present (should not happen)
             const url = cfg.endpoints && cfg.endpoints.periodsList ? cfg.endpoints.periodsList : '/app/api/matches/periods_list.php';
             if (!url) return;
             $.getJSON(url)
@@ -3005,7 +3237,7 @@ $(function () {
                   });
       }
 
-      // On page load, use DB period state
+      // On page load, use embedded periods (no duplicate fetch)
       refreshPeriodStateFromApi();
 
       function recordPeriodBoundary(action, periodKey, label) {
@@ -3016,7 +3248,7 @@ $(function () {
             if (!url) {
                   return;
             }
-            const current = $video.length ? Math.floor($video[0].currentTime) : 0;
+            const current = getCurrentVideoSecond();
             $.post(url, {
                   match_id: cfg.matchId,
                   period: `${periodKey}_${action}`,
@@ -3898,8 +4130,8 @@ $(function () {
                               xhr && xhr.responseJSON && xhr.responseJSON.error
                                     ? xhr.responseJSON.error
                                     : xhr && xhr.responseText
-                                    ? xhr.responseText
-                                    : 'Regeneration failed';
+                                          ? xhr.responseText
+                                          : 'Regeneration failed';
                         showRegenerateModalError(message);
                   })
                   .always(() => {
@@ -4367,7 +4599,7 @@ $(function () {
 
       function setClipPoint(type) {
             if (!lockOwned || !cfg.canEditRole) return;
-            const current = $video.length ? Math.floor($video[0].currentTime) : 0;
+            const current = getCurrentVideoSecond();
             if (type === 'in') {
                   clipState.start = current;
             } else {
@@ -4491,6 +4723,12 @@ $(function () {
             $(document).on('click', '[data-card-modal-close]', (event) => {
                   event.preventDefault();
                   closeCardPlayerModal();
+            });
+            $(document).on('click', '#offsidePlayerList .goal-player-option', handleOffsidePlayerSelection);
+            $(document).on('click', '[data-offside-unknown]', handleOffsideUnknownClick);
+            $(document).on('click', '[data-offside-modal-close]', (event) => {
+                  event.preventDefault();
+                  closeOffsidePlayerModal();
             });
             $(document).on('click', '#shotPlayerList .shot-player-option', handleShotPlayerSelection);
             $(document).on('click', '#shotPlayerModal .shot-outcome-btn', handleShotOutcomeClick);
@@ -4796,13 +5034,13 @@ $(function () {
             });
 
             if ($video.length) {
-                  const savedTime = window.localStorage ? parseFloat(window.localStorage.getItem(VIDEO_TIME_KEY)) : 0;
-                  if (!Number.isNaN(savedTime) && savedTime > 0) {
-                        $video[0].currentTime = savedTime;
-                  }
                   const persistTime = () => {
                         if (!window.localStorage || !$video.length) return;
-                        const t = $video[0].currentTime || 0;
+                        const session = getDeskSession();
+                        const t =
+                              session && typeof session.getCurrentSecond === 'function'
+                                    ? session.getCurrentSecond()
+                                    : Math.floor($video[0].currentTime || 0);
                         window.localStorage.setItem(VIDEO_TIME_KEY, Math.floor(t));
                   };
                   $video.on('timeupdate seeked pause', persistTime);
@@ -4813,8 +5051,6 @@ $(function () {
       function init() {
             if ($jsBadge.length) {
                   $jsBadge.text('JS');
-            } else {
-                  console.warn('[desk-events] jsBadge not found — skipping badge logic');
             }
             applyQuickTagReplacements();
             buildTypeMap();

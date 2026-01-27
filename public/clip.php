@@ -49,8 +49,12 @@ if ($fp === false) {
 header('Content-Type: video/mp4');
 header('Content-Length: ' . $size);
 header('Content-Disposition: inline; filename="' . basename($real) . '"');
-// No caching for now
-header('Cache-Control: no-cache, no-store, must-revalidate');
+// Allow private browser caching for static clip files to improve repeat loads.
+$mtime = filemtime($real);
+if ($mtime !== false) {
+    header('Last-Modified: ' . gmdate(DATE_RFC7231, $mtime));
+}
+header('Cache-Control: private, max-age=2592000, immutable');
 
 // Stream file
 while (!feof($fp)) {

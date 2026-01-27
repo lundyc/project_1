@@ -6,6 +6,7 @@ require_once __DIR__ . '/../../../lib/season_repository.php';
 require_once __DIR__ . '/../../../lib/competition_repository.php';
 require_once __DIR__ . '/../../../lib/club_repository.php';
 require_once __DIR__ . '/../../../lib/player_repository.php';
+require_once __DIR__ . '/../../../lib/asset_helper.php';
 
 $user = current_user();
 $roles = $_SESSION['roles'] ?? [];
@@ -95,8 +96,9 @@ if (!$selectedClubId) {
         require __DIR__ . '/edit.php';
 $footerScripts = '<script>window.MatchWizardConfig = ' . json_encode($wizardConfig) . ';</script>';
 $footerScripts .= '<script>window.MatchWizardSetupConfig = ' . json_encode($setupConfig) . ';</script>';
-$footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/match-setup.js?v=' . time() . '"></script>';
-$footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/match-wizard.js?v=' . time() . '"></script>';
+// Filemtime-based versions keep these URLs stable until the files change.
+$footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/match-setup.js' . asset_version('/assets/js/match-setup.js') . '"></script>';
+$footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/match-wizard.js' . asset_version('/assets/js/match-wizard.js') . '"></script>';
 $footerScripts .= '<script>
 // Handle optional fields toggle
 document.addEventListener("DOMContentLoaded", function() {

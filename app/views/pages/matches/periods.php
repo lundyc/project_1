@@ -2,6 +2,7 @@
 require_auth();
 require_once __DIR__ . '/../../../lib/match_permissions.php';
 require_once __DIR__ . '/../../../lib/match_period_repository.php';
+require_once __DIR__ . '/../../../lib/asset_helper.php';
 
 $user = current_user();
 $roles = $_SESSION['roles'] ?? [];
@@ -26,8 +27,6 @@ $periodConfig = [
                     'preset' => $base . '/api/matches/' . (int)$match['id'] . '/periods/preset',
           ],
 ];
-
-$cacheBuster = time();
 
 ob_start();
 ?>
@@ -123,6 +122,7 @@ ob_start();
 </div>
 <?php
 $content = ob_get_clean();
-$footerScripts = '<script>window.MatchPeriodsConfig = ' . json_encode($periodConfig) . ';</script>'
-          . '<script src="' . htmlspecialchars($base) . '/assets/js/match-periods.js?v=' . $cacheBuster . '"></script>';
+$footerScripts = '<script>window.MatchPeriodsConfig = ' . json_encode($periodConfig) . ';</script>';
+// Filemtime-based versioning enables long-lived caching between updates.
+$footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/match-periods.js' . asset_version('/assets/js/match-periods.js') . '"></script>';
 require __DIR__ . '/../../layout.php';

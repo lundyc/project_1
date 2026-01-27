@@ -95,7 +95,12 @@
           };
           const hideVideoForFormat = () => {
                     if (videoPlayer) {
-                              videoPlayer.pause();
+                              const session = window.DeskSession;
+                              if (session && typeof session.pause === 'function') {
+                                        session.pause();
+                              } else {
+                                        videoPlayer.pause();
+                              }
                               videoPlayer.removeAttribute('src');
                               if (typeof videoPlayer.load === 'function') {
                                         videoPlayer.load();

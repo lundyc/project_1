@@ -6,6 +6,7 @@ require_once __DIR__ . '/../../../lib/season_repository.php';
 require_once __DIR__ . '/../../../lib/competition_repository.php';
 require_once __DIR__ . '/../../../lib/club_repository.php';
 require_once __DIR__ . '/../../../lib/player_repository.php';
+require_once __DIR__ . '/../../../lib/asset_helper.php';
 
 $user = current_user() ?? [];
 $roles = $_SESSION['roles'] ?? [];
@@ -74,7 +75,8 @@ $setupConfig = [
     ],
 ];
 $footerScripts = '<script>window.MatchCreateConfig = ' . json_encode($setupConfig) . ';</script>';
-$footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/match-create.js?v=' . time() . '"></script>';
+// Filemtime-based versioning enables long-lived caching between updates.
+$footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/match-create.js' . asset_version('/assets/js/match-create.js') . '"></script>';
 $clubPlayersJson = json_encode(array_map(function($p) {
     return [
         'id' => (int)$p['id'],

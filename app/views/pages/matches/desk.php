@@ -13,6 +13,7 @@ require_once __DIR__ . '/../../../lib/match_period_repository.php';
 require_once __DIR__ . '/../../../lib/match_stats_service.php';
 require_once __DIR__ . '/../../../lib/csrf.php';
 require_once __DIR__ . '/../../../lib/phase3.php';
+require_once __DIR__ . '/../../../lib/asset_helper.php';
 
 $user = current_user();
 $roles = $_SESSION['roles'] ?? [];
@@ -36,9 +37,18 @@ if (!$canView && !$canManage) {
 
 $currentLock = findLock((int)$match['id']);
 
-$periods = get_match_periods((int)$match['id']);
 
-$matchPlayers = get_match_players((int)$match['id']);
+// --- DATASET CLASSIFICATION & STRATEGY ---
+// Events: Required for first paint. STRATEGY A (server owns initial data, embed as JSON)
+// Event Types: Required for first paint. STRATEGY A
+// Periods: Required for first paint. STRATEGY A
+// Players: Required for first paint. STRATEGY A
+// Tags: Required for first paint. STRATEGY A
+// Derived Stats: Only for summary panel, can be deferred. STRATEGY A (defer fetch)
+// Playlists, Annotations, Lock/Session: Not required for first paint. STRATEGY B (client fetches as needed)
+
+$periods = get_match_periods((int)$match['id']); // [Required for first paint]
+$matchPlayers = get_match_players((int)$match['id']); // [Required for first paint]
 $players = array_map(fn($p) => [
     'id' => (int)$p['id'],
     'team_side' => $p['team_side'],
@@ -50,7 +60,7 @@ $players = array_map(fn($p) => [
 $homePlayers = array_values(array_filter($players, fn($p) => $p['team_side'] === 'home'));
 $awayPlayers = array_values(array_filter($players, fn($p) => $p['team_side'] === 'away'));
 
-ensure_default_event_types((int)$match['club_id']);
+ensure_default_event_types((int)$match['club_id']); // [Required for event type integrity]
 
 $db = db();
 $eventTypes = $db->prepare('SELECT id, label, type_key, default_importance FROM event_types WHERE club_id = :club_id ORDER BY label ASC');
@@ -70,22 +80,25 @@ foreach ($eventTypes as $eventType) {
     $outcomeOptionsByTypeId[$typeId] = $sanitized;
 }
 
+
+// Tags: Required for first paint. STRATEGY A
 $tagsStmt = db()->prepare('SELECT id, label FROM tags WHERE club_id IS NULL OR club_id = :club_id ORDER BY label ASC');
 $tagsStmt->execute(['club_id' => (int)$match['club_id']]);
 $tags = $tagsStmt->fetchAll();
 
 $matchId = (int)$match['id'];
+
+// Events: Required for first paint. STRATEGY A
 $events = event_list_for_match($matchId);
-$derivedStats = get_or_compute_match_stats(
-    $matchId,
-    (int)($match['events_version'] ?? 0),
-    $events,
-    $eventTypes
-);
+
+// Derived Stats: Only for summary panel, can be deferred. STRATEGY A (defer fetch)
+$eventsVersion = count($events); // crude versioning by event count
+$derivedStats = get_or_compute_match_stats($matchId, $eventsVersion, $events, $eventTypes);
 
 $title = 'Analysis Desk';
-$headExtras = '<link href="' . htmlspecialchars($base) . '/assets/css/desk.css?v=' . time() . '" rel="stylesheet">';
-$headExtras .= '<link href="' . htmlspecialchars($base) . '/assets/css/toast.css?v=' . time() . '" rel="stylesheet">';
+// Filemtime-based versions keep URLs stable until the asset changes.
+$headExtras = '<link href="' . htmlspecialchars($base) . '/assets/css/desk.css' . asset_version('/assets/css/desk.css') . '" rel="stylesheet">';
+$headExtras .= '<link href="' . htmlspecialchars($base) . '/assets/css/toast.css' . asset_version('/assets/css/toast.css') . '" rel="stylesheet">';
 $headExtras .= '<script>window.ANNOTATIONS_ENABLED = true;</script>';
 $videoLabEnabled = phase3_is_enabled();
 $headExtras .= '<script>window.VIDEO_LAB_ENABLED = ' . ($videoLabEnabled ? 'true' : 'false') . ';</script>';
@@ -137,27 +150,38 @@ if ($videoLabEnabled) {
     ];
 }
 
+// Poster images improve perceived load without changing playback behavior.
+$thumbnailPath = trim((string)($match['video_thumbnail_path'] ?? ''));
+$posterRelative = $thumbnailPath !== ''
+    ? '/videos/matches/' . ltrim($thumbnailPath, '/')
+    : '/videos/matches/thumbnail_' . $matchId . '.jpg';
+$posterAbsolute = $projectRoot
+    ? $projectRoot . DIRECTORY_SEPARATOR . ltrim(str_replace('/', DIRECTORY_SEPARATOR, $posterRelative), DIRECTORY_SEPARATOR)
+    : '';
+if (!$posterAbsolute || !is_file($posterAbsolute)) {
+    $posterRelative = '/assets/img/logo.png';
+}
+$posterUrl = ($base ?: '') . $posterRelative;
+
 $csrfToken = get_csrf_token();
 
+
+// --- Embed all required datasets for first paint ---
 $deskConfig = [
     'basePath' => $base,
     'matchId' => $matchId,
     'userId' => (int)$user['id'],
     'userName' => $user['display_name'],
     'canEditRole' => $canManage,
-    'eventTypes' => $eventTypes,
-    'tags' => $tags,
-    'players' => array_merge($homePlayers, $awayPlayers),
+    'eventTypes' => $eventTypes, // [Required for first paint]
+    'tags' => $tags, // [Required for first paint]
+    'players' => array_merge($homePlayers, $awayPlayers), // [Required for first paint]
     'homeTeamName' => $match['home_team'] ?? 'Home',
     'awayTeamName' => $match['away_team'] ?? 'Away',
     'outcomeOptions' => $outcomeOptions,
     'outcomeOptionsByTypeId' => $outcomeOptionsByTypeId,
-    'actionStack' => get_event_action_stack_status($matchId, (int)$user['id']),
-    'lock' => $currentLock ? [
-        'locked_by' => ['id' => (int)$currentLock['locked_by'], 'display_name' => $currentLock['locked_by_name']],
-        'locked_at' => $currentLock['locked_at'],
-        'last_heartbeat_at' => $currentLock['last_heartbeat_at'],
-    ] : null,
+    'periods' => $periods, // [Required for first paint]
+    'events' => $events, // [Required for first paint]
     'csrfToken' => $csrfToken,
     'video' => [
         'source_path' => $videoPath,
@@ -170,10 +194,12 @@ $deskConfig = [
         'matchVideoId' => isset($match['video_id']) ? (int)$match['video_id'] : null,
     ],
     'endpoints' => [
-            'lockAcquire' => $base . '/api/matches/' . (int)$match['id'] . '/lock/acquire',
-            'lockHeartbeat' => $base . '/api/matches/' . (int)$match['id'] . '/lock/heartbeat',
+        // Only endpoints for deferred/interactive fetches
+        'lockAcquire' => $base . '/api/matches/' . (int)$match['id'] . '/lock/acquire',
+        'lockHeartbeat' => $base . '/api/matches/' . (int)$match['id'] . '/lock/heartbeat',
         'lockRelease' => $base . '/api/matches/' . (int)$match['id'] . '/lock/release',
-        'events' => $base . '/api/matches/' . (int)$match['id'] . '/events',
+        'session' => $base . '/api/matches/' . (int)$match['id'] . '/session',
+        'events' => $base . '/api/matches/' . (int)$match['id'] . '/events', // For deferred/interactive fetches only
         'eventCreate' => $base . '/api/matches/' . (int)$match['id'] . '/events/create',
         'eventUpdate' => $base . '/api/matches/' . (int)$match['id'] . '/events/update',
         'eventDelete' => $base . '/api/matches/' . (int)$match['id'] . '/events/delete',
@@ -182,29 +208,47 @@ $deskConfig = [
         'periodsStart' => $base . '/api/matches/' . (int)$match['id'] . '/periods/start',
         'periodsEnd' => $base . '/api/matches/' . (int)$match['id'] . '/periods/end',
         'periodsSet' => $base . '/api/match-periods/set',
-        'periodsList' => $base . '/api/matches/' . (int)$match['id'] . '/periods',
-            'clipCreate' => $base . '/api/matches/' . (int)$match['id'] . '/clips/create',
-            'clipDelete' => $base . '/api/matches/' . (int)$match['id'] . '/clips/delete',
-            'playlistsList' => $base . '/api/matches/' . (int)$match['id'] . '/playlists',
-            'playlistCreate' => $base . '/api/matches/' . (int)$match['id'] . '/playlists/create',
-            'playlistClipsAdd' => $base . '/api/matches/' . (int)$match['id'] . '/playlists/clips/add',
-            'playlistClipsRemove' => $base . '/api/matches/' . (int)$match['id'] . '/playlists/clips/remove',
-            'playlistClipsReorder' => $base . '/api/matches/' . (int)$match['id'] . '/playlists/clips/reorder',
-            'playlistRename' => $base . '/api/matches/' . (int)$match['id'] . '/playlists/rename',
-            'playlistDelete' => $base . '/api/matches/' . (int)$match['id'] . '/playlists/delete',
-            'playlistDownload' => $base . '/api/matches/' . (int)$match['id'] . '/playlists/download',
-            'annotationsList' => $base . '/api/matches/' . (int)$match['id'] . '/annotations',
-            'annotationsCreate' => $base . '/api/matches/' . (int)$match['id'] . '/annotations/create',
-            'annotationsUpdate' => $base . '/api/matches/' . (int)$match['id'] . '/annotations/update',
-            'annotationsDelete' => $base . '/api/matches/' . (int)$match['id'] . '/annotations/delete',
+        'periodsList' => $base . '/api/matches/' . (int)$match['id'] . '/periods', // For deferred/interactive fetches only
+        'clipCreate' => $base . '/api/matches/' . (int)$match['id'] . '/clips/create',
+        'clipDelete' => $base . '/api/matches/' . (int)$match['id'] . '/clips/delete',
+        'playlistsList' => $base . '/api/matches/' . (int)$match['id'] . '/playlists',
+        'playlistCreate' => $base . '/api/matches/' . (int)$match['id'] . '/playlists/create',
+        'playlistClipsAdd' => $base . '/api/matches/' . (int)$match['id'] . '/playlists/clips/add',
+        'playlistClipsRemove' => $base . '/api/matches/' . (int)$match['id'] . '/playlists/clips/remove',
+        'playlistClipsReorder' => $base . '/api/matches/' . (int)$match['id'] . '/playlists/clips/reorder',
+        'playlistRename' => $base . '/api/matches/' . (int)$match['id'] . '/playlists/rename',
+        'playlistDelete' => $base . '/api/matches/' . (int)$match['id'] . '/playlists/delete',
+        'playlistDownload' => $base . '/api/matches/' . (int)$match['id'] . '/playlists/download',
+        'annotationsList' => $base . '/api/matches/' . (int)$match['id'] . '/annotations',
+        'annotationsCreate' => $base . '/api/matches/' . (int)$match['id'] . '/annotations/create',
+        'annotationsUpdate' => $base . '/api/matches/' . (int)$match['id'] . '/annotations/update',
+        'annotationsDelete' => $base . '/api/matches/' . (int)$match['id'] . '/annotations/delete',
     ],
     'videoLabEnabled' => $videoLabEnabled,
 ];
 
+$sessionBootstrap = [
+    'matchId' => $matchId,
+    'role' => 'analyst',
+    'sessionEndpoint' => $base . '/api/matches/' . $matchId . '/session',
+    'videoElementId' => 'deskVideoPlayer',
+    'userId' => (int)$user['id'],
+    'userName' => (string)$user['display_name'],
+    'durationSeconds' => isset($deskConfig['video']['duration_seconds']) ? (float)$deskConfig['video']['duration_seconds'] : null,
+    'ui' => [
+        'statusElementId' => 'deskSessionStatus',
+        'ownerElementId' => 'deskControlOwner',
+        'takeControlButtonId' => 'deskTakeControl',
+    ],
+];
+
 $footerScripts = '<script>window.DeskConfig = ' . json_encode($deskConfig) . ';</script>';
-$footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/toast.js?v=' . time() . '"></script>';
-$footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-events.js?v=' . time() . '"></script>';
-$footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-annotations.js?v=' . time() . '"></script>';
+$footerScripts .= '<script>window.DeskSessionBootstrap = ' . json_encode($sessionBootstrap) . ';</script>';
+$footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/vendor/socket.io.min.js' . asset_version('/assets/js/vendor/socket.io.min.js') . '"></script>';
+$footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-session.js' . asset_version('/assets/js/desk-session.js') . '"></script>';
+$footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/toast.js' . asset_version('/assets/js/toast.js') . '"></script>';
+$footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-events.js' . asset_version('/assets/js/desk-events.js') . '"></script>';
+$footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-annotations.js' . asset_version('/assets/js/desk-annotations.js') . '"></script>';
 if ($videoLabEnabled) {
     if ($showVideoProgressPanel) {
         $videoProgressConfig = [
@@ -219,12 +263,12 @@ if ($videoLabEnabled) {
         ];
         $footerScripts .= '<script>window.MatchVideoDeskConfig = ' . json_encode($videoProgressConfig) . ';</script>';
     }
-    $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-video-controls.js?v=' . time() . '"></script>';
-    $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-video-interactive.js?v=' . time() . '"></script>';
-    $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/timeline-markers.js?v=' . time() . '"></script>';
-    $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/panoramic-player.js?v=' . time() . '"></script>';
+    $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-video-controls.js' . asset_version('/assets/js/desk-video-controls.js') . '"></script>';
+    $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-video-interactive.js' . asset_version('/assets/js/desk-video-interactive.js') . '"></script>';
+    $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/timeline-markers.js' . asset_version('/assets/js/timeline-markers.js') . '"></script>';
+    $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/panoramic-player.js' . asset_version('/assets/js/panoramic-player.js') . '"></script>';
     if ($showVideoProgressPanel) {
-        $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/match-video-progress.js?v=' . time() . '"></script>';
+        $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/match-video-progress.js' . asset_version('/assets/js/match-video-progress.js') . '"></script>';
     }
 }
 
@@ -330,8 +374,8 @@ ob_start();
                         </div>
                         <div class="video-actions">
                                 <div class="video-actions-left">
-                                    <a class="toggle-btn is-active stats-btn" href="<?= htmlspecialchars($base) ?>/stats/match/<?= $matchId ?>">Stats</a>
-                                    <button type="button" class="toggle-btn lineup-toggle-btn" data-desk-lineup-button data-match-id="<?= $matchId ?>" aria-pressed="false">Lineup</button>
+                                    <a class="ghost-btn ghost-btn-sm stats-btn" href="<?= htmlspecialchars($base) ?>/stats/match/<?= $matchId ?>">Stats</a>
+                                    <button type="button" class="ghost-btn ghost-btn-sm lineup-toggle-btn" data-desk-lineup-button data-match-id="<?= $matchId ?>" aria-pressed="false">Lineup</button>
                                     <?php if (!empty($videoFormats) && count($videoFormats) > 1): ?>
                                     <div class="video-format-toggle" data-video-format-toggle>
                                         <?php foreach ($videoFormats as $format): ?>
@@ -561,7 +605,8 @@ ob_start();
                                   <video
                                       id="deskVideoPlayer"
                                       class="video-player<?= $videoReady ? '' : ' d-none' ?>"
-                                      preload="metadata"
+                                      poster="<?= htmlspecialchars($posterUrl) ?>"
+                                      preload="auto"
                                       <?= $videoReady ? 'src="' . htmlspecialchars($videoSrc) . '"' : '' ?>>
                                   </video>
                                  <?php if ($ANNOTATIONS_ENABLED): ?>
@@ -584,7 +629,7 @@ ob_start();
                                     </div>
                               </div>
                               <div class="panoramic-shell" data-panoramic-shell>
-                                  <video id="deskPanoramicVideo" playsinline muted data-panoramic-video></video>
+                                  <video id="deskPanoramicVideo" playsinline muted poster="<?= htmlspecialchars($posterUrl) ?>" data-panoramic-video></video>
                                   <canvas id="deskPanoramicCanvas" data-panoramic-canvas aria-label="Panoramic video viewport"></canvas>
                                   <div class="panoramic-message" data-panoramic-message>Preparing panoramic view…</div>
                                   <div class="panoramic-controls">
@@ -607,6 +652,7 @@ ob_start();
                                   <div class="desk-timeline" id="deskTimeline" role="slider" tabindex="0" aria-label="Video timeline" data-video-timeline>
                                   <div class="desk-timeline-track" id="deskTimelineTrack" data-video-timeline-track>
                                       <div class="desk-timeline-markers" data-video-timeline-markers></div>
+                                      <div class="desk-timeline-buffered" id="deskTimelineBuffered"></div>
                                       <div class="desk-timeline-progress" id="deskTimelineProgress"></div>
                                       <span class="desk-timeline-hover-ball" data-video-timeline-ball aria-hidden="true"></span>
                                       <div class="desk-timeline-playhead" data-video-timeline-playhead></div>
@@ -640,7 +686,7 @@ ob_start();
                                           </span>
                                       </div>
                                       <div style="justify-self: end; display: flex; gap: 12px;">
-                                          <span class="control-btn-shell">
+                                          <span class="control-btn-shell" style="display:none;">
                                               <button id="drawingToolbarToggleBtn" class="control-btn" aria-label="Show/hide drawing toolbar" aria-pressed="false" type="button" aria-describedby="tooltip-drawingToolbarToggle">
                                                   <i class="fa-solid fa-pen-ruler" aria-hidden="true"></i>
                                               </button>
@@ -665,7 +711,7 @@ ob_start();
                                               </button>
                                               <div id="tooltip-deskFullscreen" role="tooltip" class="video-control-tooltip">Fullscreen</div>
                                           </span>
-                                          <span class="control-btn-shell">
+                                          <span class="control-btn-shell" style="display:none;">
                                               <button id="deskDetachVideo" class="control-btn" aria-label="Detach video" aria-describedby="tooltip-deskDetachVideo" type="button">
                                                   <i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i>
                                               </button>
@@ -931,6 +977,22 @@ ob_start();
                                                 <div id="cardPlayerList" class="goal-player-modal-list"></div>
                                             </div>
                                         </div>
+                                        <div id="offsidePlayerModal" class="goal-player-modal offside-player-modal" role="dialog" aria-modal="true" aria-hidden="true" hidden>
+                                            <div class="goal-player-modal-backdrop" data-offside-modal-close></div>
+                                            <div class="panel-dark goal-player-modal-card">
+                                                <div class="goal-player-modal-header">
+                                                    <div>
+                                                        <div class="text-sm text-subtle">Offside player</div>
+                                                        <div class="text-xs text-muted-alt">Pick the player who was offside</div>
+                                                    </div>
+                                                    <div class="goal-player-modal-header-actions">
+                                                        <button type="button" class="ghost-btn ghost-btn-sm" data-offside-unknown>Unknown player</button>
+                                                        <button type="button" class="editor-modal-close" data-offside-modal-close aria-label="Close offside modal">✕</button>
+                                                    </div>
+                                                </div>
+                                                <div id="offsidePlayerList" class="goal-player-modal-list"></div>
+                                            </div>
+                                        </div>
                                         <div id="tagToast" class="desk-toast" style="display:none;"></div>
                                     </div>
                                 </div>
@@ -1000,7 +1062,7 @@ ob_start();
                         </div>
                         <div class="desk-mode-panels" data-mode-panels>
                             <div class="desk-mode-panel" data-panel="summary">
-                                <div class="panel-dark desk-summary-panel">
+                                <div class="panel-dark desk-summary-panel p-3">
                                     <div class="panel-row">
                                         <div>
                                             <div class="text-sm text-subtle">Match summary</div>
@@ -1035,7 +1097,7 @@ ob_start();
                 </div>
         </div>
         <!-- Drawing Toolbar Toggle JS -->
-        <script src="/assets/js/desk-toolbar-toggle.js?v=<?= time() ?>" defer></script>
+        <script src="<?= htmlspecialchars($base) ?>/assets/js/desk-toolbar-toggle.js<?= asset_version('/assets/js/desk-toolbar-toggle.js') ?>" defer></script>
 </div>
 
         <div id="editorPanel" class="editor-modal is-hidden" role="dialog" aria-modal="true" aria-labelledby="editorTitle">

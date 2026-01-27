@@ -10,6 +10,7 @@ require_once __DIR__ . '/../../../lib/player_repository.php';
 require_once __DIR__ . '/../../../lib/event_repository.php';
 require_once __DIR__ . '/../../../lib/match_substitution_repository.php';
 require_once __DIR__ . '/../../../lib/csrf.php';
+require_once __DIR__ . '/../../../lib/asset_helper.php';
 
 $user = current_user();
 $roles = $_SESSION['roles'] ?? [];
@@ -153,7 +154,8 @@ $setupConfig = [
 ];
 
 $footerScripts = '<script>window.MatchEditConfig = ' . json_encode($setupConfig) . ';</script>';
-$footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/match-edit.js?v=' . time() . '"></script>';
+// Filemtime-based versioning enables long-lived caching between updates.
+$footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/match-edit.js' . asset_version('/assets/js/match-edit.js') . '"></script>';
 
 // Remove padding and background from layout wrapper for full-width page
 $headExtras = '<style>

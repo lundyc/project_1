@@ -444,16 +444,13 @@ $pageTitle = 'Match Statistics';
 $pageDescription = 'Match-level context for ' . htmlspecialchars($homeTeam) . ' vs ' . htmlspecialchars($awayTeam) . '.';
 
 ?>
-<header class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 px-4 md:px-6 mb-6">
-    <div>
-        <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-black">Match Statistics</h1>
-        <p class="text-slate-400 text-sm">Match-level context for <?= htmlspecialchars($homeTeam) ?> vs <?= htmlspecialchars($awayTeam) ?>.</p>
-    </div>
-    <div class="flex items-center gap-3">
-        <a href="<?= htmlspecialchars($base) ?>/stats" class="px-4 py-2 text-sm font-medium rounded-lg border bg-slate-800/40 border-white/10 text-slate-300 hover:bg-slate-700/50 hover:border-white/20 transition-all duration-200">← Back to club dashboard</a>
-        <a href="/api/stats/match/report_pdf?match_id=<?=urlencode($matchId)?>&club_id=<?=urlencode($clubId ?? '')?>" target="_blank" class="px-4 py-2 text-sm font-medium rounded-lg border bg-blue-700 border-blue-800 text-white hover:bg-blue-800 hover:border-blue-900 transition-all duration-200 ml-2">EXPORT PDF</a>
-    </div>
-</header>
+<?php
+$headerTitle = 'Match Statistics';
+$headerDescription = 'Match-level context for ' . htmlspecialchars($homeTeam) . ' vs ' . htmlspecialchars($awayTeam) . '.';
+$headerButtons = [];
+    $headerButtons[] = '<a href="/api/stats/match/report_pdf?match_id=' . urlencode($matchId) . '&club_id=' . urlencode($clubId ?? '') . '" class="justify-start text-left px-4 py-2.5 text-sm font-medium rounded-lg border transition-all duration-200 bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20 flex">Export PDF</a>';
+include __DIR__ . '/../../partials/header.php';
+?>
 
 <div class="w-full mt-4 text-slate-200">
     <div class="max-w-full">
@@ -556,9 +553,9 @@ $pageDescription = 'Match-level context for ' . htmlspecialchars($homeTeam) . ' 
                     <table class="min-w-full text-sm text-slate-100">
                         <thead class="bg-slate-800/80 text-slate-200 uppercase tracking-wide">
                             <tr>
-                                <th class="px-3 py-2 text-left">Metric</th>
-                                <th class="px-3 py-2 text-center">Home</th>
-                                <th class="px-3 py-2 text-center">Away</th>
+                                <th class="px-3 py-2 text-left"></th>
+                                <th class="px-3 py-2 text-center"><?= htmlspecialchars($homeTeam) ?></th>
+                                <th class="px-3 py-2 text-center"><?= htmlspecialchars($awayTeam) ?></th>
                             </tr>
                         </thead>
                         <tbody id="match-team-performance-table" class="divide-y divide-white/5"></tbody>
@@ -578,8 +575,8 @@ $pageDescription = 'Match-level context for ' . htmlspecialchars($homeTeam) . ' 
                             <div class="period-table">
                                 <div class="period-row period-row-header">
                                     <span>Period</span>
-                                    <span>Home</span>
-                                    <span>Away</span>
+                                    <span><?= htmlspecialchars($homeTeam) ?></span>
+                                    <span><?= htmlspecialchars($awayTeam) ?></span>
                                 </div>
                                 <?php foreach ($periodRows as $row): ?>
                                     <div class="period-row">

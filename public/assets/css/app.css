@@ -893,11 +893,11 @@ a:hover {
 }
 
 .text-home {
-   color: #9ae6b4;
+   color: var(--text-muted);
 }
 
 .text-away {
-   color: #f9a8d4;
+   color: var(--text-muted);
 }
 
 .metric-label {

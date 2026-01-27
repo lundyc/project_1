@@ -11,6 +11,41 @@
     return;
   }
 
+  const getDeskSession = () => window.DeskSession || null;
+  const isBasePlaying = () => {
+    const session = getDeskSession();
+    if (session && typeof session.isPlaying === 'function') {
+      return session.isPlaying();
+    }
+    return Boolean(baseVideo && !baseVideo.paused);
+  };
+  const pauseBasePlayback = () => {
+    const session = getDeskSession();
+    if (session && typeof session.pause === 'function') {
+      session.pause();
+      return;
+    }
+    baseVideo?.pause();
+  };
+  const playBasePlayback = () => {
+    const session = getDeskSession();
+    if (session && typeof session.play === 'function') {
+      session.play();
+      return;
+    }
+    baseVideo?.play?.();
+  };
+  const seekBasePlayback = (timeSeconds) => {
+    const session = getDeskSession();
+    if (session && typeof session.seek === 'function') {
+      session.seek(timeSeconds);
+      return;
+    }
+    if (baseVideo) {
+      baseVideo.currentTime = timeSeconds;
+    }
+  };
+
   const canvas = overlay.querySelector('[data-panoramic-canvas]');
   const video = overlay.querySelector('[data-panoramic-video]');
   const playToggle = overlay.querySelector('[data-panoramic-play]');
@@ -260,10 +295,10 @@
     stopRenderLoop();
     video.pause();
     if (syncTime && baseVideo && Number.isFinite(video.currentTime)) {
-      baseVideo.currentTime = video.currentTime;
+      seekBasePlayback(video.currentTime);
     }
-    if (syncTime && baseVideo && wasBasePlaying) {
-      baseVideo.play();
+    if (syncTime && wasBasePlaying) {
+      playBasePlayback();
     }
     setMessage('');
   };
@@ -276,8 +311,8 @@
       return;
     }
     overlay.classList.add('is-visible');
-    wasBasePlaying = Boolean(baseVideo && !baseVideo.paused);
-    baseVideo?.pause();
+    wasBasePlaying = isBasePlaying();
+    pauseBasePlayback();
     if (video.src !== src) {
       video.src = src;
     }

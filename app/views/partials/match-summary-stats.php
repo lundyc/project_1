@@ -173,20 +173,40 @@ if (isset($match['id'])) {
                                         <div class="events-column">
                                                   <?php
                                                   foreach ($homeYellow as $card) {
-                                                            echo '<div class="text-sm d-flex align-items-center gap-1"><svg class="card-ico yellowCard-ico" style="width: 12px; height: 16px;"><title>Yellow Card</title><use xlink:href="/assets/svg/incident.svg#card"></use></svg><span>' . htmlspecialchars(getPlayerName($card['match_player_id'] ?? null, $matchPlayers)) . ' ' . (int)($card['minute'] ?? 0) . "'</span></div>";
+                                                            echo '<div class="text-sm d-flex align-items-center gap-1">';
+                                                            echo '<span>';
+                                                            echo htmlspecialchars(getPlayerName($card['match_player_id'] ?? null, $matchPlayers)) . ' ' . (int)($card['minute'] ?? 0). "'";
+                                                            echo '</span>';
+                                                            echo '<svg class="card-ico yellowCard-ico" style="width: 12px; height: 16px;"><title>Yellow Card</title><use xlink:href="/assets/svg/incident.svg#card"></use></svg>';
+                                                            echo '</div>';
                                                   }
                                                   foreach ($homeRed as $card) {
-                                                            echo '<div class="text-sm d-flex align-items-center gap-1"><svg class="card-ico redCard-ico" style="width: 12px; height: 16px;"><title>Red Card</title><use xlink:href="/assets/svg/incident.svg#card"></use></svg><span>' . htmlspecialchars(getPlayerName($card['match_player_id'] ?? null, $matchPlayers)) . ' ' . (int)($card['minute'] ?? 0) . "'</span></div>";
+                                                            echo '<div class="text-sm d-flex align-items-center gap-1">';
+                                                            echo '<span>';
+                                                            echo htmlspecialchars(getPlayerName($card['match_player_id'] ?? null, $matchPlayers)) . ' ' . (int)($card['minute'] ?? 0) . "'";
+                                                            echo '</span>';
+                                                            echo '<svg class="card-ico redCard-ico" style="width: 12px; height: 16px;"><title>Red Card</title><use xlink:href="/assets/svg/incident.svg#card"></use></svg>';
+                                                           echo '</div>';
                                                   }
                                                   ?>
                                         </div>
                                         <div class="events-column">
                                                   <?php
                                                   foreach ($awayYellow as $card) {
-                                                            echo '<div class="text-sm d-flex align-items-center gap-1 justify-content-end"><span>' . htmlspecialchars(getPlayerName($card['match_player_id'] ?? null, $matchPlayers)) . ' ' . (int)($card['minute'] ?? 0) . "'</span><svg class=\"card-ico yellowCard-ico\" style=\"width: 12px; height: 16px;\"><title>Yellow Card</title><use xlink:href=\"/assets/svg/incident.svg#card\"></use></svg></div>";
+                                                            echo '<div class="text-sm d-flex align-items-right gap-1 justify-content-end">';
+                                                            echo '<svg class="card-ico yellowCard-ico" style="width: 12px; height: 16px;"><title>Yellow Card</title><use xlink:href="/assets/svg/incident.svg#card"></use></svg>';
+                                                            echo '<span>';
+                                                            echo htmlspecialchars(getPlayerName($card['match_player_id'] ?? null, $matchPlayers)) . ' ' . (int)($card['minute'] ?? 0) . "'";
+                                                            echo '</span>';
+                                                            echo '</div>';
                                                   }
                                                   foreach ($awayRed as $card) {
-                                                            echo '<div class="text-sm d-flex align-items-center gap-1 justify-content-end"><span>' . htmlspecialchars(getPlayerName($card['match_player_id'] ?? null, $matchPlayers)) . ' ' . (int)($card['minute'] ?? 0) . "'</span><svg class=\"card-ico redCard-ico\" style=\"width: 12px; height: 16px;\"><title>Red Card</title><use xlink:href=\"/assets/svg/incident.svg#card\"></use></svg></div>";
+                                                            echo '<div class="text-sm d-flex align-items-right gap-1 justify-content-end">';
+                                                            echo '<svg class="card-ico redCard-ico" style="width: 12px; height: 16px;"><title>Red Card</title><use xlink:href="/assets/svg/incident.svg#card"></use></svg>';
+                                                            echo '<span>';
+                                                            echo htmlspecialchars(getPlayerName($card['match_player_id'] ?? null, $matchPlayers)) . ' ' . (int)($card['minute'] ?? 0) . "'";
+                                                            echo '</span>';
+                                                            echo '</div>';
                                                   }
                                                   ?>
                                         </div>

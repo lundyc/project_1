@@ -154,6 +154,14 @@ $formatStatusLabel = static function (string $status): string {
 
 ob_start();
 ?>
+<?php
+$headerTitle = 'Stats';
+$headerDescription = 'Description here';
+$headerButtons = [];
+include __DIR__ . '/../../partials/header.php';
+?>
+
+<link rel="stylesheet" href="/assets/css/stats-table.css">
 <div class="w-full mt-4 text-slate-200">
     <div class="max-w-full">
 
@@ -263,7 +271,7 @@ ob_start();
             <main class="col-span-7 space-y-4 min-w-0">
                 <div class="stats-panels">
             <section id="overview-panel" role="tabpanel" aria-labelledby="overview-tab" data-panel-id="overview">
-                <div class="rounded-xl bg-slate-900/80 border border-white/10 p-3">
+                <div class="rounded-xl bg-slate-800 border border-white/10 p-3">
                     <!-- Matches list (Overview only) -->
                     <div class="mt-1">
                         <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-2 mb-2">
@@ -274,7 +282,7 @@ ob_start();
                         </div>
                         <?php if (!empty($matches)): ?>
                             <div class="overflow-x-auto">
-                                <table class="min-w-full text-sm text-slate-200">
+                                <table class="min-w-full text-sm text-slate-200" id="matches-table">
                                     <thead class="bg-slate-900/90 text-slate-100 uppercase tracking-wider">
                                         <tr>
                                              <th class="px-3 py-2">Match</th>
@@ -540,12 +548,12 @@ ob_start();
             
             <!-- Right Sidebar: Overview Cards -->
             <aside id="overview-sidebar" class="col-span-3 min-w-0">
-                <div class="rounded-xl bg-slate-900/80 border border-white/10 p-4">
+                <div class="rounded-xl bg-slate-800 border border-white/10 p-4">
                     <h5 class="text-slate-200 font-semibold mb-1" id="overview-title">Overview</h5>
                     <div class="text-slate-400 text-xs mb-4">Club-wide performance summary</div>
                     <div class="space-y-3">
                         <!-- Grouped: Matches/Clean Sheets/Avg Goals -->
-                        <article class="rounded-lg border border-white/10 bg-slate-800/40 px-3 py-3">
+                        <article class="rounded-lg border border-white/10 bg-slate-900/80 px-3 py-3">
                             <div class="grid grid-cols-3 gap-3 text-center">
                                 <div data-stat-card="total_matches">
                                     <div class="text-[10px] text-slate-400 mb-1">Matches</div>
@@ -565,7 +573,7 @@ ob_start();
                         <div class="border-t border-white/10"></div>
                         
                         <!-- Grouped: Match Results -->
-                        <article class="rounded-lg border border-white/10 bg-slate-800/40 px-3 py-3">
+                        <article class="rounded-lg border border-white/10 bg-slate-900/80 px-3 py-3">
                             <div class="text-xs font-semibold text-slate-300 mb-2 text-center">Match Results</div>
                             <div class="grid grid-cols-3 gap-3 text-center">
                                 <div data-stat-card="wins">
@@ -586,7 +594,7 @@ ob_start();
                         <div class="border-t border-white/10"></div>
                         
                         <!-- Grouped: Goals -->
-                        <article class="rounded-lg border border-white/10 bg-slate-800/40 px-3 py-3">
+                        <article class="rounded-lg border border-white/10 bg-slate-900/80 px-3 py-3">
                             <div class="text-xs font-semibold text-slate-300 mb-2 text-center">Goals</div>
                             <div class="grid grid-cols-3 gap-3 text-center">
                                 <div data-stat-card="goals_for">

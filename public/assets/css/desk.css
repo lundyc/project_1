@@ -344,6 +344,17 @@ body {
   pointer-events: none;
 }
 
+.session-control-disabled #deskTimelineTrack {
+  pointer-events: none;
+  opacity: 0.65;
+}
+
+.session-control-disabled .control-btn:disabled,
+.session-control-disabled .control-btn[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .custom-video-controls .desk-timeline {
   width: 100%;
   pointer-events: auto;
@@ -365,6 +376,18 @@ body {
   height: 10px;
 }
 
+.desk-timeline-buffered {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 0%;
+  background: rgba(0, 255, 17, 0.45);
+  border-radius: 999px;
+  transition: width 0.15s linear;
+  z-index: 1;
+}
+
 .desk-timeline-progress {
   position: absolute;
   top: 0;
@@ -374,6 +397,7 @@ body {
   background: linear-gradient(90deg, rgba(59, 130, 246, 0.9), rgba(59, 130, 246, 0.6));
   border-radius: 999px;
   transition: width 0.1s linear;
+  z-index: 2;
 }
 
 .desk-timeline-hover-ball {
@@ -2541,9 +2565,11 @@ body {
   grid-template-columns: repeat(3, minmax(80px, 1fr));
   column-gap: 6px;
   row-gap: 6px;
+  /*
   margin-bottom: 8px;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-subtle);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-subtle);
+    */
   border-radius: 12px;
   padding: 6px 10px 4px;
 }
@@ -3338,7 +3364,7 @@ select.input-dark {
   position: relative;
   width: 100%;
   max-width: 100%;
-  overflow-x: auto;
+  overflow-x: hidden;
   overflow-y: hidden;
   padding-bottom: 8px;
   cursor: grab;
@@ -3767,12 +3793,14 @@ select.input-dark {
   align-items: stretch;
   gap: 0;
   width: 100%;
+  max-width: 100%;
   min-height: 0;
   overflow: visible;
   background: var(--video-bg);
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   position: relative;
+  margin: 0 auto;
 }
 
 .desk-drawing-toolbar {

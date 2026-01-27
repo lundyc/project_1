@@ -384,6 +384,31 @@ route('/matches/(\d+)/desk', function ($matchId) {
           return true;
 });
 
+route('/matches/(\d+)/tv', function ($matchId) {
+          require_auth();
+          require_once __DIR__ . '/../app/lib/match_repository.php';
+          require_once __DIR__ . '/../app/lib/match_permissions.php';
+          require_once __DIR__ . '/../app/lib/phase3.php';
+
+          $match = get_match($matchId);
+          if (!$match) {
+                    http_response_code(404);
+                    echo '404 Not Found';
+                    return true;
+          }
+
+          $user = current_user();
+          $roles = $_SESSION['roles'] ?? [];
+          if (!can_view_match($user, $roles, (int)$match['club_id'])) {
+                    http_response_code(403);
+                    echo '403 Forbidden';
+                    return true;
+          }
+
+          require __DIR__ . '/../app/views/pages/matches/tv.php';
+          return true;
+});
+
 route('/matches/(\d+)/lineup', function ($matchId) {
           require_auth();
           require_once __DIR__ . '/../app/lib/match_repository.php';
@@ -548,6 +573,11 @@ route('/api/matches/(\d+)/lock/heartbeat', function ($matchId) {
 
 route('/api/matches/(\d+)/lock/release', function ($matchId) {
           require __DIR__ . '/../app/api/matches/lock_release.php';
+          return true;
+});
+
+route('/api/matches/(\d+)/session', function ($matchId) {
+          require __DIR__ . '/../app/api/matches/session.php';
           return true;
 });
 

@@ -1,6 +1,7 @@
 <?php
 require_auth();
 require_once __DIR__ . '/../../../lib/match_permissions.php';
+require_once __DIR__ . '/../../../lib/asset_helper.php';
 
 $user = current_user();
 $roles = $_SESSION['roles'] ?? [];
@@ -68,7 +69,8 @@ $wizardConfig = [
 ];
 
 $footerScripts = '<script>window.MatchWizardConfig = ' . json_encode($wizardConfig) . ';</script>';
-$footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/match-video-editor.js?v=' . time() . '"></script>';
+// Filemtime-based versioning enables long-lived caching between updates.
+$footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/match-video-editor.js' . asset_version('/assets/js/match-video-editor.js') . '"></script>';
 
 ob_start();
 ?>

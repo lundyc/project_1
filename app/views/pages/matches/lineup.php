@@ -3,6 +3,7 @@ require_auth();
 require_once __DIR__ . '/../../../lib/match_permissions.php';
 require_once __DIR__ . '/../../../lib/team_repository.php';
 require_once __DIR__ . '/../../../lib/formation_repository.php';
+require_once __DIR__ . '/../../../lib/asset_helper.php';
 
 if (!isset($match) || !is_array($match)) {
           http_response_code(404);
@@ -95,7 +96,8 @@ $lineupState = [
 $footerScripts = '<script>window.LINEUP_STATE = ' . json_encode($lineupState) . ';</script>';
 $footerScripts .= '<script>window.MatchWizardLineupConfig = ' . json_encode($lineupConfig) . ';</script>';
 $footerScripts .= '<script>window.MATCH_ID = ' . json_encode($matchId) . ';</script>';
-$footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/wizard-lineup.js?v=' . time() . '"></script>';
+// Filemtime-based versions keep the JS URL stable between changes.
+$footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/wizard-lineup.js' . asset_version('/assets/js/wizard-lineup.js') . '"></script>';
 
 $title = 'Lineup';
 $bodyAttributes = 'data-lineup-page="true" data-match-id="' . (int)$matchId . '"';
