@@ -1,13 +1,14 @@
-// Helper to send commands to detached popup
-function sendToDetached(action, value) {
-  if (detachedWindow && !detachedWindow.closed) {
-    detachedWindow.postMessage({ action, value }, '*');
-  }
-}
+// ...existing code...
 (function () {
   const playbackRates = [0.5, 1, 2, 4, 8];
 
   function initDeskControls() {
+    // Helper to send commands to detached popup (now has access to detachedWindow)
+    function sendToDetached(action, value) {
+      if (detachedWindow && !detachedWindow.closed) {
+        detachedWindow.postMessage({ action, value }, '*');
+      }
+    }
     const video = document.getElementById('deskVideoPlayer');
     const playPauseBtn = document.getElementById('deskPlayPause');
     const rewindBtn = document.getElementById('deskRewind');
@@ -38,6 +39,15 @@ function sendToDetached(action, value) {
 
     const IDLE_HIDE_DELAY = 2000;
     let hideTimeoutId = null;
+    // allowIdleHide flag and helpers
+    let allowIdleHide = true;
+    function setAllowIdleHide(val) {
+      allowIdleHide = val;
+      console.log('[DeskVideoControls] allowIdleHide set to', val);
+    }
+    function isIdleHideAllowed() {
+      return allowIdleHide;
+    }
 
     const setDrawingToolbarVisibility = (visible) => {
       if (!drawingToolbarShell) {
@@ -45,6 +55,7 @@ function sendToDetached(action, value) {
       }
       drawingToolbarShell.classList.toggle('is-hidden', !visible);
     };
+
 
     const showControls = () => {
       if (!controls) {
@@ -58,7 +69,7 @@ function sendToDetached(action, value) {
     };
 
     const hideControls = () => {
-      if (!controls || video.paused) {
+      if (!controls || video.paused || !isIdleHideAllowed() || isVideoDetached) {
         return;
       }
       controls.classList.add('is-hidden');
@@ -76,9 +87,19 @@ function sendToDetached(action, value) {
       hideTimeoutId = null;
     };
 
+
+    // Deprecated: use setAllowIdleHide instead
+    const setIdleHidingEnabled = (enabled) => {
+      setAllowIdleHide(enabled);
+      if (!enabled) {
+        clearHideTimeout();
+      }
+    };
+
+
     const scheduleHide = () => {
       clearHideTimeout();
-      if (video.paused) {
+      if (!isIdleHideAllowed() || video.paused || isVideoDetached) {
         return;
       }
       hideTimeoutId = setTimeout(() => {
@@ -278,19 +299,18 @@ function sendToDetached(action, value) {
       detachedWindow = null;
     };
 
+    // Duplicate reattachVideo removed (see below for single definition)
     const reattachVideo = () => {
-      if (!isVideoDetached || !originalVideoParent) {
-        return;
-      }
-      // Reattach before the popup finishes unloading so the desk layout stays intact.
+      if (!isVideoDetached) return;
+      console.log('[DeskVideoControls] Reattaching video (popup closed)');
       cleanupDetachedWindow();
-      if (video.parentNode !== originalVideoParent) {
-        originalVideoParent.insertBefore(video, originalVideoNextSibling);
-      }
-      restoreVideoStyles();
+      // No need to move video back, just mark as not detached
       isVideoDetached = false;
+      setAllowIdleHide(true);
       updateDetachButtonState(false);
       updateFullscreenIcon();
+      showControls();
+      scheduleHide();
     };
 
     const startDetachedWindowMonitor = () => {
@@ -323,6 +343,7 @@ function sendToDetached(action, value) {
         detachedWindow.focus();
         return;
       }
+      console.log('[DeskVideoControls] Detach button clicked');
       // Move the single video node into a popup so playback state stays intact while controls remain docked.
       const features = detachPopupFeatures();
       detachedWindow = window.open('', DETACH_WINDOW_NAME, features);
@@ -352,7 +373,15 @@ function sendToDetached(action, value) {
       container.style.display = 'flex';
       container.style.alignItems = 'center';
       container.style.justifyContent = 'center';
-      container.appendChild(video);
+      // CLONE the video for the popup, do not move the desk video
+      const popupVideo = video.cloneNode(true);
+      popupVideo.id = 'deskVideoPlayerPopup';
+      // Sync state from desk video
+      popupVideo.currentTime = video.currentTime;
+      popupVideo.muted = video.muted;
+      popupVideo.playbackRate = video.playbackRate;
+      if (!video.paused) popupVideo.play();
+      container.appendChild(popupVideo);
       doc.body.appendChild(container);
       // Inject the bridge script for remote control
       const bridgeScript = doc.createElement('script');
@@ -362,6 +391,8 @@ function sendToDetached(action, value) {
       isVideoDetached = true;
       updateDetachButtonState(true);
       updateFullscreenIcon();
+      setAllowIdleHide(false);
+      showControls();
       const handleDetachedWindowBeforeUnload = () => {
         reattachVideo();
       };
@@ -648,8 +679,7 @@ function sendToDetached(action, value) {
           const rect = timelineTrack.getBoundingClientRect();
           const offset = Math.min(Math.max(0, event.clientX - rect.left), rect.width);
           const percent = offset / rect.width;
-          const duration = video.duration || 0;
-          sendToDetached('setCurrentTime', percent * duration);
+          sendToDetached('setCurrentTimePercent', percent);
         } else {
           handleTimelinePointerDown(event);
         }
