@@ -24,6 +24,15 @@ ob_start();
           <div>
                     <div class="panel admin-card h-full">
                               <div class="p-4">
+                                        <h5 class="text-light mb-2 font-semibold">Teams</h5>
+                                        <p class="text-muted-alt text-sm mb-3">Create teams, update types, and move between clubs.</p>
+                                        <a href="<?= htmlspecialchars($base) ?>/admin/teams" class="btn btn-primary-soft btn-sm">Manage teams</a>
+                              </div>
+                    </div>
+          </div>
+          <div>
+                    <div class="panel admin-card h-full">
+                              <div class="p-4">
                                         <h5 class="text-light mb-2 font-semibold">Users</h5>
                                         <p class="text-muted-alt text-sm mb-3">Create users, assign clubs, and grant roles.</p>
                                         <a href="<?= htmlspecialchars($base) ?>/admin/users" class="btn btn-primary-soft btn-sm">Go to users</a>

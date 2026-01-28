@@ -64,6 +64,16 @@ route('/admin/clubs', function () {
           require __DIR__ . '/../app/views/pages/admin/clubs.php';
 });
 
+route('/admin/clubs/create', function () {
+          require_role('platform_admin');
+          require __DIR__ . '/../app/views/pages/admin/clubs/create.php';
+});
+
+route('/admin/clubs/{id}/edit', function () {
+          require_role('platform_admin');
+          require __DIR__ . '/../app/views/pages/admin/clubs/edit.php';
+});
+
 route('/admin/users', function () {
           require_role('platform_admin');
           require __DIR__ . '/../app/views/pages/admin/users.php';
@@ -82,6 +92,56 @@ route('/admin/competitions', function () {
 route('/api/admin/clubs/create', function () {
           require_role('platform_admin');
           require __DIR__ . '/../app/api/admin/create_club.php';
+});
+
+route('/api/admin/clubs/update', function () {
+          require_role('platform_admin');
+          require __DIR__ . '/../app/api/admin/update_club.php';
+});
+
+route('/api/admin/clubs/delete', function () {
+          require_role('platform_admin');
+          require __DIR__ . '/../app/api/admin/delete_club.php';
+});
+
+route('/api/admin/clubs/assign-team', function () {
+          require_role('platform_admin');
+          require __DIR__ . '/../app/api/admin/assign_club_team.php';
+});
+
+route('/api/admin/clubs/remove-team', function () {
+          require_role('platform_admin');
+          require __DIR__ . '/../app/api/admin/remove_club_team.php';
+});
+
+route('/admin/teams', function () {
+          require_role('platform_admin');
+          require __DIR__ . '/../app/views/pages/admin/teams/index.php';
+});
+
+route('/admin/teams/create', function () {
+          require_role('platform_admin');
+          require __DIR__ . '/../app/views/pages/admin/teams/create.php';
+});
+
+route('/admin/teams/{id}/edit', function () {
+          require_role('platform_admin');
+          require __DIR__ . '/../app/views/pages/admin/teams/edit.php';
+});
+
+route('/api/admin/teams/create', function () {
+          require_role('platform_admin');
+          require __DIR__ . '/../app/api/admin/teams/create.php';
+});
+
+route('/api/admin/teams/update', function () {
+          require_role('platform_admin');
+          require __DIR__ . '/../app/api/admin/teams/update.php';
+});
+
+route('/api/admin/teams/delete', function () {
+          require_role('platform_admin');
+          require __DIR__ . '/../app/api/admin/teams/delete.php';
 });
 
 route('/api/admin/users/create', function () {
@@ -287,6 +347,35 @@ route('/stats/match/{id}', function () {
           require_auth();
           require_once __DIR__ . '/../app/controllers/StatsController.php';
           StatsController::match((int)($_GET['id'] ?? 0));
+});
+
+// league intelligence import routes
+route('/league-intelligence/import', function () {
+          require_role('platform_admin');
+          require_once __DIR__ . '/../app/controllers/LeagueIntelligenceImportController.php';
+          $controller = new LeagueIntelligenceImportController(new WosflImportService());
+          $controller->showImportForm();
+});
+
+route('/league-intelligence/import/run', function () {
+          require_role('platform_admin');
+          require_once __DIR__ . '/../app/controllers/LeagueIntelligenceImportController.php';
+          $controller = new LeagueIntelligenceImportController(new WosflImportService());
+          $controller->runImport();
+});
+
+route('/league-intelligence/import/save', function () {
+          require_role('platform_admin');
+          require_once __DIR__ . '/../app/controllers/LeagueIntelligenceImportController.php';
+          $controller = new LeagueIntelligenceImportController(new WosflImportService());
+          $controller->saveImport();
+});
+
+route('/league-intelligence/update-week', function () {
+          require_role('platform_admin');
+          require_once __DIR__ . '/../app/controllers/LeagueIntelligenceImportController.php';
+          $controller = new LeagueIntelligenceImportController(new WosflImportService());
+          $controller->updateWeek();
 });
 
 route('/league-intelligence', function () {

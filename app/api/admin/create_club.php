@@ -15,7 +15,8 @@ $name = trim($_POST['name'] ?? '');
 
 if ($name === '') {
           $_SESSION['club_form_error'] = 'Club name is required';
-          redirect('/admin/clubs');
+          $_SESSION['club_form_input'] = ['name' => $name];
+          redirect('/admin/clubs/create');
 }
 
 try {
@@ -23,6 +24,8 @@ try {
           $_SESSION['club_form_success'] = 'Club created successfully';
 } catch (\Throwable $e) {
           $_SESSION['club_form_error'] = 'Unable to create club';
+          $_SESSION['club_form_input'] = ['name' => $name];
+          redirect('/admin/clubs/create');
 }
 
 redirect('/admin/clubs');

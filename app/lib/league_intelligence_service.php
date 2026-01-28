@@ -564,7 +564,7 @@ SQL;
                     $this->pdo->exec($sql);
           }
 
-          private function syncMatches(): void
+          public function syncMatches(): void
           {
                     $filters = [
                               'comp.type = :league_type',

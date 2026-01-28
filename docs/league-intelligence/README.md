@@ -19,3 +19,21 @@
 - To guide product, design, and engineering decisions.
 - To ensure all stakeholders share a common understanding of scope, purpose, and data dependencies.
 - To validate that implementation matches product intent.
+
+## Importing Fixtures & Results (WOSFL)
+League Intelligence fixtures/results are pulled from the West of Scotland Football League (WOSFL) via the admin UI.
+
+### Full Import (Preview + Save)
+1. Go to **League Intelligence** in the admin nav.
+2. Click **Import All Fixtures & Results** to load a preview.
+3. Review the preview, optionally delete any rows, then click **Save Import**.
+4. The league table is rebuilt automatically after saving.
+
+### Weekly Update (±7 Days)
+1. Go to **League Intelligence** in the admin nav.
+2. Click **Update This Week**.
+3. The system immediately updates existing matches or adds new matches within ±7 days of today.
+4. The league table is rebuilt automatically after the update completes.
+
+### CLI
+There are no CLI commands for the WOSFL import or weekly update yet. Use the UI routes above.

@@ -1,5 +1,6 @@
 <?php
 $base = base_path();
+$currentUserIsAdmin = user_has_role('platform_admin');
 $selectedSeasonId = isset($selectedSeason['id']) ? (int)$selectedSeason['id'] : null;
 $selectedCompetitionId = isset($selectedCompetition['id']) ? (int)$selectedCompetition['id'] : null;
 $filterValues = [
@@ -30,14 +31,38 @@ $formatMatchDate = static function (?string $date): string {
           }
           return date('D, M j', $ts);
 };
+
+$flashSuccess = $_SESSION['wosfl_import_success'] ?? null;
+$flashError = $_SESSION['wosfl_import_error'] ?? null;
+unset($_SESSION['wosfl_import_success'], $_SESSION['wosfl_import_error']);
 ?>
 
 <?php ob_start(); ?>
 <div class="w-full mt-4 text-slate-200">
     <div class="max-w-full">
+        <?php if ($flashSuccess): ?>
+            <div class="mb-4 rounded-xl border border-emerald-500/40 bg-emerald-500/30 p-4 text-sm text-emerald-200">
+                <?= htmlspecialchars($flashSuccess) ?>
+            </div>
+        <?php endif; ?>
+        <?php if ($flashError): ?>
+            <div class="mb-4 rounded-xl border border-rose-700/50 bg-rose-900/20 p-4 text-sm text-rose-400">
+                <?= htmlspecialchars($flashError) ?>
+            </div>
+        <?php endif; ?>
         <div class="stats-three-col grid grid-cols-12 gap-2 px-4 md:px-6 lg:px-8 w-full">
             <!-- Left Sidebar -->
             <aside class="stats-col-left col-span-2 space-y-4 min-w-0">
+                <?php if ($currentUserIsAdmin): ?>
+                    <div class="space-y-2">
+                        <form method="post" action="<?= htmlspecialchars($base) ?>/league-intelligence/import/run">
+                            <button type="submit" class="stats-tab w-full justify-start text-left px-4 py-2.5 text-sm font-medium rounded-lg border transition-all duration-200 bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-500/20 flex">Import All Fixtures &amp; Results</button>
+                        </form>
+                        <form method="post" action="<?= htmlspecialchars($base) ?>/league-intelligence/update-week">
+                            <button type="submit" class="stats-tab w-full justify-start text-left px-4 py-2.5 text-sm font-medium rounded-lg border transition-all duration-200 bg-slate-800/40 border-white/10 text-slate-300 hover:bg-slate-700/50 hover:border-white/20 flex">Update This Week</button>
+                        </form>
+                    </div>
+                <?php endif; ?>
                 <form method="get" class="flex flex-col gap-3" role="search">
                     <button type="submit" class="stats-tab w-full justify-start text-left px-4 py-2.5 text-sm font-medium rounded-lg border transition-all duration-200 bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20 mb-2 flex">Update View</button>
                     <div>
