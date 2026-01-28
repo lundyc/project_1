@@ -64,7 +64,7 @@ unset($_SESSION['wosfl_import_success'], $_SESSION['wosfl_import_error']);
                     </div>
                 <?php endif; ?>
                 <form method="get" class="flex flex-col gap-3" role="search">
-                    <button type="submit" class="stats-tab w-full justify-start text-left px-4 py-2.5 text-sm font-medium rounded-lg border transition-all duration-200 bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20 mb-2 flex">Update View</button>
+                    <a href="<?= htmlspecialchars($base) ?>/league-intelligence/matches" class="stats-tab w-full justify-start text-left px-4 py-2.5 text-sm font-medium rounded-lg border transition-all duration-200 bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20 mb-2 flex text-center">Matches CRUD</a>
                     <div>
                         <label class="block text-slate-400 text-xs mb-1" for="season-select">Season</label>
                         <select id="season-select" name="season_id" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs">

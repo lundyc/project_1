@@ -4,6 +4,11 @@ require_once __DIR__ . '/db.php';
 
 class LeagueIntelligenceService
 {
+    // Public wrapper for fetchMatches for CRUD UI
+    public function getMatchesForCrud(): array
+    {
+        return $this->fetchMatches();
+    }
           private $pdo;
           private $seasonId;
           private $competitionId;
@@ -564,14 +569,14 @@ SQL;
                     $this->pdo->exec($sql);
           }
 
+
           public function syncMatches(): void
           {
                     $filters = [
-                              'comp.type = :league_type',
                               'm.home_team_id IS NOT NULL',
                               'm.away_team_id IS NOT NULL',
                     ];
-                    $params = ['league_type' => 'league'];
+                    $params = [];
 
                     if ($this->competitionId !== null) {
                               $filters[] = 'comp.id = :competition_id';

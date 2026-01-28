@@ -371,12 +371,24 @@ class LeagueIntelligenceImportController extends Controller
         $clubId = $this->resolveClubId();
         if (!$clubId) {
             $_SESSION['wosfl_import_error'] = 'Unable to determine a club for this import.';
+            if ($this->isAjax()) {
+                header('Content-Type: application/json');
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Unable to determine a club for this import.']);
+                exit;
+            }
             redirect('/league-intelligence/import');
         }
 
         $seasonId = $this->resolveSeasonId($clubId);
         if (!$seasonId) {
             $_SESSION['wosfl_import_error'] = 'Unable to determine a season for this import.';
+            if ($this->isAjax()) {
+                header('Content-Type: application/json');
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Unable to determine a season for this import.']);
+                exit;
+            }
             redirect('/league-intelligence/import');
         }
 
@@ -385,6 +397,12 @@ class LeagueIntelligenceImportController extends Controller
         } catch (Throwable $e) {
             error_log('WOSFL import save failed: ' . $e->getMessage());
             $_SESSION['wosfl_import_error'] = 'Import save failed. Please try again.';
+            if ($this->isAjax()) {
+                header('Content-Type: application/json');
+                http_response_code(500);
+                echo json_encode(['success' => false, 'error' => 'Import save failed. Please try again.']);
+                exit;
+            }
             redirect('/league-intelligence/import');
         }
 
@@ -409,7 +427,20 @@ class LeagueIntelligenceImportController extends Controller
 
         $_SESSION['wosfl_import_success'] = implode(' ', $messageParts);
 
+        if ($this->isAjax()) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => true]);
+            exit;
+        }
         redirect('/league-intelligence');
+    }
+
+    private function isAjax(): bool
+    {
+        return (
+            (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') ||
+            (isset($_SERVER['HTTP_ACCEPT']) && strpos(strtolower($_SERVER['HTTP_ACCEPT']), 'application/json') !== false)
+        );
     }
 
     public function updateWeek(): void

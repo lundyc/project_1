@@ -11,6 +11,69 @@ auth_boot();
 require_once __DIR__ . '/../app/routes/admin_players.php';
 require_once __DIR__ . '/../app/routes/admin_playlists.php';
 
+// League Intelligence Matches CRUD routes
+route('/league-intelligence/matches', function () {
+    require_role('platform_admin');
+    require_once __DIR__ . '/../app/controllers/LeagueIntelligenceMatchController.php';
+    $controller = new LeagueIntelligenceMatchController();
+    $controller->index();
+});
+
+route('/league-intelligence/matches/add', function () {
+    require_role('platform_admin');
+    require_once __DIR__ . '/../app/controllers/LeagueIntelligenceMatchController.php';
+    $controller = new LeagueIntelligenceMatchController();
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $controller->store();
+    } else {
+        $controller->create();
+    }
+});
+
+route('/league-intelligence/matches/edit/{id}', function () {
+    require_role('platform_admin');
+    require_once __DIR__ . '/../app/controllers/LeagueIntelligenceMatchController.php';
+    $controller = new LeagueIntelligenceMatchController();
+    $id = $_GET['id'] ?? null;
+    if (!$id) {
+        http_response_code(404);
+        echo '404 Not Found';
+        return;
+    }
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $controller->update($id);
+    } else {
+        $controller->edit($id);
+    }
+});
+
+route('/league-intelligence/matches/delete/{id}', function () {
+    require_role('platform_admin');
+    require_once __DIR__ . '/../app/controllers/LeagueIntelligenceMatchController.php';
+    $controller = new LeagueIntelligenceMatchController();
+    $id = $_GET['id'] ?? null;
+    if (!$id) {
+        http_response_code(404);
+        echo '404 Not Found';
+        return;
+    }
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $controller->delete($id);
+    } else {
+        http_response_code(405);
+        echo '405 Method Not Allowed';
+    }
+});
+
+require_once __DIR__ . '/../app/lib/auth.php';
+require_once __DIR__ . '/../app/lib/router.php';
+require_once __DIR__ . '/../app/lib/phase3.php';
+require_once __DIR__ . '/../app/middleware/require_admin.php';
+
+auth_boot();
+require_once __DIR__ . '/../app/routes/admin_players.php';
+require_once __DIR__ . '/../app/routes/admin_playlists.php';
+
 route('/', function () {
     require_auth();
     redirect('/stats');
