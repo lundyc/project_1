@@ -27,7 +27,8 @@ $matchId = (int)$match['id'];
 $nextMatchId = $matchId + 1;
 $selectedClubId = (int)$match['club_id'];
 
-$teams = get_teams_by_club($selectedClubId);
+$clubTeams = get_teams_by_club($selectedClubId);
+$opponentTeams = get_teams_not_in_club($selectedClubId);
 $seasons = get_seasons_by_club($selectedClubId);
 $competitions = get_competitions_by_club($selectedClubId);
 $clubPlayers = get_players_for_club($selectedClubId);
@@ -70,11 +71,30 @@ $matchReferee = (string)($match['referee'] ?? '');
 $matchAttendance = $match['attendance'] ?? null;
 $matchStatus = $match['status'] ?? 'draft';
 
-$homeTeamName = '';
-$awayTeamName = '';
-foreach ($teams as $team) {
-    if ($team['id'] == $matchHomeId) $homeTeamName = $team['name'];
-    if ($team['id'] == $matchAwayId) $awayTeamName = $team['name'];
+$homeTeamRow = get_team_by_id($matchHomeId);
+$awayTeamRow = get_team_by_id($matchAwayId);
+$homeTeamName = $homeTeamRow['name'] ?? '';
+$awayTeamName = $awayTeamRow['name'] ?? '';
+
+$clubTeamIds = array_map(static function ($team) {
+    return (int)$team['id'];
+}, $clubTeams);
+
+$clubTeamId = 0;
+$opponentTeamId = 0;
+$clubSide = 'home';
+if (in_array($matchHomeId, $clubTeamIds, true)) {
+    $clubTeamId = $matchHomeId;
+    $opponentTeamId = $matchAwayId;
+    $clubSide = 'home';
+} elseif (in_array($matchAwayId, $clubTeamIds, true)) {
+    $clubTeamId = $matchAwayId;
+    $opponentTeamId = $matchHomeId;
+    $clubSide = 'away';
+} else {
+    $clubTeamId = $clubTeamIds[0] ?? 0;
+    $opponentTeamId = $matchHomeId ?: $matchAwayId;
+    $clubSide = 'home';
 }
 
 // Video source info
@@ -156,6 +176,35 @@ $setupConfig = [
 $footerScripts = '<script>window.MatchEditConfig = ' . json_encode($setupConfig) . ';</script>';
 // Filemtime-based versioning enables long-lived caching between updates.
 $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/match-edit.js' . asset_version('/assets/js/match-edit.js') . '"></script>';
+$footerScripts .= '<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const clubSideInput = document.getElementById("clubSide");
+    const buttons = document.querySelectorAll(".club-side-btn");
+    if (!clubSideInput || buttons.length === 0) return;
+
+    const baseClasses = ["bg-slate-800", "border-slate-700", "text-slate-200"];
+    const activeClasses = ["bg-blue-600", "border-blue-500", "text-white"];
+
+    const setActive = (value) => {
+        clubSideInput.value = value;
+        buttons.forEach(btn => {
+            const isActive = btn.getAttribute("data-club-side") === value;
+            baseClasses.forEach(cls => btn.classList.toggle(cls, !isActive));
+            activeClasses.forEach(cls => btn.classList.toggle(cls, isActive));
+            btn.setAttribute("aria-pressed", isActive ? "true" : "false");
+        });
+    };
+
+    buttons.forEach(btn => {
+        btn.addEventListener("click", () => {
+            const value = btn.getAttribute("data-club-side") || "home";
+            setActive(value);
+        });
+    });
+
+    setActive(clubSideInput.value || "home");
+});
+</script>';
 
 // Remove padding and background from layout wrapper for full-width page
 $headExtras = '<style>
@@ -360,29 +409,43 @@ ob_start();
                                     </h3>
                                     <div class="grid gap-4 grid-cols-1 md:grid-cols-2">
                                         <div>
-                                            <label class="block text-sm font-medium text-slate-300 mb-2" for="homeTeam">
-                                                Home Team <span class="text-rose-400">*</span>
+                                            <label class="block text-sm font-medium text-slate-300 mb-2" for="clubTeam">
+                                                Your Club <span class="text-rose-400">*</span>
                                             </label>
-                                            <select id="homeTeam" name="home_team_id" required class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40">
-                                                <?php foreach ($teams as $team): ?>
-                                                    <option value="<?= (int)$team['id'] ?>" <?= $matchHomeId == $team['id'] ? 'selected' : '' ?>>
+                                            <select id="clubTeam" name="club_team_id" required class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40">
+                                                <option value="">Select your team</option>
+                                                <?php foreach ($clubTeams as $team): ?>
+                                                    <option value="<?= (int)$team['id'] ?>" <?= $clubTeamId == $team['id'] ? 'selected' : '' ?>>
                                                         <?= htmlspecialchars($team['name']) ?>
                                                     </option>
                                                 <?php endforeach; ?>
                                             </select>
                                         </div>
                                         <div>
-                                            <label class="block text-sm font-medium text-slate-300 mb-2" for="awayTeam">
-                                                Away Team <span class="text-rose-400">*</span>
+                                            <label class="block text-sm font-medium text-slate-300 mb-2" for="opponentTeam">
+                                                Opponents <span class="text-rose-400">*</span>
                                             </label>
-                                            <select id="awayTeam" name="away_team_id" required class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40">
-                                                <?php foreach ($teams as $team): ?>
-                                                    <option value="<?= (int)$team['id'] ?>" <?= $matchAwayId == $team['id'] ? 'selected' : '' ?>>
+                                            <select id="opponentTeam" name="opponent_team_id" required class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40">
+                                                <option value="">Select opponent</option>
+                                                <?php foreach ($opponentTeams as $team): ?>
+                                                    <option value="<?= (int)$team['id'] ?>" <?= $opponentTeamId == $team['id'] ? 'selected' : '' ?>>
                                                         <?= htmlspecialchars($team['name']) ?>
                                                     </option>
                                                 <?php endforeach; ?>
                                             </select>
                                         </div>
+                                    </div>
+                                    <div class="mt-4">
+                                        <label class="block text-sm font-medium text-slate-300 mb-2">Home/Away</label>
+                                        <div class="flex flex-wrap gap-2">
+                                            <button type="button" class="club-side-btn flex-1 rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-700<?= $clubSide === 'home' ? ' bg-blue-600 border-blue-500 text-white' : '' ?>" data-club-side="home" aria-pressed="<?= $clubSide === 'home' ? 'true' : 'false' ?>">
+                                                <i class="fa-solid fa-house mr-2"></i>Your Club at Home
+                                            </button>
+                                            <button type="button" class="club-side-btn flex-1 rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-700<?= $clubSide === 'away' ? ' bg-blue-600 border-blue-500 text-white' : '' ?>" data-club-side="away" aria-pressed="<?= $clubSide === 'away' ? 'true' : 'false' ?>">
+                                                <i class="fa-solid fa-arrow-right mr-2"></i>Your Club Away
+                                            </button>
+                                        </div>
+                                        <input type="hidden" name="club_side" id="clubSide" value="<?= htmlspecialchars($clubSide) ?>">
                                     </div>
                                 </div>
 
@@ -1403,7 +1466,7 @@ ob_start();
                     Add Player - <span id="add-player-team-name" class="font-bold text-blue-300">
                         <?php
                             // Default to home team name as fallback, JS will update as needed
-                            echo htmlspecialchars($homeTeamName ?: ($teams[0]['name'] ?? ''));
+                            echo htmlspecialchars($homeTeamName ?: ($clubTeams[0]['name'] ?? ''));
                         ?>
                     </span>
                 </h3>

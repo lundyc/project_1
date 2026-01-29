@@ -179,6 +179,50 @@ function get_matches_for_user(array $user): array
           return $stmt->fetchAll();
 }
 
+function get_li_scheduled_fixtures_for_club(int $clubId, int $limit = 10): array
+{
+          if ($clubId <= 0) {
+                    return [];
+          }
+
+          $limit = max(1, min($limit, 50));
+          $now = date('Y-m-d H:i:s');
+
+          $sql = '
+          SELECT
+                    lim.match_id,
+                    lim.kickoff_at,
+                    lim.home_team_id,
+                    lim.away_team_id,
+                    lim.competition_id,
+                    lim.season_id,
+                    lim.status,
+                    ht.name AS home_team_name,
+                    at.name AS away_team_name,
+                    comp.name AS competition_name,
+                    ht.club_id AS home_club_id,
+                    at.club_id AS away_club_id
+          FROM league_intelligence_matches lim
+          JOIN teams ht ON ht.id = lim.home_team_id
+          JOIN teams at ON at.id = lim.away_team_id
+          LEFT JOIN competitions comp ON comp.id = lim.competition_id
+          LEFT JOIN matches m ON m.id = lim.match_id
+          WHERE lim.status = \'scheduled\'
+            AND m.id IS NULL
+            AND (ht.club_id = :club_id OR at.club_id = :club_id)
+            AND (lim.kickoff_at IS NULL OR lim.kickoff_at >= :now)
+          ORDER BY COALESCE(lim.kickoff_at, \'9999-12-31 23:59:59\') ASC, lim.match_id ASC
+          LIMIT ' . (int)$limit;
+
+          $stmt = db()->prepare($sql);
+          $stmt->execute([
+                    'club_id' => $clubId,
+                    'now' => $now,
+          ]);
+
+          return $stmt->fetchAll();
+}
+
 function get_match(int $id): ?array
 {
           $availableCols = ensure_match_video_columns();

@@ -2,6 +2,7 @@
 require_auth();
 require_once __DIR__ . '/../../../lib/match_repository.php';
 require_once __DIR__ . '/../../../lib/match_permissions.php';
+require_once __DIR__ . '/../../../lib/club_repository.php';
 
 $user = current_user();
 $roles = $_SESSION['roles'] ?? [];
@@ -15,18 +16,63 @@ unset($_SESSION['match_form_success'], $_SESSION['match_form_error']);
 
 $title = 'Matches';
 $isPlatformAdmin = function_exists('user_has_role') ? user_has_role('platform_admin') : false;
-$selectedClubId = isset($_GET['club_id']) ? (int)$_GET['club_id'] : ($selectedClubId ?? 0);
-$availableClubs = $availableClubs ?? [];
+$selectedClubId = 0;
 $selectedClub = null;
-foreach ($availableClubs as $club) {
-    if ((int)$club['id'] === (int)$selectedClubId) {
-        $selectedClub = $club;
-        break;
+$availableClubs = [];
+
+if ($isPlatformAdmin) {
+    $availableClubs = get_all_clubs();
+    $requestedClubId = isset($_GET['club_id']) ? (int)$_GET['club_id'] : 0;
+    if ($requestedClubId > 0) {
+        $club = get_club_by_id($requestedClubId);
+        if ($club) {
+            $_SESSION['stats_club_id'] = $requestedClubId;
+            $selectedClubId = $requestedClubId;
+            $selectedClub = $club;
+        }
+    }
+
+    if (!$selectedClub) {
+        $sessionClubId = isset($_SESSION['stats_club_id']) ? (int)$_SESSION['stats_club_id'] : 0;
+        if ($sessionClubId > 0) {
+            $club = get_club_by_id($sessionClubId);
+            if ($club) {
+                $selectedClubId = $sessionClubId;
+                $selectedClub = $club;
+            }
+        }
+    }
+
+    if (!$selectedClub && !empty($availableClubs)) {
+        $selectedClub = $availableClubs[0];
+        $selectedClubId = (int)($selectedClub['id'] ?? 0);
+        if ($selectedClubId > 0) {
+            $_SESSION['stats_club_id'] = $selectedClubId;
+        }
+    }
+} else {
+    $selectedClubId = (int)($user['club_id'] ?? 0);
+    if ($selectedClubId > 0) {
+        $selectedClub = get_club_by_id($selectedClubId);
+        $_SESSION['stats_club_id'] = $selectedClubId;
     }
 }
 $clubContextName = $selectedClub['name'] ?? 'Saltcoats Victoria F.C.';
-$showClubSelector = true;
+$showClubSelector = $isPlatformAdmin && !empty($availableClubs);
 
+$liClubId = $isPlatformAdmin ? $selectedClubId : (int)($user['club_id'] ?? 0);
+$liFixtures = $canManage ? get_li_scheduled_fixtures_for_club($liClubId, 12) : [];
+$currentUri = $_SERVER['REQUEST_URI'] ?? '/matches';
+$redirectPath = '/matches';
+if ($currentUri !== '') {
+    $parsedBase = $base ?: '';
+    if ($parsedBase !== '' && str_starts_with($currentUri, $parsedBase)) {
+        $candidate = substr($currentUri, strlen($parsedBase));
+        $redirectPath = $candidate !== '' ? $candidate : '/matches';
+    } elseif (str_starts_with($currentUri, '/matches')) {
+        $redirectPath = $currentUri;
+    }
+}
 
 $searchQuery = trim((string)($_GET['q'] ?? ''));
 $statusFilter = strtolower(trim((string)($_GET['status'] ?? '')));
@@ -157,6 +203,7 @@ if ($canManage) {
 }
 include __DIR__ . '/../../partials/header.php';
 ?>
+<link rel="stylesheet" href="/assets/css/stats-table.css">
 <div class="stats-page w-full mt-4 text-slate-200">
     <div class="max-w-full">
 
@@ -222,7 +269,12 @@ include __DIR__ . '/../../partials/header.php';
             <main class="stats-col-main col-span-7 space-y-4 min-w-0">
                 <div class="rounded-xl bg-slate-800 border border-white/10 p-3">
                     <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-2 mb-2">
-                        <h4 class="text-slate-200 font-semibold mb-1">Matches</h4>
+                        <div>
+                            <h1 class="text-2xl font-semibold text-white mb-1">Matches</h1>
+                            <p class="text-xs text-slate-400">
+                           All matches for <?= htmlspecialchars($clubContextName) ?>.
+                            </p>
+                        </div>
                     </div>
                     <?php if ($error): ?>
                         <div class="rounded-lg bg-red-900/80 border border-red-700 text-red-200 px-4 py-3 mb-4 text-sm"><?= htmlspecialchars($error) ?></div>
@@ -232,16 +284,14 @@ include __DIR__ . '/../../partials/header.php';
                     <?php if ($displayedMatches === 0): ?>
                         <div class="rounded-xl border border-white/10 bg-slate-800/40 p-4 text-slate-400 text-sm">No matches found for the current view.</div>
                     <?php else: ?>
-                                                       <table class="min-w-full text-sm text-slate-200">
+                              <table class="min-w-full text-sm text-slate-200" id="matches-table">
                                     <thead class="bg-slate-900/90 text-slate-100 uppercase tracking-wider">
                                         <tr>
-                                             <th class="px-3 py-2">Match</th>
+                                            <th class="px-3 py-2">Match</th>
                                             <th class="px-3 py-2">Date</th>
-                                            <th class="px-3 py-2">Time</th>
-                                           
-                                        
+                                            <th class="px-3 py-2">Time</th>                                        
                                             <th class="px-3 py-2">Competition</th>
-                                             <th class="px-3 py-2"></th>
+                                            <th class="px-3 py-2"></th>
                                             <th class="px-3 py-2 text-center">Action</th>
                                         </tr>
 
@@ -379,6 +429,63 @@ include __DIR__ . '/../../partials/header.php';
             </main>
             <!-- Right Sidebar -->
             <aside class="stats-col-right col-span-3 min-w-0">
+                <?php if ($canManage): ?>
+                    <div class="rounded-xl bg-slate-800 border border-white/10 p-3 mb-4">
+                        <div class="flex items-center justify-between gap-2 mb-1">
+                            <h5 class="text-slate-200 font-semibold">Upcoming Fixtures</h5>
+
+                        </div>
+                        <div class="text-slate-400 text-xs mb-3">Scheduled fixtures not yet in matches.</div>
+                        <?php if ($liClubId <= 0): ?>
+                            <div class="rounded-lg border border-white/10 bg-slate-900/70 p-3 text-xs text-slate-400">
+                                Select a club to view fixtures.
+                            </div>
+                        <?php elseif (empty($liFixtures)): ?>
+                            <div class="rounded-lg border border-white/10 bg-slate-900/70 p-3 text-xs text-slate-400">
+                                No upcoming fixtures found.
+                            </div>
+                        <?php else: ?>
+                            <div class="space-y-2">
+                                <?php foreach ($liFixtures as $fixture): ?>
+                                    <?php
+                                    $fixtureId = (int)$fixture['match_id'];
+                                    $homeName = trim((string)($fixture['home_team_name'] ?? ''));
+                                    $awayName = trim((string)($fixture['away_team_name'] ?? ''));
+                                    $kickoffTs = $fixture['kickoff_at'] ? strtotime($fixture['kickoff_at']) : null;
+                                    $dateLabel = $kickoffTs ? date('d M', $kickoffTs) : 'TBD';
+                                    $timeLabel = $kickoffTs ? date('H:i', $kickoffTs) : '';
+                                    $competitionName = trim((string)($fixture['competition_name'] ?? ''));
+                                    ?>
+                                    <article class="rounded-lg border border-white/10 bg-slate-900/80 px-3 py-2">
+                                        <div class="flex items-center justify-between gap-2">
+                                            <div class="min-w-0">
+                                                <div class="text-xs text-slate-400"><?= htmlspecialchars($dateLabel) ?><?= $timeLabel ? ' · ' . htmlspecialchars($timeLabel) : '' ?></div>
+                                                <div class="text-sm text-slate-100 truncate">
+                                                    <?= htmlspecialchars($homeName !== '' ? $homeName : 'Home') ?>
+                                                    <span class="text-slate-400">vs</span><br>
+                                                    <?= htmlspecialchars($awayName !== '' ? $awayName : 'Away') ?>
+                                                </div>
+                                                <?php if ($competitionName !== ''): ?>
+                                                    <div class="text-[11px] text-slate-500 truncate"><?= htmlspecialchars($competitionName) ?></div>
+                                                <?php endif; ?>
+                                            </div>
+                                            <form method="post" action="<?= htmlspecialchars($base . '/api/league-intelligence/fixtures/accept') ?>" class="shrink-0 self-center">
+                                                <input type="hidden" name="li_match_id" value="<?= htmlspecialchars((string)$fixtureId) ?>">
+                                                <input type="hidden" name="redirect" value="<?= htmlspecialchars($redirectPath) ?>">
+                                                <?php if ($isPlatformAdmin): ?>
+                                                    <input type="hidden" name="club_id" value="<?= htmlspecialchars((string)$liClubId) ?>">
+                                                <?php endif; ?>
+                                                <button type="submit" class="inline-flex items-center rounded-md border border-slate-700/80 bg-slate-900/80 px-2 py-1 text-xs font-semibold text-slate-200 transition hover:bg-emerald-600 hover:border-emerald-300 hover:text-white">
+                                                    Accept
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </article>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
                 <div class="rounded-xl bg-slate-800 border border-white/10 p-3">
                     <h5 class="text-slate-200 font-semibold mb-1">Match Stats</h5>
                     <div class="text-slate-400 text-xs mb-4">Overview of matches</div>

@@ -141,6 +141,16 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    function syncUrlFilters() {
+        const params = new URLSearchParams();
+        if (teamSelect.value) params.set('team_id', teamSelect.value);
+        if (compSelect.value) params.set('competition_id', compSelect.value);
+        if (statusSelect.value) params.set('status', statusSelect.value);
+        const query = params.toString();
+        const nextUrl = query ? `${window.location.pathname}?${query}` : window.location.pathname;
+        window.history.replaceState({}, '', nextUrl);
+    }
+
     function filterRows() {
         const teamId = teamSelect.value;
         const compId = compSelect.value;
@@ -155,6 +165,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (show && status && rowStatus !== status) show = false;
             row.style.display = show ? '' : 'none';
         });
+        syncUrlFilters();
     }
 
     // When team changes, update competitions and filter
@@ -168,7 +179,31 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initial population
     updateCompetitionOptions();
+    // Restore filters from URL if present
+    const params = new URLSearchParams(window.location.search);
+    const teamParam = params.get('team_id');
+    const compParam = params.get('competition_id');
+    const statusParam = params.get('status');
+    if (teamParam) {
+        teamSelect.value = teamParam;
+    }
+    updateCompetitionOptions();
+    if (compParam) {
+        compSelect.value = compParam;
+    }
+    if (statusParam) {
+        statusSelect.value = statusParam;
+    }
     filterRows();
+
+    // Ensure delete redirects keep current filters
+    document.addEventListener('submit', function (event) {
+        const form = event.target;
+        if (!form || form.getAttribute('action')?.indexOf('/league-intelligence/matches/delete/') !== 0) return;
+        const redirectInput = form.querySelector('input[name="_redirect"]');
+        if (!redirectInput) return;
+        redirectInput.value = window.location.pathname + window.location.search;
+    }, true);
 
     // Tick system
     allRows.forEach(function(row) {

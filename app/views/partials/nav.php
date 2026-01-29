@@ -63,7 +63,7 @@ $primaryNavLinks = [
 
 if ($isPlatformAdmin) {
            $primaryNavLinks[] = [
-                     'label' => 'League Intelligence',
+                     'label' => 'League',
                      'href' => $leagueHref,
                      'active' => $leagueActive,
            ];

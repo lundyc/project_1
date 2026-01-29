@@ -2,6 +2,22 @@
 
 require_once __DIR__ . '/../lib/db.php';
 
+class WosflNameNormalizer
+{
+    public static function normalize(string $name): string
+    {
+        $name = strtolower(trim($name));
+        if ($name === '') {
+            return '';
+        }
+
+        $name = preg_replace("/[\\.,\\-'\\x{2018}\\x{2019}]+/u", '', $name);
+        $name = preg_replace('/\s+/', ' ', $name);
+
+        return trim($name);
+    }
+}
+
 class WosflHttpClient
 {
     private $userAgent;
@@ -53,6 +69,66 @@ class TeamRepository
     public function __construct(?PDO $pdo = null)
     {
         $this->pdo = $pdo ?: db();
+    }
+
+    private function normalizedNameExpr(): string
+    {
+        return "LOWER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(name), '.', ''), '-', ''), '''', ''), CHAR(8217), ''), CHAR(8216), ''))";
+    }
+
+    public function findByNormalizedName(string $name, ?int $clubId = null): array
+    {
+        $normalized = WosflNameNormalizer::normalize($name);
+        if ($normalized === '') {
+            return [];
+        }
+
+        if ($clubId !== null && $clubId <= 0) {
+            $clubId = null;
+        }
+
+        $sql = 'SELECT id, name FROM teams WHERE ' . $this->normalizedNameExpr() . ' = :normalized';
+        $params = ['normalized' => $normalized];
+
+        if ($clubId !== null) {
+            $sql .= ' AND club_id = :club_id';
+            $params['club_id'] = $clubId;
+        }
+
+        $sql .= ' ORDER BY name ASC LIMIT 5';
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return $rows ?: [];
+    }
+
+    public function searchByNormalizedName(string $name, ?int $clubId = null, int $limit = 10): array
+    {
+        $normalized = WosflNameNormalizer::normalize($name);
+        if ($normalized === '') {
+            return [];
+        }
+
+        if ($clubId !== null && $clubId <= 0) {
+            $clubId = null;
+        }
+
+        $limit = max(1, min($limit, 25));
+        $sql = 'SELECT id, name FROM teams WHERE ' . $this->normalizedNameExpr() . ' LIKE :pattern';
+        $params = ['pattern' => '%' . $normalized . '%'];
+
+        if ($clubId !== null) {
+            $sql .= ' AND club_id = :club_id';
+            $params['club_id'] = $clubId;
+        }
+
+        $sql .= ' ORDER BY name ASC LIMIT ' . (int)$limit;
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return $rows ?: [];
     }
 
     public function findByName(string $name): ?array
@@ -115,6 +191,66 @@ class CompetitionRepository
     public function __construct(?PDO $pdo = null)
     {
         $this->pdo = $pdo ?: db();
+    }
+
+    private function normalizedNameExpr(): string
+    {
+        return "LOWER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(name), '.', ''), '-', ''), '''', ''), CHAR(8217), ''), CHAR(8216), ''))";
+    }
+
+    public function findByNormalizedName(string $name, ?int $clubId = null): array
+    {
+        $normalized = WosflNameNormalizer::normalize($name);
+        if ($normalized === '') {
+            return [];
+        }
+
+        if ($clubId !== null && $clubId <= 0) {
+            $clubId = null;
+        }
+
+        $sql = 'SELECT id, name, season_id, type, club_id FROM competitions WHERE ' . $this->normalizedNameExpr() . ' = :normalized';
+        $params = ['normalized' => $normalized];
+
+        if ($clubId !== null) {
+            $sql .= ' AND club_id = :club_id';
+            $params['club_id'] = $clubId;
+        }
+
+        $sql .= ' ORDER BY name ASC LIMIT 5';
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return $rows ?: [];
+    }
+
+    public function searchByNormalizedName(string $name, ?int $clubId = null, int $limit = 10): array
+    {
+        $normalized = WosflNameNormalizer::normalize($name);
+        if ($normalized === '') {
+            return [];
+        }
+
+        if ($clubId !== null && $clubId <= 0) {
+            $clubId = null;
+        }
+
+        $limit = max(1, min($limit, 25));
+        $sql = 'SELECT id, name, season_id, type, club_id FROM competitions WHERE ' . $this->normalizedNameExpr() . ' LIKE :pattern';
+        $params = ['pattern' => '%' . $normalized . '%'];
+
+        if ($clubId !== null) {
+            $sql .= ' AND club_id = :club_id';
+            $params['club_id'] = $clubId;
+        }
+
+        $sql .= ' ORDER BY name ASC LIMIT ' . (int)$limit;
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return $rows ?: [];
     }
 
     public function findByName(string $name): ?array
@@ -202,9 +338,11 @@ class LeagueIntelligenceMatchRepository
                 SELECT 1
                 FROM league_intelligence_matches
                 WHERE kickoff_at = :kickoff_at
-                  AND home_team_id = :home_team_id
-                  AND away_team_id = :away_team_id
                   AND competition_id = :competition_id
+                  AND (
+                        (home_team_id = :home_team_id AND away_team_id = :away_team_id)
+                        OR (home_team_id = :away_team_id AND away_team_id = :home_team_id)
+                  )
                 LIMIT 1
             ');
 
@@ -222,22 +360,34 @@ class LeagueIntelligenceMatchRepository
         }
     }
 
-    public function findByKickoffAndTeams(string $kickoffAt, int $homeTeamId, int $awayTeamId): array
+    public function findByKickoffAndTeams(string $kickoffAt, int $homeTeamId, int $awayTeamId, ?int $competitionId = null): array
     {
         try {
-            $stmt = $this->pdo->prepare('
-                SELECT match_id, competition_id, season_id, home_goals, away_goals, status
+            $sql = '
+                SELECT match_id, competition_id, season_id, home_team_id, away_team_id, home_goals, away_goals, status
                 FROM league_intelligence_matches
                 WHERE kickoff_at = :kickoff_at
-                  AND home_team_id = :home_team_id
-                  AND away_team_id = :away_team_id
-                ORDER BY match_id ASC
-            ');
-            $stmt->execute([
+                  AND (
+                        (home_team_id = :home_team_id AND away_team_id = :away_team_id)
+                        OR (home_team_id = :away_team_id AND away_team_id = :home_team_id)
+                  )
+            ';
+
+            $params = [
                 'kickoff_at' => $kickoffAt,
                 'home_team_id' => $homeTeamId,
                 'away_team_id' => $awayTeamId,
-            ]);
+            ];
+
+            if ($competitionId !== null && $competitionId > 0) {
+                $sql .= ' AND competition_id = :competition_id';
+                $params['competition_id'] = $competitionId;
+            }
+
+            $sql .= ' ORDER BY match_id ASC';
+
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute($params);
 
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (Throwable $e) {
@@ -338,13 +488,14 @@ class WosflImportService
 
         foreach ($teams as $team) {
             $teamUrl = $team['url'] ?? '';
+            $teamName = $team['name'] ?? '';
             if ($teamUrl === '') {
                 continue;
             }
 
             $matchHubLinks = $this->fetchMatchHubLinks($teamUrl);
             foreach ($matchHubLinks as $link) {
-                $this->scrapeMatchHub($link, $matches, $seen);
+                $this->scrapeMatchHub($link, $matches, $seen, $teamName);
             }
         }
 
@@ -401,38 +552,26 @@ class WosflImportService
             $awayName = trim((string)($match['away_team_name'] ?? ''));
             $competitionName = trim((string)($match['competition_name'] ?? ''));
 
-            $homeKey = strtolower($homeName);
-            $awayKey = strtolower($awayName);
-            $competitionKey = strtolower($competitionName);
+            $homeLookup = $this->resolveTeamMatch($homeName, $teamCache);
+            $awayLookup = $this->resolveTeamMatch($awayName, $teamCache);
+            $competitionLookup = $this->resolveCompetitionMatch($competitionName, $competitionCache);
 
-            if ($homeName !== '') {
-                if (!array_key_exists($homeKey, $teamCache)) {
-                    $teamCache[$homeKey] = $this->teamRepository->findByName($homeName);
-                }
-            }
-
-            if ($awayName !== '') {
-                if (!array_key_exists($awayKey, $teamCache)) {
-                    $teamCache[$awayKey] = $this->teamRepository->findByName($awayName);
-                }
-            }
-
-            if ($competitionName !== '') {
-                if (!array_key_exists($competitionKey, $competitionCache)) {
-                    $competitionCache[$competitionKey] = $this->competitionRepository->findByName($competitionName);
-                }
-            }
-
-            $homeTeam = $teamCache[$homeKey] ?? null;
-            $awayTeam = $teamCache[$awayKey] ?? null;
-            $competition = $competitionCache[$competitionKey] ?? null;
+            $homeTeam = $homeLookup['match'] ?? null;
+            $awayTeam = $awayLookup['match'] ?? null;
+            $competition = $competitionLookup['match'] ?? null;
 
             $homeTeamId = $homeTeam['id'] ?? null;
             $awayTeamId = $awayTeam['id'] ?? null;
             $competitionId = $competition['id'] ?? null;
 
-            $teamFound = $homeTeamId !== null && $awayTeamId !== null;
-            $competitionFound = $competitionId !== null;
+            $homeFound = ($homeLookup['status'] ?? '') === 'found';
+            $awayFound = ($awayLookup['status'] ?? '') === 'found';
+            $competitionFound = ($competitionLookup['status'] ?? '') === 'found';
+            $teamFound = $homeFound && $awayFound;
+
+            $homeAmbiguous = ($homeLookup['status'] ?? '') === 'ambiguous';
+            $awayAmbiguous = ($awayLookup['status'] ?? '') === 'ambiguous';
+            $competitionAmbiguous = ($competitionLookup['status'] ?? '') === 'ambiguous';
 
             $existingMatch = false;
             $kickoffAt = $match['date_time'] ?? null;
@@ -450,7 +589,12 @@ class WosflImportService
                 'away_team_id' => $awayTeamId !== null ? (int)$awayTeamId : null,
                 'competition_id' => $competitionId !== null ? (int)$competitionId : null,
                 'team_found' => $teamFound,
+                'home_team_found' => $homeFound,
+                'away_team_found' => $awayFound,
+                'home_team_ambiguous' => $homeAmbiguous,
+                'away_team_ambiguous' => $awayAmbiguous,
                 'competition_found' => $competitionFound,
+                'competition_ambiguous' => $competitionAmbiguous,
                 'existing_match' => $existingMatch,
             ]);
         }
@@ -461,6 +605,100 @@ class WosflImportService
     public function saveImportRows(array $rows): int
     {
         return count($rows);
+    }
+
+    private function resolveTeamMatch(string $name, array &$cache): array
+    {
+        return $this->resolveEntityMatch(
+            $name,
+            $cache,
+            function (string $value): array {
+                return $this->teamRepository->findByNormalizedName($value);
+            },
+            function (string $value): array {
+                return $this->teamRepository->searchByNormalizedName($value);
+            }
+        );
+    }
+
+    private function resolveCompetitionMatch(string $name, array &$cache): array
+    {
+        return $this->resolveEntityMatch(
+            $name,
+            $cache,
+            function (string $value): array {
+                return $this->competitionRepository->findByNormalizedName($value);
+            },
+            function (string $value): array {
+                return $this->competitionRepository->searchByNormalizedName($value);
+            }
+        );
+    }
+
+    private function resolveEntityMatch(string $name, array &$cache, callable $exactFinder, callable $partialFinder): array
+    {
+        $normalized = WosflNameNormalizer::normalize($name);
+        if ($normalized === '') {
+            return [
+                'match' => null,
+                'status' => 'missing',
+                'matches' => 0,
+            ];
+        }
+
+        if (array_key_exists($normalized, $cache)) {
+            return $cache[$normalized];
+        }
+
+        $exactMatches = $exactFinder($name);
+        $exactCount = is_array($exactMatches) ? count($exactMatches) : 0;
+
+        if ($exactCount === 1) {
+            $cache[$normalized] = [
+                'match' => $exactMatches[0],
+                'status' => 'found',
+                'matches' => 1,
+            ];
+            return $cache[$normalized];
+        }
+
+        if ($exactCount > 1) {
+            $cache[$normalized] = [
+                'match' => null,
+                'status' => 'ambiguous',
+                'matches' => $exactCount,
+            ];
+            return $cache[$normalized];
+        }
+
+        $partialMatches = $partialFinder($name);
+        $partialCount = is_array($partialMatches) ? count($partialMatches) : 0;
+
+        if ($partialCount === 1) {
+            $cache[$normalized] = [
+                'match' => $partialMatches[0],
+                'status' => 'found',
+                'matches' => 1,
+            ];
+            return $cache[$normalized];
+        }
+
+        if ($partialCount > 1) {
+            $cache[$normalized] = [
+                'match' => null,
+                'status' => 'ambiguous',
+                'matches' => $partialCount,
+            ];
+            return $cache[$normalized];
+        }
+
+        $cache[$normalized] = [
+            'match' => null,
+            'status' => 'missing',
+            'matches' => 0,
+        ];
+
+        return $cache[$normalized];
     }
 
     private function fetchTeamsFromStandings(): array
@@ -527,7 +765,7 @@ class WosflImportService
         return array_values($links);
     }
 
-    private function scrapeMatchHub(string $url, array &$matches, array &$seen): void
+    private function scrapeMatchHub(string $url, array &$matches, array &$seen, string $sourceTeamName = ''): void
     {
         $nextUrl = $url;
         $visited = [];
@@ -545,10 +783,10 @@ class WosflImportService
 
             $page = $this->parseMatchHubPage($html, $nextUrl);
             foreach ($page['matches'] as $match) {
-                $key = $match['source_url'] ?? '';
-                if ($key === '') {
-                    $key = strtolower(trim(($match['date_time'] ?? '') . '|' . ($match['home_team_name'] ?? '') . '|' . ($match['away_team_name'] ?? '') . '|' . ($match['competition_name'] ?? '')));
+                if ($sourceTeamName !== '') {
+                    $match['source_team_name'] = $sourceTeamName;
                 }
+                $key = $this->buildMatchKey($match);
                 if ($key === '' || isset($seen[$key])) {
                     continue;
                 }
@@ -558,6 +796,16 @@ class WosflImportService
 
             $nextUrl = $page['next_url'];
         }
+    }
+
+    private function buildMatchKey(array $match): string
+    {
+        $dateTime = $this->normalizeWhitespace((string)($match['date_time'] ?? ''));
+        $homeTeam = $this->normalizeWhitespace((string)($match['home_team_name'] ?? ''));
+        $awayTeam = $this->normalizeWhitespace((string)($match['away_team_name'] ?? ''));
+        $competition = $this->normalizeWhitespace((string)($match['competition_name'] ?? ''));
+
+        return strtolower(trim($dateTime . '|' . $homeTeam . '|' . $awayTeam . '|' . $competition));
     }
 
     private function parseMatchHubPage(string $html, string $baseUrl): array

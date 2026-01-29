@@ -276,13 +276,17 @@ include __DIR__ . '/../../partials/header.php';
                     <div class="mt-1">
                         <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-2 mb-2">
                         
-                                <h4 class="mb-0">Matches</h4>
+                        <div>
+                            <h1 class="text-2xl font-semibold text-white mb-1">Matches</h1>
+                            <p class="text-xs text-slate-400">
+All matches for <?= htmlspecialchars($clubContextName) ?>.
+                            </p>
+                        </div>
                         
                          
                         </div>
                         <?php if (!empty($matches)): ?>
-                            <div class="overflow-x-auto">
-                                <table class="min-w-full text-sm text-slate-200" id="matches-table">
+                              <table class="min-w-full text-sm text-slate-200" id="matches-table">
                                     <thead class="bg-slate-900/90 text-slate-100 uppercase tracking-wider">
                                         <tr>
                                              <th class="px-3 py-2">Match</th>
@@ -334,7 +338,7 @@ include __DIR__ . '/../../partials/header.php';
                                     <?php endforeach; ?>
                                     </tbody>
                                 </table>
-                            </div>
+                          
                         <?php else: ?>
                             <div class="alert alert-secondary mb-0">No ready matches available yet.</div>
                         <?php endif; ?>

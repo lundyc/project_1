@@ -45,7 +45,8 @@ if (!$isPlatformAdmin) {
     $availableClubs = [$selectedClub];
 }
 
-$teams = get_teams_by_club($selectedClubId);
+$clubTeams = get_teams_by_club($selectedClubId);
+$opponentTeams = get_teams_not_in_club($selectedClubId);
 $seasons = get_seasons_by_club($selectedClubId);
 $competitions = get_competitions_by_club($selectedClubId);
 $clubPlayers = get_players_for_club($selectedClubId);
@@ -85,6 +86,35 @@ $clubPlayersJson = json_encode(array_map(function($p) {
     ];
 }, $clubPlayers));
 $footerScripts .= "<script>window.clubPlayers = {$clubPlayersJson};</script>";
+$footerScripts .= '<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const clubSideInput = document.getElementById("clubSide");
+    const buttons = document.querySelectorAll(".club-side-btn");
+    if (!clubSideInput || buttons.length === 0) return;
+
+    const baseClasses = ["bg-slate-800", "border-slate-700", "text-slate-200"];
+    const activeClasses = ["bg-blue-600", "border-blue-500", "text-white"];
+
+    const setActive = (value) => {
+        clubSideInput.value = value;
+        buttons.forEach(btn => {
+            const isActive = btn.getAttribute("data-club-side") === value;
+            baseClasses.forEach(cls => btn.classList.toggle(cls, !isActive));
+            activeClasses.forEach(cls => btn.classList.toggle(cls, isActive));
+            btn.setAttribute("aria-pressed", isActive ? "true" : "false");
+        });
+    };
+
+    buttons.forEach(btn => {
+        btn.addEventListener("click", () => {
+            const value = btn.getAttribute("data-club-side") || "home";
+            setActive(value);
+        });
+    });
+
+    setActive(clubSideInput.value || "home");
+});
+</script>';
 $headExtras = '';
 // Extract the <style> block from edit.php for identical styling (shared styles)
 $editPhp = file_get_contents(__DIR__ . '/edit.php'); // Still using edit.php for style extraction
@@ -187,27 +217,39 @@ include __DIR__ . '/../../partials/match_context_header.php';
         </h3>
         <div class="grid gap-4 grid-cols-1 md:grid-cols-2">
             <div>
-                <label class="block text-sm font-medium text-slate-300 mb-2" for="homeTeam">
-                    Home Team <span class="text-rose-400">*</span>
+                <label class="block text-sm font-medium text-slate-300 mb-2" for="clubTeam">
+                    Your Club <span class="text-rose-400">*</span>
                 </label>
-                <select id="homeTeam" name="home_team_id" required class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40">
-                    <option value="">Select home team</option>
-                    <?php foreach ($teams as $team): ?>
+                <select id="clubTeam" name="club_team_id" required class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40">
+                    <option value="">Select your team</option>
+                    <?php foreach ($clubTeams as $team): ?>
                         <option value="<?= (int)$team['id'] ?>"><?= htmlspecialchars($team['name']) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
             <div>
-                <label class="block text-sm font-medium text-slate-300 mb-2" for="awayTeam">
-                    Away Team <span class="text-rose-400">*</span>
+                <label class="block text-sm font-medium text-slate-300 mb-2" for="opponentTeam">
+                    Opponents <span class="text-rose-400">*</span>
                 </label>
-                <select id="awayTeam" name="away_team_id" required class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40">
-                    <option value="">Select away team</option>
-                    <?php foreach ($teams as $team): ?>
+                <select id="opponentTeam" name="opponent_team_id" required class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40">
+                    <option value="">Select opponent</option>
+                    <?php foreach ($opponentTeams as $team): ?>
                         <option value="<?= (int)$team['id'] ?>"><?= htmlspecialchars($team['name']) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
+        </div>
+        <div class="mt-4">
+            <label class="block text-sm font-medium text-slate-300 mb-2">Home/Away</label>
+            <div class="flex flex-wrap gap-2">
+                <button type="button" class="club-side-btn flex-1 rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-700" data-club-side="home" aria-pressed="true">
+                    <i class="fa-solid fa-house mr-2"></i>Your Club at Home
+                </button>
+                <button type="button" class="club-side-btn flex-1 rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-700" data-club-side="away" aria-pressed="false">
+                    <i class="fa-solid fa-arrow-right mr-2"></i>Your Club Away
+                </button>
+            </div>
+            <input type="hidden" name="club_side" id="clubSide" value="home">
         </div>
     </div>
     <div class="space-y-4 border-l-4 border-emerald-500 pl-4 py-3 rounded-r bg-emerald-500/5">

@@ -117,6 +117,11 @@ route('/api/matches/create', function () {
           require __DIR__ . '/../app/api/matches/create.php';
 });
 
+route('/api/league-intelligence/fixtures/accept', function () {
+          require_auth();
+          require __DIR__ . '/../app/api/league_intelligence/fixtures_accept.php';
+});
+
 route('/admin', function () {
           require_admin();
           require __DIR__ . '/../app/views/pages/admin/dashboard.php';

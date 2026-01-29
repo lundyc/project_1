@@ -142,6 +142,31 @@ class LeagueIntelligenceImportController extends Controller
         return ($homeGoals !== null && $awayGoals !== null) ? 'completed' : 'scheduled';
     }
 
+    private function resolveSingleMatch(string $name, callable $exactFinder, callable $partialFinder): ?array
+    {
+        if (trim($name) === '') {
+            return null;
+        }
+
+        $exactMatches = $exactFinder($name);
+        if (is_array($exactMatches)) {
+            $count = count($exactMatches);
+            if ($count === 1) {
+                return $exactMatches[0];
+            }
+            if ($count > 1) {
+                return null;
+            }
+        }
+
+        $partialMatches = $partialFinder($name);
+        if (is_array($partialMatches) && count($partialMatches) === 1) {
+            return $partialMatches[0];
+        }
+
+        return null;
+    }
+
     private function resolveCompetitionType(string $name): string
     {
         $lower = strtolower($name);
@@ -209,29 +234,33 @@ class LeagueIntelligenceImportController extends Controller
 
                 $homeTeamId = isset($row['home_team_id']) ? (int)$row['home_team_id'] : 0;
                 if ($homeTeamId <= 0) {
-                    $homeTeam = $teamRepository->findByNameForClub($homeTeamName, $clubId);
+                    $homeTeam = $this->resolveSingleMatch(
+                        $homeTeamName,
+                        function (string $value) use ($teamRepository, $clubId): array {
+                            return $teamRepository->findByNormalizedName($value, $clubId);
+                        },
+                        function (string $value) use ($teamRepository, $clubId): array {
+                            return $teamRepository->searchByNormalizedName($value, $clubId);
+                        }
+                    );
                     if ($homeTeam) {
                         $homeTeamId = (int)$homeTeam['id'];
-                    } else {
-                        $created = $teamRepository->create($homeTeamName, $clubId, 'opponent');
-                        if ($created) {
-                            $homeTeamId = (int)$created['id'];
-                            $counts['created_teams']++;
-                        }
                     }
                 }
 
                 $awayTeamId = isset($row['away_team_id']) ? (int)$row['away_team_id'] : 0;
                 if ($awayTeamId <= 0) {
-                    $awayTeam = $teamRepository->findByNameForClub($awayTeamName, $clubId);
+                    $awayTeam = $this->resolveSingleMatch(
+                        $awayTeamName,
+                        function (string $value) use ($teamRepository, $clubId): array {
+                            return $teamRepository->findByNormalizedName($value, $clubId);
+                        },
+                        function (string $value) use ($teamRepository, $clubId): array {
+                            return $teamRepository->searchByNormalizedName($value, $clubId);
+                        }
+                    );
                     if ($awayTeam) {
                         $awayTeamId = (int)$awayTeam['id'];
-                    } else {
-                        $created = $teamRepository->create($awayTeamName, $clubId, 'opponent');
-                        if ($created) {
-                            $awayTeamId = (int)$created['id'];
-                            $counts['created_teams']++;
-                        }
                     }
                 }
 
@@ -248,18 +277,18 @@ class LeagueIntelligenceImportController extends Controller
                         $competitionSeasonId = (int)$competition['season_id'];
                     }
                 } elseif ($competitionName !== '') {
-                    $competition = $competitionRepository->findByNameForClub($competitionName, $clubId);
+                    $competition = $this->resolveSingleMatch(
+                        $competitionName,
+                        function (string $value) use ($competitionRepository, $clubId): array {
+                            return $competitionRepository->findByNormalizedName($value, $clubId);
+                        },
+                        function (string $value) use ($competitionRepository, $clubId): array {
+                            return $competitionRepository->searchByNormalizedName($value, $clubId);
+                        }
+                    );
                     if ($competition) {
                         $competitionId = (int)$competition['id'];
                         $competitionSeasonId = !empty($competition['season_id']) ? (int)$competition['season_id'] : $seasonId;
-                    } else {
-                        $type = $this->resolveCompetitionType($competitionName);
-                        $created = $competitionRepository->create($competitionName, $clubId, $seasonId, $type);
-                        if ($created) {
-                            $competitionId = (int)$created['id'];
-                            $competitionSeasonId = $seasonId;
-                            $counts['created_competitions']++;
-                        }
                     }
                 }
 
@@ -268,15 +297,7 @@ class LeagueIntelligenceImportController extends Controller
                     continue;
                 }
 
-                $matches = $matchRepository->findByKickoffAndTeams($kickoffAt, $homeTeamId, $awayTeamId);
-                if ($competitionId > 0 && count($matches) > 1) {
-                    $filtered = array_values(array_filter($matches, static function (array $match) use ($competitionId) {
-                        return (int)($match['competition_id'] ?? 0) === $competitionId;
-                    }));
-                    if (!empty($filtered)) {
-                        $matches = $filtered;
-                    }
-                }
+                $matches = $matchRepository->findByKickoffAndTeams($kickoffAt, $homeTeamId, $awayTeamId, $competitionId);
 
                 if (!empty($matches)) {
                     if (count($matches) > 1) {
@@ -290,9 +311,15 @@ class LeagueIntelligenceImportController extends Controller
                         ));
                     }
                     $match = $matches[0];
+                    $updateHomeGoals = $homeGoals;
+                    $updateAwayGoals = $awayGoals;
+                    if ((int)($match['home_team_id'] ?? 0) === $awayTeamId && (int)($match['away_team_id'] ?? 0) === $homeTeamId) {
+                        $updateHomeGoals = $awayGoals;
+                        $updateAwayGoals = $homeGoals;
+                    }
                     $matchRepository->updateMatch((int)$match['match_id'], [
-                        'home_goals' => $homeGoals,
-                        'away_goals' => $awayGoals,
+                        'home_goals' => $updateHomeGoals,
+                        'away_goals' => $updateAwayGoals,
                         'status' => $status,
                     ]);
                     $counts['updated']++;
@@ -406,6 +433,13 @@ class LeagueIntelligenceImportController extends Controller
             redirect('/league-intelligence/import');
         }
 
+        if ($this->isAjax() && $counts['processed'] === 0) {
+            header('Content-Type: application/json');
+            http_response_code(422);
+            echo json_encode(['success' => false, 'error' => 'Row could not be saved. Resolve missing teams or competition and try again.']);
+            exit;
+        }
+
         $leagueService = new LeagueIntelligenceService();
         $leagueService->syncMatches();
 
@@ -429,7 +463,7 @@ class LeagueIntelligenceImportController extends Controller
 
         if ($this->isAjax()) {
             header('Content-Type: application/json');
-            echo json_encode(['success' => true]);
+            echo json_encode(['success' => true, 'counts' => $counts]);
             exit;
         }
         redirect('/league-intelligence');

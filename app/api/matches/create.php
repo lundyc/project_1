@@ -98,8 +98,27 @@ if (!can_manage_matches($user, $roles)) {
 $clubId = $isPlatformAdmin ? (int)($input['club_id'] ?? 0) : (int)($user['club_id'] ?? 0);
 $seasonId = isset($input['season_id']) && $input['season_id'] !== '' ? (int)$input['season_id'] : null;
 $competitionId = isset($input['competition_id']) && $input['competition_id'] !== '' ? (int)$input['competition_id'] : null;
-$homeTeamId = (int)($input['home_team_id'] ?? 0);
-$awayTeamId = (int)($input['away_team_id'] ?? 0);
+$clubTeamId = (int)($input['club_team_id'] ?? 0);
+$opponentTeamId = (int)($input['opponent_team_id'] ?? 0);
+$clubSide = strtolower(trim((string)($input['club_side'] ?? 'home')));
+$clubSide = $clubSide === 'away' ? 'away' : 'home';
+
+$homeTeamId = 0;
+$awayTeamId = 0;
+if ($clubTeamId > 0 || $opponentTeamId > 0) {
+          if ($clubTeamId > 0 && $opponentTeamId > 0) {
+                    if ($clubSide === 'away') {
+                              $homeTeamId = $opponentTeamId;
+                              $awayTeamId = $clubTeamId;
+                    } else {
+                              $homeTeamId = $clubTeamId;
+                              $awayTeamId = $opponentTeamId;
+                    }
+          }
+} else {
+          $homeTeamId = (int)($input['home_team_id'] ?? 0);
+          $awayTeamId = (int)($input['away_team_id'] ?? 0);
+}
 $kickoffRaw = trim($input['kickoff_at'] ?? '');
 $venue = trim($input['venue'] ?? '');
 $referee = trim($input['referee'] ?? '');
@@ -116,6 +135,24 @@ log_match_wizard_event(null, 'match_creation_request', 'Creating match with subm
           'video_type' => $videoType,
           'status' => $status,
 ]);
+
+if ($clubTeamId > 0 || $opponentTeamId > 0) {
+          if (!$clubTeamId || !$opponentTeamId) {
+                    log_match_wizard_event(null, 'match_creation_validation', 'Club or opponent team missing', [
+                              'club_team_id' => $clubTeamId,
+                              'opponent_team_id' => $opponentTeamId,
+                    ]);
+                    if ($wantsJson) {
+                              respond_match_json(422, [
+                                        'ok' => false,
+                                        'error' => 'Your club team and opponent team are required',
+                                        'error_code' => 'match_creation_missing_fields',
+                              ]);
+                    }
+                    $_SESSION['match_form_error'] = 'Your club team and opponent team are required';
+                    redirect('/matches/create');
+          }
+}
 
 if (!$clubId || !$homeTeamId || !$awayTeamId) {
           log_match_wizard_event(null, 'match_creation_validation', 'Required team or club ID missing', [
@@ -162,28 +199,90 @@ $attendance = $attendanceRaw === '' ? null : (int)$attendanceRaw;
 $status = in_array($status, ['draft', 'ready'], true) ? $status : 'draft';
 $videoPath = $videoPath === '' ? null : $videoPath;
 
-// Validate club ownership for related records
-$teamCheck = db()->prepare('SELECT COUNT(*) AS cnt FROM teams WHERE club_id = :club_id AND id IN (:home_id, :away_id)');
-$teamCheck->execute([
-          'club_id' => $clubId,
-          'home_id' => $homeTeamId,
-          'away_id' => $awayTeamId,
-]);
-$teamCount = (int)$teamCheck->fetchColumn();
-if ($teamCount < 2) {
-          log_match_wizard_event(null, 'match_creation_validation', 'Teams do not belong to club', [
-                    'club_id' => $clubId,
-                    'team_count' => $teamCount,
+// Validate team ownership (one team from club, one from another club)
+$teamStmt = db()->prepare('SELECT id, club_id FROM teams WHERE id = :id LIMIT 1');
+$teamStmt->execute(['id' => $homeTeamId]);
+$homeTeamRow = $teamStmt->fetch(PDO::FETCH_ASSOC);
+$teamStmt->execute(['id' => $awayTeamId]);
+$awayTeamRow = $teamStmt->fetch(PDO::FETCH_ASSOC);
+
+if (!$homeTeamRow || !$awayTeamRow) {
+          log_match_wizard_event(null, 'match_creation_validation', 'Team not found', [
+                    'home_team_id' => $homeTeamId,
+                    'away_team_id' => $awayTeamId,
           ]);
           if ($wantsJson) {
                     respond_match_json(422, [
                               'ok' => false,
-                              'error' => 'Teams must belong to the selected club',
+                              'error' => 'Selected teams are invalid',
                               'error_code' => 'match_creation_invalid_teams',
                     ]);
           }
-          $_SESSION['match_form_error'] = 'Teams must belong to the selected club';
+          $_SESSION['match_form_error'] = 'Selected teams are invalid';
           redirect('/matches/create?club_id=' . $clubId);
+}
+
+$homeIsClub = (int)$homeTeamRow['club_id'] === $clubId;
+$awayIsClub = (int)$awayTeamRow['club_id'] === $clubId;
+
+if (!$homeIsClub && !$awayIsClub) {
+          log_match_wizard_event(null, 'match_creation_validation', 'Club team missing from matchup', [
+                    'club_id' => $clubId,
+                    'home_team_id' => $homeTeamId,
+                    'away_team_id' => $awayTeamId,
+          ]);
+          if ($wantsJson) {
+                    respond_match_json(422, [
+                              'ok' => false,
+                              'error' => 'Your club must be one of the teams',
+                              'error_code' => 'match_creation_invalid_teams',
+                    ]);
+          }
+          $_SESSION['match_form_error'] = 'Your club must be one of the teams';
+          redirect('/matches/create?club_id=' . $clubId);
+}
+
+if ($homeIsClub && $awayIsClub) {
+          log_match_wizard_event(null, 'match_creation_validation', 'Opponent team belongs to club', [
+                    'club_id' => $clubId,
+                    'home_team_id' => $homeTeamId,
+                    'away_team_id' => $awayTeamId,
+          ]);
+          if ($wantsJson) {
+                    respond_match_json(422, [
+                              'ok' => false,
+                              'error' => 'Opponent must be from another club',
+                              'error_code' => 'match_creation_invalid_teams',
+                    ]);
+          }
+          $_SESSION['match_form_error'] = 'Opponent must be from another club';
+          redirect('/matches/create?club_id=' . $clubId);
+}
+
+if ($clubTeamId > 0 || $opponentTeamId > 0) {
+          if ($clubSide === 'home' && !$homeIsClub) {
+                    if ($wantsJson) {
+                              respond_match_json(422, [
+                                        'ok' => false,
+                                        'error' => 'Your club must be selected as the home team',
+                                        'error_code' => 'match_creation_invalid_teams',
+                              ]);
+                    }
+                    $_SESSION['match_form_error'] = 'Your club must be selected as the home team';
+                    redirect('/matches/create?club_id=' . $clubId);
+          }
+
+          if ($clubSide === 'away' && !$awayIsClub) {
+                    if ($wantsJson) {
+                              respond_match_json(422, [
+                                        'ok' => false,
+                                        'error' => 'Your club must be selected as the away team',
+                                        'error_code' => 'match_creation_invalid_teams',
+                              ]);
+                    }
+                    $_SESSION['match_form_error'] = 'Your club must be selected as the away team';
+                    redirect('/matches/create?club_id=' . $clubId);
+          }
 }
 
 if ($seasonId !== null) {

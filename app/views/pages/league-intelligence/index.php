@@ -38,6 +38,7 @@ unset($_SESSION['wosfl_import_success'], $_SESSION['wosfl_import_error']);
 ?>
 
 <?php ob_start(); ?>
+<link rel="stylesheet" href="/assets/css/stats-table.css">
 <div class="w-full mt-4 text-slate-200">
     <div class="max-w-full">
         <?php if ($flashSuccess): ?>
@@ -55,16 +56,13 @@ unset($_SESSION['wosfl_import_success'], $_SESSION['wosfl_import_error']);
             <aside class="stats-col-left col-span-2 space-y-4 min-w-0">
                 <?php if ($currentUserIsAdmin): ?>
                     <div class="space-y-2">
-                        <form method="post" action="<?= htmlspecialchars($base) ?>/league-intelligence/import/run">
-                            <button type="submit" class="stats-tab w-full justify-start text-left px-4 py-2.5 text-sm font-medium rounded-lg border transition-all duration-200 bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-500/20 flex">Import All Fixtures &amp; Results</button>
-                        </form>
                         <form method="post" action="<?= htmlspecialchars($base) ?>/league-intelligence/update-week">
                             <button type="submit" class="stats-tab w-full justify-start text-left px-4 py-2.5 text-sm font-medium rounded-lg border transition-all duration-200 bg-slate-800/40 border-white/10 text-slate-300 hover:bg-slate-700/50 hover:border-white/20 flex">Update This Week</button>
                         </form>
                     </div>
                 <?php endif; ?>
                 <form method="get" class="flex flex-col gap-3" role="search">
-                    <a href="<?= htmlspecialchars($base) ?>/league-intelligence/matches" class="stats-tab w-full justify-start text-left px-4 py-2.5 text-sm font-medium rounded-lg border transition-all duration-200 bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20 mb-2 flex text-center">Matches CRUD</a>
+                    <a href="<?= htmlspecialchars($base) ?>/league-intelligence/matches" class="stats-tab w-full justify-start text-left px-4 py-2.5 text-sm font-medium rounded-lg border transition-all duration-200 bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20 mb-2 flex text-center">Matches Editor</a>
                     <div>
                         <label class="block text-slate-400 text-xs mb-1" for="season-select">Season</label>
                         <select id="season-select" name="season_id" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs">
@@ -99,8 +97,8 @@ unset($_SESSION['wosfl_import_success'], $_SESSION['wosfl_import_error']);
             </aside>
             <!-- Main Content -->
             <main class="stats-col-main col-span-7 space-y-4 min-w-0">
-                <div class="rounded-xl bg-slate-900/80 border border-white/10 p-5">
-                    <div class="flex flex-col md:flex-row md:items-end md:justify-between mb-2 gap-2">
+                <div class="rounded-xl bg-slate-800 border border-white/10 p-3">
+                     <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-2 mb-2">
                         <div>
                             <h1 class="text-2xl font-semibold text-white mb-1">League Table</h1>
                             <p class="text-xs text-slate-400">
@@ -109,42 +107,42 @@ unset($_SESSION['wosfl_import_success'], $_SESSION['wosfl_import_error']);
                         </div>
                         <div class="text-xs text-slate-400 self-end"><?= count($leagueTable) ?> teams</div>
                     </div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full min-w-[700px] text-left text-sm text-slate-300">
-                            <thead>
-                                <tr class="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                                    <th class="px-3 py-2">Pos</th>
+                
+                        <table class="w-full min-w-[700px] text-left text-sm text-slate-300" id="matches-table">
+                                                                <thead class="bg-slate-900/90 text-slate-100 uppercase tracking-wider">
+<tr>
+                                    <th class="px-3 py-2 w-10">#</th>
                                     <th class="px-3 py-2">Team</th>
-                                    <th class="px-3 py-2">Pld</th>
-                                    <th class="px-3 py-2">W</th>
-                                    <th class="px-3 py-2">D</th>
-                                    <th class="px-3 py-2">L</th>
-                                    <th class="px-3 py-2">GF</th>
-                                    <th class="px-3 py-2">GA</th>
-                                    <th class="px-3 py-2">GD</th>
+                                    <th class="px-3 py-2 w-12">Pld</th>
+                                    <th class="px-3 py-2 w-10">W</th>
+                                    <th class="px-3 py-2 w-10">D</th>
+                                    <th class="px-3 py-2 w-10">L</th>
+                                    <th class="px-3 py-2 w-12">GF</th>
+                                    <th class="px-3 py-2 w-12">GA</th>
+                                    <th class="px-3 py-2 w-12">GD</th>
                                     <th class="px-3 py-2">Pts</th>
-                                    <th class="px-3 py-2">Form</th>
-                                    <th class="px-3 py-2">Streak</th>
+                                  
+                                
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-white/5">
                                 <?php foreach ($leagueTable as $row): ?>
                                     <tr class="align-top text-sm text-slate-200">
-                                        <td class="px-3 py-3 font-semibold text-white"><?= (int)$row['position'] ?></td>
+                                        <td class="px-3 py-3 w-10 font-semibold text-white"><?= (int)$row['position'] ?></td>
                                         <td class="px-3 py-3">
                                             <a href="<?= htmlspecialchars($base . '/league-intelligence/team/' . $row['team_id'] . $filterQuery) ?>" class="inline-flex items-baseline gap-2 text-sm font-semibold text-white hover:text-emerald-300">
                                                 <?= htmlspecialchars($row['team_name']) ?>
-                                                <span class="text-[11px] font-normal text-slate-500">P<?= (int)$row['played'] ?></span>
                                             </a>
                                         </td>
-                                        <td class="px-3 py-3"><?= (int)$row['played'] ?></td>
-                                        <td class="px-3 py-3"><?= (int)$row['wins'] ?></td>
-                                        <td class="px-3 py-3"><?= (int)$row['draws'] ?></td>
-                                        <td class="px-3 py-3"><?= (int)$row['losses'] ?></td>
-                                        <td class="px-3 py-3"><?= (int)$row['goals_for'] ?></td>
-                                        <td class="px-3 py-3"><?= (int)$row['goals_against'] ?></td>
-                                        <td class="px-3 py-3"><?= (int)$row['goal_difference'] ?></td>
+                                        <td class="px-3 py-3 w-12"><?= (int)$row['played'] ?></td>
+                                        <td class="px-3 py-3 w-10"><?= (int)$row['wins'] ?></td>
+                                        <td class="px-3 py-3 w-10"><?= (int)$row['draws'] ?></td>
+                                        <td class="px-3 py-3 w-10"><?= (int)$row['losses'] ?></td>
+                                        <td class="px-3 py-3 w-12"><?= (int)$row['goals_for'] ?></td>
+                                        <td class="px-3 py-3 w-12"><?= (int)$row['goals_against'] ?></td>
+                                        <td class="px-3 py-3 w-12"><?= (int)$row['goal_difference'] ?></td>
                                         <td class="px-3 py-3">
+                                          
                                             <div class="text-xs text-slate-400"><?= number_format((float)$row['points_per_game'], 2) ?> PPG</div>
                                             <div class="flex gap-1 mt-2">
                                                 <?php if (!empty($row['form_display'])): ?>
@@ -156,14 +154,12 @@ unset($_SESSION['wosfl_import_success'], $_SESSION['wosfl_import_error']);
                                                 <?php endif; ?>
                                             </div>
                                         </td>
-                                        <td class="px-3 py-3 text-sm text-slate-200">
-                                            <?= htmlspecialchars($row['streak_label'] ?: '—') ?>
-                                        </td>
+                                   
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>
                         </table>
-                    </div>
+                  
                 </div>
             </main>
             <!-- Right Sidebar -->
@@ -177,7 +173,7 @@ unset($_SESSION['wosfl_import_success'], $_SESSION['wosfl_import_error']);
                             <?php foreach ($fixtures as $match): ?>
                                 <article class="rounded-lg border border-white/10 bg-slate-800/40 px-3 py-3 flex flex-col gap-1">
                                     <div class="flex justify-between items-center">
-                                        <span class="font-semibold text-white text-sm"><?= htmlspecialchars($match['home_team'] ?? '?') ?> vs <?= htmlspecialchars($match['away_team'] ?? '?') ?></span>
+                                        <span class="font-semibold text-white text-sm"><?= htmlspecialchars($match['home_team'] ?? '?') ?> vs <br><?= htmlspecialchars($match['away_team'] ?? '?') ?></span>
                                         <span class="text-xs text-slate-400"><?= htmlspecialchars($formatMatchDate($match['date'])) ?></span>
                                     </div>
                                 </article>

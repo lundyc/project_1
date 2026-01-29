@@ -105,8 +105,27 @@ if (!can_manage_match_for_club($user, $roles, (int)$existing['club_id'])) {
 $clubId = $isPlatformAdmin ? (int)($input['club_id'] ?? $existing['club_id']) : (int)$existing['club_id'];
 $seasonId = isset($input['season_id']) && $input['season_id'] !== '' ? (int)$input['season_id'] : null;
 $competitionId = isset($input['competition_id']) && $input['competition_id'] !== '' ? (int)$input['competition_id'] : null;
-$homeTeamId = (int)($input['home_team_id'] ?? 0);
-$awayTeamId = (int)($input['away_team_id'] ?? 0);
+$clubTeamId = (int)($input['club_team_id'] ?? 0);
+$opponentTeamId = (int)($input['opponent_team_id'] ?? 0);
+$clubSide = strtolower(trim((string)($input['club_side'] ?? 'home')));
+$clubSide = $clubSide === 'away' ? 'away' : 'home';
+
+$homeTeamId = 0;
+$awayTeamId = 0;
+if ($clubTeamId > 0 || $opponentTeamId > 0) {
+          if ($clubTeamId > 0 && $opponentTeamId > 0) {
+                    if ($clubSide === 'away') {
+                              $homeTeamId = $opponentTeamId;
+                              $awayTeamId = $clubTeamId;
+                    } else {
+                              $homeTeamId = $clubTeamId;
+                              $awayTeamId = $opponentTeamId;
+                    }
+          }
+} else {
+          $homeTeamId = (int)($input['home_team_id'] ?? 0);
+          $awayTeamId = (int)($input['away_team_id'] ?? 0);
+}
 $kickoffRaw = trim($input['kickoff_at'] ?? '');
 $venue = substr(trim($input['venue'] ?? ''), 0, 255);
 $referee = substr(trim($input['referee'] ?? ''), 0, 255);
@@ -146,6 +165,12 @@ if ($videoType === 'none') {
 }
 
 // Validate required fields
+if ($clubTeamId > 0 || $opponentTeamId > 0) {
+          if (!$clubTeamId || !$opponentTeamId) {
+                    handle_validation_error('Your club team and opponent team are required', $matchId, $wantsJson);
+          }
+}
+
 if (!$clubId || !$homeTeamId || !$awayTeamId) {
           handle_validation_error('Club, home team, and away team are required', $matchId, $wantsJson);
 }
@@ -181,15 +206,34 @@ if ($attendanceRaw !== '') {
 
 $videoPath = $videoPath === '' ? null : $videoPath;
 
-$teamCheck = db()->prepare('SELECT COUNT(*) AS cnt FROM teams WHERE club_id = :club_id AND id IN (:home_id, :away_id)');
-$teamCheck->execute([
-          'club_id' => $clubId,
-          'home_id' => $homeTeamId,
-          'away_id' => $awayTeamId,
-]);
-$teamCount = (int)$teamCheck->fetchColumn();
-if ($teamCount < 2) {
-          handle_validation_error('Teams must belong to the selected club', $matchId, $wantsJson);
+$teamStmt = db()->prepare('SELECT id, club_id FROM teams WHERE id = :id LIMIT 1');
+$teamStmt->execute(['id' => $homeTeamId]);
+$homeTeamRow = $teamStmt->fetch(PDO::FETCH_ASSOC);
+$teamStmt->execute(['id' => $awayTeamId]);
+$awayTeamRow = $teamStmt->fetch(PDO::FETCH_ASSOC);
+
+if (!$homeTeamRow || !$awayTeamRow) {
+          handle_validation_error('Selected teams are invalid', $matchId, $wantsJson);
+}
+
+$homeIsClub = (int)$homeTeamRow['club_id'] === $clubId;
+$awayIsClub = (int)$awayTeamRow['club_id'] === $clubId;
+
+if (!$homeIsClub && !$awayIsClub) {
+          handle_validation_error('Your club must be one of the teams', $matchId, $wantsJson);
+}
+
+if ($homeIsClub && $awayIsClub) {
+          handle_validation_error('Opponent must be from another club', $matchId, $wantsJson);
+}
+
+if ($clubTeamId > 0 || $opponentTeamId > 0) {
+          if ($clubSide === 'home' && !$homeIsClub) {
+                    handle_validation_error('Your club must be selected as the home team', $matchId, $wantsJson);
+          }
+          if ($clubSide === 'away' && !$awayIsClub) {
+                    handle_validation_error('Your club must be selected as the away team', $matchId, $wantsJson);
+          }
 }
 
 if ($seasonId !== null) {
