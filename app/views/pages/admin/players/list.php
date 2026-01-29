@@ -40,7 +40,7 @@ ob_start();
             include __DIR__ . '/../../../partials/club_context_header.php';
         ?>
         <div class="flex justify-end mb-4 px-4 md:px-6 lg:px-8">
-            <a href="<?= $base ?>/admin/players/create.php" class="btn-primary-soft px-4 py-2 text-sm font-semibold rounded-md">+ Create Player</a>
+            <a href="<?= $base ?>/admin/players/create.php" class="inline-flex items-center gap-2 bg-accent-primary text-white px-4 py-2 rounded-md hover:bg-accent-primary/80 transition">+ Create Player</a>
         </div>
         <div class="grid grid-cols-12 gap-2 px-4 md:px-6 lg:px-8 w-full">
             <!-- Left: Filters -->
@@ -173,7 +173,7 @@ ob_start();
                                                     <i class="fa-solid fa-pen"></i>
                                                 </a>
                                                 <form method="post" action="<?= htmlspecialchars($base) ?>/admin/players/<?= (int)$player['id'] ?>/delete" class="inline" onsubmit="return confirm('Mark this player as inactive?');">
-                                                    <button type="submit" class="inline-flex items-center rounded-md bg-red-700/60 px-2 py-1 text-xs text-white hover:bg-red-800 transition" aria-label="Delete player">
+                                                    <button type="submit" class="inline-flex items-center gap-2 bg-accent-danger text-white px-4 py-2 rounded-md hover:bg-accent-danger/80 transition text-xs" aria-label="Delete player">
                                                         <i class="fa-solid fa-trash"></i>
                                                     </button>
                                                 </form>

@@ -71,8 +71,8 @@ ob_start();
                 </select>
             </div>
             <div class="flex justify-end gap-2">
-                <a href="<?= $base ?>/admin/players/list.php" class="btn-secondary">Cancel</a>
-                <button type="submit" class="btn-primary">Create Player</button>
+                <a href="<?= $base ?>/admin/players/list.php" class="inline-flex items-center gap-2 bg-bg-secondary text-text-primary border border-border-soft px-4 py-2 rounded-md hover:bg-bg-secondary/80 transition">Cancel</a>
+                <button type="submit" class="inline-flex items-center gap-2 bg-accent-primary text-white px-4 py-2 rounded-md hover:bg-accent-primary/80 transition">Create Player</button>
             </div>
         </form>
     </div>

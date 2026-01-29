@@ -169,105 +169,110 @@ include __DIR__ . '/../../partials/header.php';
         <?php $pageTitle = 'Statistics Dashboard'; $pageDescription = 'View club-wide analytics and performance indicators.'; ?>
 
         <div class="grid grid-cols-12 gap-2 px-4 md:px-6 lg:px-8 w-full">
+            <!-- Left Sidebar: Filters & Tabs -->
             <aside class="col-span-2 space-y-4 min-w-0">
-                <nav class="flex flex-col gap-2 mb-3" role="tablist" aria-label="Statistics tabs">
-                    <?php $tabs = [
-                        'overview' => 'Overview',
-                        'team-performance' => 'Team Performance',
-                        'player-performance' => 'Player Performance',
-                    ]; ?>
-                    <?php foreach ($tabs as $tabId => $tabLabel): ?>
-                        <button
-                            type="button"
-                            class="stats-tab w-full text-left px-4 py-2.5 text-sm font-medium rounded-lg border transition-all duration-200 <?= $tabId === 'overview' ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'bg-slate-800/40 border-white/10 text-slate-300 hover:bg-slate-700/50 hover:border-white/20' ?>"
-                            role="tab"
-                            aria-selected="<?= $tabId === 'overview' ? 'true' : 'false' ?>"
-                            data-tab-id="<?= htmlspecialchars($tabId) ?>">
-                            <?= htmlspecialchars($tabLabel) ?>
-                        </button>
-                    <?php endforeach; ?>
-                </nav>
-                <div class="space-y-4">
-                    <div class="rounded-xl bg-slate-900/80 border border-white/10 p-3" data-filter-group="overview">
-                        <h6 class="text-slate-300 text-xs font-semibold mb-2">Filters</h6>
-                        <div class="flex flex-col gap-3">
-                            <div>
-                                <label class="block text-slate-400 text-xs mb-1">Season</label>
-                                <select id="overview-season-filter" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-white/30">
-                                    <option value="">All Seasons</option>
-                                    <?php foreach ($seasons ?? [] as $season): ?>
-                                        <option value="<?= htmlspecialchars((string)$season['id']) ?>">
-                                            <?= htmlspecialchars($season['name'] ?? 'Season ' . $season['id']) ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-slate-400 text-xs mb-1">Competition Type</label>
-                                <select id="overview-type-filter" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-white/30">
-                                    <option value="">Both League &amp; Cup</option>
-                                    <option value="league">League Only</option>
-                                    <option value="cup">Cup Only</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="rounded-xl bg-slate-900/80 border border-white/10 p-3" data-filter-group="team-performance" style="display:none;">
-                        <h6 class="text-slate-300 text-xs font-semibold mb-2">Filters</h6>
-                        <div class="flex flex-col gap-3">
-                            <div>
-                                <label class="block text-slate-400 text-xs mb-1">Season</label>
-                                <select id="team-performance-season-filter" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-white/30">
-                                    <option value="">All Seasons</option>
-                                    <?php foreach ($seasons ?? [] as $season): ?>
-                                        <option value="<?= htmlspecialchars((string)$season['id']) ?>">
-                                            <?= htmlspecialchars($season['name'] ?? 'Season ' . $season['id']) ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-slate-400 text-xs mb-1">Competition Type</label>
-                                <select id="team-performance-type-filter" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-white/30">
-                                    <option value="">Both League &amp; Cup</option>
-                                    <option value="league">League Only</option>
-                                    <option value="cup">Cup Only</option>
-                                </select>
+                <div class="rounded-xl bg-slate-900/80 border border-white/10 p-3 mb-4">
+                    <nav class="flex flex-col gap-2 mb-3" role="tablist" aria-label="Statistics tabs">
+                        <?php $tabs = [
+                            'overview' => 'Overview',
+                            'team-performance' => 'Team Performance',
+                            'player-performance' => 'Player Performance',
+                        ]; ?>
+                        <?php foreach ($tabs as $tabId => $tabLabel): ?>
+                            <button
+                                type="button"
+                                class="stats-tab w-full text-left px-4 py-2.5 text-sm font-medium rounded-lg border transition-all duration-200 <?= $tabId === 'overview' ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'bg-slate-800/40 border-white/10 text-slate-300 hover:bg-slate-700/50 hover:border-white/20' ?>"
+                                role="tab"
+                                aria-selected="<?= $tabId === 'overview' ? 'true' : 'false' ?>"
+                                data-tab-id="<?= htmlspecialchars($tabId) ?>">
+                                <?= htmlspecialchars($tabLabel) ?>
+                            </button>
+                        <?php endforeach; ?>
+                    </nav>
+                    <!-- Filters for each tab -->
+                    <div class="space-y-4">
+                        <div class="rounded-xl bg-slate-900/80 border border-white/10 p-3" data-filter-group="overview">
+                            <h6 class="text-slate-300 text-xs font-semibold mb-2">Filters</h6>
+                            <div class="flex flex-col gap-3">
+                                <div>
+                                    <label class="block text-slate-400 text-xs mb-1">Season</label>
+                                    <select id="overview-season-filter" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-white/30">
+                                        <option value="">All Seasons</option>
+                                        <?php foreach ($seasons ?? [] as $season): ?>
+                                            <option value="<?= htmlspecialchars((string)$season['id']) ?>">
+                                                <?= htmlspecialchars($season['name'] ?? 'Season ' . $season['id']) ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-slate-400 text-xs mb-1">Competition Type</label>
+                                    <select id="overview-type-filter" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-white/30">
+                                        <option value="">Both League &amp; Cup</option>
+                                        <option value="league">League Only</option>
+                                        <option value="cup">Cup Only</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    <div class="rounded-xl bg-slate-900/80 border border-white/10 p-3" data-filter-group="player-performance" style="display:none;">
-                        <h6 class="text-slate-300 text-xs font-semibold mb-2">Filters</h6>
-                        <div class="flex flex-col gap-3">
-                            <div>
-                                <label class="block text-slate-400 text-xs mb-1">Season</label>
-                                <select id="player-season-filter" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-white/30">
-                                    <option value="">All Seasons</option>
-                                    <?php foreach ($seasons ?? [] as $season): ?>
-                                        <option value="<?= htmlspecialchars((string)$season['id']) ?>">
-                                            <?= htmlspecialchars($season['name'] ?? 'Season ' . $season['id']) ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
+                        <div class="rounded-xl bg-slate-900/80 border border-white/10 p-3" data-filter-group="team-performance" style="display:none;">
+                            <h6 class="text-slate-300 text-xs font-semibold mb-2">Filters</h6>
+                            <div class="flex flex-col gap-3">
+                                <div>
+                                    <label class="block text-slate-400 text-xs mb-1">Season</label>
+                                    <select id="team-performance-season-filter" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-white/30">
+                                        <option value="">All Seasons</option>
+                                        <?php foreach ($seasons ?? [] as $season): ?>
+                                            <option value="<?= htmlspecialchars((string)$season['id']) ?>">
+                                                <?= htmlspecialchars($season['name'] ?? 'Season ' . $season['id']) ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-slate-400 text-xs mb-1">Competition Type</label>
+                                    <select id="team-performance-type-filter" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-white/30">
+                                        <option value="">Both League &amp; Cup</option>
+                                        <option value="league">League Only</option>
+                                        <option value="cup">Cup Only</option>
+                                    </select>
+                                </div>
                             </div>
-                            <div>
-                                <label class="block text-slate-400 text-xs mb-1">Competition Type</label>
-                                <select id="player-type-filter" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-white/30">
-                                    <option value="">Both League &amp; Cup</option>
-                                    <option value="league">League Only</option>
-                                    <option value="cup">Cup Only</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-slate-400 text-xs mb-1">Position</label>
-                                <select id="player-position-filter" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-white/30">
-                                    <option value="">All Positions</option>
-                                </select>
+                        </div>
+                        <div class="rounded-xl bg-slate-900/80 border border-white/10 p-3" data-filter-group="player-performance" style="display:none;">
+                            <h6 class="text-slate-300 text-xs font-semibold mb-2">Filters</h6>
+                            <div class="flex flex-col gap-3">
+                                <div>
+                                    <label class="block text-slate-400 text-xs mb-1">Season</label>
+                                    <select id="player-season-filter" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-white/30">
+                                        <option value="">All Seasons</option>
+                                        <?php foreach ($seasons ?? [] as $season): ?>
+                                            <option value="<?= htmlspecialchars((string)$season['id']) ?>">
+                                                <?= htmlspecialchars($season['name'] ?? 'Season ' . $season['id']) ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-slate-400 text-xs mb-1">Competition Type</label>
+                                    <select id="player-type-filter" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-white/30">
+                                        <option value="">Both League &amp; Cup</option>
+                                        <option value="league">League Only</option>
+                                        <option value="cup">Cup Only</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-slate-400 text-xs mb-1">Position</label>
+                                    <select id="player-position-filter" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-white/30">
+                                        <option value="">All Positions</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </aside>
+            <!-- Main Content -->
             <main class="col-span-7 space-y-4 min-w-0">
                 <div class="stats-panels">
             <section id="overview-panel" role="tabpanel" aria-labelledby="overview-tab" data-panel-id="overview">
@@ -286,16 +291,15 @@ All matches for <?= htmlspecialchars($clubContextName) ?>.
                          
                         </div>
                         <?php if (!empty($matches)): ?>
-                              <table class="min-w-full text-sm text-slate-200" id="matches-table">
-                                    <thead class="bg-slate-900/90 text-slate-100 uppercase tracking-wider">
-                                        <tr>
-                                             <th class="px-3 py-2">Match</th>
-                                            <th class="px-3 py-2">Date</th>
-                                            <th class="px-3 py-2">Time</th>
-                                           
-                                            <th class="px-3 py-2 text-center">Score</th>
-                                            <th class="px-3 py-2">Competition</th>
-                                            <th class="px-3 py-2 text-center">Action</th>
+                              <table class="min-w-full bg-bg-tertiary text-text-primary text-xs rounded-xl overflow-hidden" id="matches-table">
+                                    <thead>
+                                        <tr class="bg-bg-secondary text-text-muted uppercase font-semibold text-xs">
+                                             <th class="px-4 py-3">Match</th>
+                                            <th class="px-4 py-3">Date</th>
+                                            <th class="px-4 py-3">Time</th>
+                                            <th class="px-4 py-3 text-center">Score</th>
+                                            <th class="px-4 py-3">Competition</th>
+                                            <th class="px-4 py-3 text-center">Action</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -318,20 +322,19 @@ All matches for <?= htmlspecialchars($clubContextName) ?>.
                                             $statusClass = $normalizeStatusClass($status);
                                             $competition = $match['competition'] ?? '';
                                         ?>
-                                        <tr data-match-id="<?= htmlspecialchars((string)$matchId) ?>">
-                                                                                    <td class="px-3 py-2">
+                                        <tr data-match-id="<?= htmlspecialchars((string)$matchId) ?>" class="border-b border-border-soft hover:bg-bg-secondary/60 transition-colors">
+                                            <td class="px-4 py-2">
                                                 <a href="<?= $matchUrl ?>" class="text-indigo-300 hover:text-indigo-100">
                                                     <?= htmlspecialchars($title) ?>
                                                 </a>
-                                            </td>  
-                                        <td class="px-3 py-2 whitespace-nowrap"><?= htmlspecialchars($dateLabel) ?></td>
-                                            <td class="px-3 py-2 whitespace-nowrap"><?= htmlspecialchars($timeLabel) ?></td>
-
-                                            <td class="px-3 py-2 text-center">
+                                            </td>
+                                            <td class="px-4 py-2 whitespace-nowrap"><?= htmlspecialchars($dateLabel) ?></td>
+                                            <td class="px-4 py-2 whitespace-nowrap"><?= htmlspecialchars($timeLabel) ?></td>
+                                            <td class="px-4 py-2 text-center">
                                                 <span class="font-semibold <?= $scoreLabel !== '—' ? 'text-emerald-400' : 'text-slate-400' ?>"><?= htmlspecialchars($scoreLabel) ?></span>
                                             </td>
-                                            <td class="px-3 py-2"><?= htmlspecialchars($competition) ?></td>
-                                            <td class="px-3 py-2 text-center">
+                                            <td class="px-4 py-2"><?= htmlspecialchars($competition) ?></td>
+                                            <td class="px-4 py-2 text-center">
                                                 <a class="inline-flex items-center px-2.5 py-1 text-xs rounded-md border border-white/20 hover:bg-white/10" href="<?= $matchUrl ?>">View</a>
                                             </td>
                                         </tr>
@@ -364,39 +367,39 @@ All matches for <?= htmlspecialchars($clubContextName) ?>.
                                         <h5 class="mb-0 text-light">Home vs Away Record</h5>
                                     </div>
                                     <div class="overflow-x-auto">
-                                        <table class="min-w-full text-sm">
-                            <thead class="bg-slate-900/90 text-slate-100 uppercase tracking-wider">
-                                                <tr>
-                                                    <th>Venue</th>
-                                                    <th class="text-center">MP</th>
-                                                    <th class="text-center">W</th>
-                                                    <th class="text-center">D</th>
-                                                    <th class="text-center">L</th>
-                                                    <th class="text-center">GF</th>
-                                                    <th class="text-center">GA</th>
-                                                    <th class="text-center">GD</th>
+                                        <table class="min-w-full bg-bg-tertiary text-text-primary text-xs rounded-xl overflow-hidden">
+                                            <thead>
+                                                <tr class="bg-bg-secondary text-text-muted uppercase font-semibold text-xs">
+                                                    <th class="px-4 py-3">Venue</th>
+                                                    <th class="px-4 py-3 text-center">MP</th>
+                                                    <th class="px-4 py-3 text-center">W</th>
+                                                    <th class="px-4 py-3 text-center">D</th>
+                                                    <th class="px-4 py-3 text-center">L</th>
+                                                    <th class="px-4 py-3 text-center">GF</th>
+                                                    <th class="px-4 py-3 text-center">GA</th>
+                                                    <th class="px-4 py-3 text-center">GD</th>
                                                 </tr>
                                             </thead>
-                                            <tbody id="team-performance-home-away" class="text-slate-200">
-                                                <tr>
-                                                    <td>Home</td>
-                                                    <td class="text-center">—</td>
-                                                    <td class="text-center">—</td>
-                                                    <td class="text-center">—</td>
-                                                    <td class="text-center">—</td>
-                                                    <td class="text-center">—</td>
-                                                    <td class="text-center">—</td>
-                                                    <td class="text-center">—</td>
+                                            <tbody id="team-performance-home-away">
+                                                <tr class="border-b border-border-soft hover:bg-bg-secondary/60 transition-colors">
+                                                    <td class="px-4 py-2">Home</td>
+                                                    <td class="px-4 py-2 text-center">—</td>
+                                                    <td class="px-4 py-2 text-center">—</td>
+                                                    <td class="px-4 py-2 text-center">—</td>
+                                                    <td class="px-4 py-2 text-center">—</td>
+                                                    <td class="px-4 py-2 text-center">—</td>
+                                                    <td class="px-4 py-2 text-center">—</td>
+                                                    <td class="px-4 py-2 text-center">—</td>
                                                 </tr>
-                                                <tr>
-                                                    <td>Away</td>
-                                                    <td class="text-center">—</td>
-                                                    <td class="text-center">—</td>
-                                                    <td class="text-center">—</td>
-                                                    <td class="text-center">—</td>
-                                                    <td class="text-center">—</td>
-                                                    <td class="text-center">—</td>
-                                                    <td class="text-center">—</td>
+                                                <tr class="border-b border-border-soft hover:bg-bg-secondary/60 transition-colors">
+                                                    <td class="px-4 py-2">Away</td>
+                                                    <td class="px-4 py-2 text-center">—</td>
+                                                    <td class="px-4 py-2 text-center">—</td>
+                                                    <td class="px-4 py-2 text-center">—</td>
+                                                    <td class="px-4 py-2 text-center">—</td>
+                                                    <td class="px-4 py-2 text-center">—</td>
+                                                    <td class="px-4 py-2 text-center">—</td>
+                                                    <td class="px-4 py-2 text-center">—</td>
                                                 </tr>
                                             </tbody>
                                         </table>
@@ -411,18 +414,18 @@ All matches for <?= htmlspecialchars($clubContextName) ?>.
                                         <h5 class="mb-0 text-light">Clean Sheets</h5>
                                     </div>
                                     <div class="overflow-x-auto">
-                                        <table class="min-w-full text-sm">
-                                            <thead class="bg-slate-900/90 text-slate-100 uppercase tracking-wider">
-                                                <tr>
-                                                    <th class="text-left">Date</th>
-                                                    <th class="text-left">Venue</th>
-                                                    <th class="text-left">Opponent</th>
-                                                    <th class="text-left">GK</th>
-                                                    <th class="text-center">Score</th>
-                                                    <th class="text-center">View</th>
+                                        <table class="min-w-full bg-bg-tertiary text-text-primary text-xs rounded-xl overflow-hidden">
+                                            <thead>
+                                                <tr class="bg-bg-secondary text-text-muted uppercase font-semibold text-xs">
+                                                    <th class="px-4 py-3 text-left">Date</th>
+                                                    <th class="px-4 py-3 text-left">Venue</th>
+                                                    <th class="px-4 py-3 text-left">Opponent</th>
+                                                    <th class="px-4 py-3 text-left">GK</th>
+                                                    <th class="px-4 py-3 text-center">Score</th>
+                                                    <th class="px-4 py-3 text-center">View</th>
                                                 </tr>
                                             </thead>
-                                            <tbody id="team-performance-clean-sheets-body" class="text-slate-200">
+                                            <tbody id="team-performance-clean-sheets-body">
                                                 <tr>
                                                     <td colspan="5" class="text-center py-2 text-slate-400">—</td>
                                                 </tr>

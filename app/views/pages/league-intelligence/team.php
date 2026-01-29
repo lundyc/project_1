@@ -63,44 +63,67 @@ $headToHead = $teamInsights['head_to_head'] ?? [];
 $strengthSchedule = $teamInsights['strength_of_schedule'] ?? [];
 ?>
 <?php ob_start(); ?>
-<div class="space-y-6">
-          <header class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-                    <div>
-                              <p class="text-xs font-semibold tracking-[0.3em] uppercase text-slate-500">Team profile</p>
-                              <h1 class="text-3xl font-semibold text-white"><?= htmlspecialchars($teamInsights['team_name'] ?? 'Team') ?></h1>
-                              <p class="text-sm text-slate-400">
-                                        <?= htmlspecialchars($selectedCompetition['name'] ?? 'League view') ?> · <?= htmlspecialchars($selectedSeason['name'] ?? 'Season overview') ?>
-                              </p>
-                    </div>
-                    <div class="flex flex-wrap gap-3 text-sm">
-                              <a href="<?= htmlspecialchars($overviewLink) ?>" class="btn-flat text-xs uppercase tracking-[0.3em]">League overview</a>
-                              <form method="get" class="flex flex-wrap gap-3">
-                                        <label class="flex flex-col text-xs text-slate-400">
-                                                  Season
-                                                  <select name="season_id" class="mt-1 rounded-lg border border-white/10 bg-slate-900/60 px-3 py-2 text-white text-sm focus:outline-none focus:border-emerald-400">
-                                                            <option value="">All seasons</option>
-                                                            <?php foreach ($seasonOptions as $season): ?>
-                                                                      <option value="<?= (int)$season['id'] ?>" <?= $selectedSeasonId === (int)$season['id'] ? 'selected' : '' ?>><?= htmlspecialchars($season['name']) ?></option>
-                                                            <?php endforeach; ?>
-                                                  </select>
-                                        </label>
-                                        <label class="flex flex-col text-xs text-slate-400">
-                                                  Competition
-                                                  <select name="competition_id" class="mt-1 rounded-lg border border-white/10 bg-slate-900/60 px-3 py-2 text-white text-sm focus:outline-none focus:border-emerald-400">
-                                                            <option value="">All league competitions</option>
-                                                            <?php foreach ($competitionOptions as $competition): ?>
-                                                                      <option value="<?= (int)$competition['id'] ?>" <?= $selectedCompetitionId === (int)$competition['id'] ? 'selected' : '' ?>><?= htmlspecialchars($competition['name']) ?></option>
-                                                            <?php endforeach; ?>
-                                                  </select>
-                                        </label>
-                                        <button type="submit" class="btn-primary-soft text-xs px-4 py-2">Refresh</button>
-                              </form>
-                    </div>
-          </header>
-
-          <div class="grid gap-5 lg:grid-cols-12">
-                    <main class="space-y-5 lg:col-span-8">
-                              <section class="panel rounded-2xl p-5 space-y-4">
+<div class="w-full mt-4 text-slate-200">
+    <div class="max-w-full">
+        <div class="grid grid-cols-12 gap-2 px-4 md:px-6 lg:px-8 w-full">
+            <!-- Left Sidebar: Navigation / Filters -->
+            <aside class="col-span-2 space-y-4 min-w-0">
+                <div class="space-y-2">
+                    <a href="<?= htmlspecialchars($overviewLink) ?>" class="btn-flat text-xs uppercase tracking-[0.3em] w-full block mb-2">League overview</a>
+                    <form method="get" class="flex flex-col gap-3" role="search">
+                        <label class="block text-slate-400 text-xs mb-1">Season
+                            <select name="season_id" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs">
+                                <option value="">All seasons</option>
+                                <?php foreach ($seasonOptions as $season): ?>
+                                    <option value="<?= (int)$season['id'] ?>" <?= $selectedSeasonId === (int)$season['id'] ? 'selected' : '' ?>><?= htmlspecialchars($season['name']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </label>
+                        <label class="block text-slate-400 text-xs mb-1">Competition
+                            <select name="competition_id" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs">
+                                <option value="">All league competitions</option>
+                                <?php foreach ($competitionOptions as $competition): ?>
+                                    <option value="<?= (int)$competition['id'] ?>" <?= $selectedCompetitionId === (int)$competition['id'] ? 'selected' : '' ?>><?= htmlspecialchars($competition['name']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </label>
+                        <button type="submit" class="btn-primary-soft text-xs px-4 py-2 mt-2">Refresh</button>
+                    </form>
+                </div>
+                <div class="mt-4">
+                    <h6 class="text-slate-300 text-xs font-semibold mb-2">Team Navigation</h6>
+                    <nav class="flex flex-col gap-1">
+                        <?php foreach ($teamNavigation as $team): ?>
+                            <a href="<?= htmlspecialchars($base . '/league-intelligence/team/' . $team['team_id'] . $filterQuery) ?>"
+                                 class="flex items-center justify-between rounded-xl border border-white/5 bg-slate-900/40 px-4 py-2 text-sm font-semibold text-white hover:border-emerald-400<?= (isset($teamInsights['team_id']) && $teamInsights['team_id'] == $team['team_id']) ? ' border-emerald-400' : '' ?>">
+                                <span><?= sprintf('#%d %s', (int)$team['position'], htmlspecialchars($team['team_name'])) ?></span>
+                                <span class="text-xs text-slate-400">View</span>
+                            </a>
+                        <?php endforeach; ?>
+                    </nav>
+                </div>
+            </aside>
+            <!-- Main Content -->
+            <main class="col-span-7 space-y-5 min-w-0">
+                <header class="flex flex-col gap-3">
+                    <p class="text-xs font-semibold tracking-[0.3em] uppercase text-slate-500">Team profile</p>
+                    <h1 class="text-3xl font-semibold text-white"><?= htmlspecialchars($teamInsights['team_name'] ?? 'Team') ?></h1>
+                    <p class="text-sm text-slate-400">
+                        <?= htmlspecialchars($selectedCompetition['name'] ?? 'League view') ?> · <?= htmlspecialchars($selectedSeason['name'] ?? 'Season overview') ?>
+                    </p>
+                </header>
+                <div class="space-y-5">
+                    <?php // ...existing code for main content panels... ?>
+                </div>
+            </main>
+            <!-- Right Sidebar: Contextual Panels -->
+            <aside class="col-span-3 space-y-4 min-w-0">
+                <?php // ...existing code for contextual panels (analytics, trends, head-to-head, etc.)... ?>
+            </aside>
+        </div>
+    </div>
+</div>
+                              <section class="rounded-xl border border-border-soft bg-bg-secondary p-5 shadow space-y-4">
                                         <header class="flex items-center justify-between">
                                                   <div>
                                                             <p class="text-xs uppercase tracking-[0.3em] text-slate-500">Team snapshot</p>
@@ -108,7 +131,7 @@ $strengthSchedule = $teamInsights['strength_of_schedule'] ?? [];
                                                   </div>
                                         </header>
                                         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                                                  <article class="rounded-2xl border border-white/5 bg-white/5 p-3 text-center">
+                                                  <article class="rounded-xl border border-border-soft bg-bg-secondary p-5 text-center">
                                                             <p class="text-xs text-slate-400">Position</p>
                                                             <p class="text-2xl font-semibold text-white">#<?= (int)$teamInsights['position'] ?></p>
                                                   </article>
@@ -131,7 +154,7 @@ $strengthSchedule = $teamInsights['strength_of_schedule'] ?? [];
                                         </div>
                               </section>
 
-                              <section class="panel rounded-2xl p-5 space-y-4">
+                              <section class="rounded-xl border border-border-soft bg-bg-secondary p-5 shadow space-y-4">
                                         <p class="text-xs uppercase tracking-[0.3em] text-slate-500">Form &amp; momentum</p>
                                         <div class="space-y-4">
                                                   <div class="flex flex-wrap gap-2">
@@ -146,7 +169,7 @@ $strengthSchedule = $teamInsights['strength_of_schedule'] ?? [];
                                                             <?php endif; ?>
                                                   </div>
                                                   <div class="grid gap-4 sm:grid-cols-2">
-                                                            <div class="rounded-2xl border border-white/5 bg-white/5 p-3">
+                                                            <div class="rounded-xl border border-border-soft bg-bg-secondary p-5">
                                                                       <p class="text-xs text-slate-400">Points per game</p>
                                                                       <p class="text-2xl font-semibold text-white"><?= number_format((float)($teamInsights['points_per_game'] ?? 0), 2) ?></p>
                                                             </div>

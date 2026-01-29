@@ -206,73 +206,71 @@ include __DIR__ . '/../../partials/header.php';
 <link rel="stylesheet" href="/assets/css/stats-table.css">
 <div class="stats-page w-full mt-4 text-slate-200">
     <div class="max-w-full">
-
-        <div class="stats-three-col grid grid-cols-12 gap-2 px-4 md:px-6 lg:px-8 w-full">
-            <!-- Left Sidebar -->
-            <aside class="stats-col-left col-span-2 space-y-4 min-w-0">
-                    <div class="rounded-xl bg-slate-900/80 border border-white/10 p-3">
-                        <h6 class="text-slate-300 text-xs font-semibold mb-2">Filters</h6>
-                        <form method="get" class="flex flex-col gap-3" role="search">
-                            <div>
-                                <label class="block text-slate-400 text-xs mb-1" for="status-filter">Status</label>
-                                <select id="status-filter" name="status" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs">
-                                    <option value="">All</option>
-                                    <?php foreach ($orderedStatuses as $status => $count): ?>
-                                        <?php $statusLabel = $formatStatusLabel($status); ?>
-                                        <option value="<?= htmlspecialchars($status) ?>" <?= $statusFilter === $status ? 'selected' : '' ?>><?= htmlspecialchars($statusLabel) ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-slate-400 text-xs mb-1" for="opponent-filter">Opponent</label>
-                                <select id="opponent-filter" name="opponent" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs">
-                                    <option value="">All Opponents</option>
-                                    <?php
-                                    $opponents = [];
-                                    foreach ($matches as $m) {
-                                        $home = trim($m['home_team'] ?? '');
-                                        $away = trim($m['away_team'] ?? '');
-                                        if ($home !== '' && !in_array($home, $opponents, true)) $opponents[] = $home;
-                                        if ($away !== '' && !in_array($away, $opponents, true)) $opponents[] = $away;
-                                    }
-                                    sort($opponents, SORT_NATURAL | SORT_FLAG_CASE);
-                                    foreach ($opponents as $opponent): ?>
-                                        <option value="<?= htmlspecialchars($opponent) ?>" <?= $opponentFilter === $opponent ? 'selected' : '' ?>><?= htmlspecialchars($opponent) ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-slate-400 text-xs mb-1" for="competition-type-filter">Competition</label>
-                                <select id="competition-type-filter" name="competition_type" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs">
-                                    <option value="">All Competitions</option>
-                                    <option value="league" <?= $competitionTypeFilter === 'league' ? 'selected' : '' ?>>League</option>
-                                    <option value="cups" <?= $competitionTypeFilter === 'cups' ? 'selected' : '' ?>>Cups</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-slate-400 text-xs mb-1" for="date-from">From</label>
-                                <input id="date-from" name="date_from" type="date" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs" value="<?= htmlspecialchars($dateFrom) ?>">
-                            </div>
-                            <div>
-                                <label class="block text-slate-400 text-xs mb-1" for="date-to">To</label>
-                                <input id="date-to" name="date_to" type="date" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs" value="<?= htmlspecialchars($dateTo) ?>">
-                            </div>
-                            <div>
-                                <button type="submit" class="w-full rounded-md bg-indigo-600 text-white px-4 py-2 text-xs font-semibold hover:bg-indigo-700 transition">Apply Filters</button>
-                            </div>
-                        </form>
-                        <!-- Status buttons replaced by dropdown above. Showing X of X matches removed. -->
-                    </div>
-                
+        <!-- Standard 3-Column Layout: grid-cols-12 -->
+        <div class="grid grid-cols-12 gap-2 px-4 md:px-6 lg:px-8 w-full">
+            <!-- Left Sidebar: Filters -->
+            <aside class="col-span-2 space-y-4 min-w-0">
+                <div class="rounded-xl bg-slate-900/80 border border-white/10 p-3">
+                    <h6 class="text-slate-300 text-xs font-semibold mb-2">Filters</h6>
+                    <form method="get" class="flex flex-col gap-3" role="search">
+                        <div>
+                            <label class="block text-slate-400 text-xs mb-1" for="status-filter">Status</label>
+                            <select id="status-filter" name="status" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs">
+                                <option value="">All</option>
+                                <?php foreach ($orderedStatuses as $status => $count): ?>
+                                    <?php $statusLabel = $formatStatusLabel($status); ?>
+                                    <option value="<?= htmlspecialchars($status) ?>" <?= $statusFilter === $status ? 'selected' : '' ?>><?= htmlspecialchars($statusLabel) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 text-xs mb-1" for="opponent-filter">Opponent</label>
+                            <select id="opponent-filter" name="opponent" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs">
+                                <option value="">All Opponents</option>
+                                <?php
+                                $opponents = [];
+                                foreach ($matches as $m) {
+                                    $home = trim($m['home_team'] ?? '');
+                                    $away = trim($m['away_team'] ?? '');
+                                    if ($home !== '' && !in_array($home, $opponents, true)) $opponents[] = $home;
+                                    if ($away !== '' && !in_array($away, $opponents, true)) $opponents[] = $away;
+                                }
+                                sort($opponents, SORT_NATURAL | SORT_FLAG_CASE);
+                                foreach ($opponents as $opponent): ?>
+                                    <option value="<?= htmlspecialchars($opponent) ?>" <?= $opponentFilter === $opponent ? 'selected' : '' ?>><?= htmlspecialchars($opponent) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 text-xs mb-1" for="competition-type-filter">Competition</label>
+                            <select id="competition-type-filter" name="competition_type" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs">
+                                <option value="">All Competitions</option>
+                                <option value="league" <?= $competitionTypeFilter === 'league' ? 'selected' : '' ?>>League</option>
+                                <option value="cups" <?= $competitionTypeFilter === 'cups' ? 'selected' : '' ?>>Cups</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 text-xs mb-1" for="date-from">From</label>
+                            <input id="date-from" name="date_from" type="date" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs" value="<?= htmlspecialchars($dateFrom) ?>">
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 text-xs mb-1" for="date-to">To</label>
+                            <input id="date-to" name="date_to" type="date" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs" value="<?= htmlspecialchars($dateTo) ?>">
+                        </div>
+                        <div>
+                            <button type="submit" class="w-full rounded-md bg-indigo-600 text-white px-4 py-2 text-xs font-semibold hover:bg-indigo-700 transition">Apply Filters</button>
+                        </div>
+                    </form>
+                </div>
             </aside>
             <!-- Main Content -->
-            <main class="stats-col-main col-span-7 space-y-4 min-w-0">
+            <main class="col-span-7 space-y-4 min-w-0">
                 <div class="rounded-xl bg-slate-800 border border-white/10 p-3">
-                    <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-2 mb-2">
+                    <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-2 mb-2">
                         <div>
                             <h1 class="text-2xl font-semibold text-white mb-1">Matches</h1>
                             <p class="text-xs text-slate-400">
-                           All matches for <?= htmlspecialchars($clubContextName) ?>.
+                                All matches for <?= htmlspecialchars($clubContextName) ?>.
                             </p>
                         </div>
                     </div>
@@ -284,17 +282,16 @@ include __DIR__ . '/../../partials/header.php';
                     <?php if ($displayedMatches === 0): ?>
                         <div class="rounded-xl border border-white/10 bg-slate-800/40 p-4 text-slate-400 text-sm">No matches found for the current view.</div>
                     <?php else: ?>
-                              <table class="min-w-full text-sm text-slate-200" id="matches-table">
-                                    <thead class="bg-slate-900/90 text-slate-100 uppercase tracking-wider">
-                                        <tr>
-                                            <th class="px-3 py-2">Match</th>
-                                            <th class="px-3 py-2">Date</th>
-                                            <th class="px-3 py-2">Time</th>                                        
-                                            <th class="px-3 py-2">Competition</th>
-                                            <th class="px-3 py-2"></th>
-                                            <th class="px-3 py-2 text-center">Action</th>
-                                        </tr>
-
+                        <table class="min-w-full text-sm text-slate-200" id="matches-table">
+                            <thead class="bg-slate-900/90 text-slate-100 uppercase tracking-wider">
+                                <tr>
+                                    <th class="px-3 py-2">Match</th>
+                                    <th class="px-3 py-2">Date</th>
+                                    <th class="px-3 py-2">Time</th>
+                                    <th class="px-3 py-2">Competition</th>
+                                    <th class="px-3 py-2"></th>
+                                    <th class="px-3 py-2 text-center">Action</th>
+                                </tr>
                             </thead>
                             <tbody>
                                 <?php foreach ($filteredMatches as $match): ?>

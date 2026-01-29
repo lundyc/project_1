@@ -144,22 +144,37 @@ header('Content-Type: text/html; charset=utf-8');
 <div class="divider"></div>
 
 <h2>Overview</h2>
-<table class="section-table">
-    <tr><th>Metric</th><th><?= htmlspecialchars($homeTeam['name']) ?></th><th><?= htmlspecialchars($awayTeam['name']) ?></th></tr>
-    <tr><td>Goals</td><td><?= (int)($matchStats['home']['goals'] ?? 0) ?></td><td><?= (int)($matchStats['away']['goals'] ?? 0) ?></td></tr>
-    <tr><td>Shots</td><td><?= $homeShots ?></td><td><?= $awayShots ?></td></tr>
-    <tr><td>&nbsp;&nbsp;&nbsp;On Target</td><td><?= $homeShotsOnTarget ?></td><td><?= $awayShotsOnTarget ?></td></tr>
-    <tr><td>&nbsp;&nbsp;&nbsp;Off Target</td><td><?= $homeShotsOffTarget ?></td><td><?= $awayShotsOffTarget ?></td></tr>
-    <tr><td>Corners</td><td><?= (int)($matchStats['home']['corners'] ?? 0) ?></td><td><?= (int)($matchStats['away']['corners'] ?? 0) ?></td></tr>
-    <tr><td>Free Kicks</td><td><?= (int)($matchStats['home']['free_kicks'] ?? 0) ?></td><td><?= (int)($matchStats['away']['free_kicks'] ?? 0) ?></td></tr>
-    <tr><td>Penalties</td><td><?= (int)($matchStats['home']['penalties'] ?? 0) ?></td><td><?= (int)($matchStats['away']['penalties'] ?? 0) ?></td></tr>
-    <tr><td>Yellow Cards</td><td><?= (int)($matchStats['home']['yellow_cards'] ?? 0) ?></td><td><?= (int)($matchStats['away']['yellow_cards'] ?? 0) ?></td></tr>
-    <tr><td>Red Cards</td><td><?= (int)($matchStats['home']['red_cards'] ?? 0) ?></td><td><?= (int)($matchStats['away']['red_cards'] ?? 0) ?></td></tr>
+<table class="min-w-full bg-bg-tertiary text-text-primary text-xs rounded-xl overflow-hidden">
+    <thead>
+        <tr class="bg-bg-secondary text-text-muted uppercase font-semibold text-xs">
+            <th class="px-4 py-3">Metric</th>
+            <th class="px-4 py-3"><?= htmlspecialchars($homeTeam['name']) ?></th>
+            <th class="px-4 py-3"><?= htmlspecialchars($awayTeam['name']) ?></th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr class="border-b border-border-soft hover:bg-bg-secondary/60 transition-colors"><td class="px-4 py-2">Goals</td><td class="px-4 py-2"><?= (int)($matchStats['home']['goals'] ?? 0) ?></td><td class="px-4 py-2"><?= (int)($matchStats['away']['goals'] ?? 0) ?></td></tr>
+        <tr class="border-b border-border-soft hover:bg-bg-secondary/60 transition-colors"><td class="px-4 py-2">Shots</td><td class="px-4 py-2"><?= $homeShots ?></td><td class="px-4 py-2"><?= $awayShots ?></td></tr>
+        <tr class="border-b border-border-soft hover:bg-bg-secondary/60 transition-colors"><td class="px-4 py-2">&nbsp;&nbsp;&nbsp;On Target</td><td class="px-4 py-2"><?= $homeShotsOnTarget ?></td><td class="px-4 py-2"><?= $awayShotsOnTarget ?></td></tr>
+        <tr class="border-b border-border-soft hover:bg-bg-secondary/60 transition-colors"><td class="px-4 py-2">&nbsp;&nbsp;&nbsp;Off Target</td><td class="px-4 py-2"><?= $homeShotsOffTarget ?></td><td class="px-4 py-2"><?= $awayShotsOffTarget ?></td></tr>
+        <tr class="border-b border-border-soft hover:bg-bg-secondary/60 transition-colors"><td class="px-4 py-2">Corners</td><td class="px-4 py-2"><?= (int)($matchStats['home']['corners'] ?? 0) ?></td><td class="px-4 py-2"><?= (int)($matchStats['away']['corners'] ?? 0) ?></td></tr>
+        <tr class="border-b border-border-soft hover:bg-bg-secondary/60 transition-colors"><td class="px-4 py-2">Free Kicks</td><td class="px-4 py-2"><?= (int)($matchStats['home']['free_kicks'] ?? 0) ?></td><td class="px-4 py-2"><?= (int)($matchStats['away']['free_kicks'] ?? 0) ?></td></tr>
+        <tr class="border-b border-border-soft hover:bg-bg-secondary/60 transition-colors"><td class="px-4 py-2">Penalties</td><td class="px-4 py-2"><?= (int)($matchStats['home']['penalties'] ?? 0) ?></td><td class="px-4 py-2"><?= (int)($matchStats['away']['penalties'] ?? 0) ?></td></tr>
+        <tr class="border-b border-border-soft hover:bg-bg-secondary/60 transition-colors"><td class="px-4 py-2">Yellow Cards</td><td class="px-4 py-2"><?= (int)($matchStats['home']['yellow_cards'] ?? 0) ?></td><td class="px-4 py-2"><?= (int)($matchStats['away']['yellow_cards'] ?? 0) ?></td></tr>
+        <tr><td class="px-4 py-2">Red Cards</td><td class="px-4 py-2"><?= (int)($matchStats['home']['red_cards'] ?? 0) ?></td><td class="px-4 py-2"><?= (int)($matchStats['away']['red_cards'] ?? 0) ?></td></tr>
+    </tbody>
 </table>
 
 <h2>Exploited Event Types</h2>
-<table class="section-table">
-    <tr><th>Event Type</th><th><?= htmlspecialchars($homeTeam['name']) ?></th><th><?= htmlspecialchars($awayTeam['name']) ?></th></tr>
+<table class="min-w-full bg-bg-tertiary text-text-primary text-xs rounded-xl overflow-hidden">
+    <thead>
+        <tr class="bg-bg-secondary text-text-muted uppercase font-semibold text-xs">
+            <th class="px-4 py-3">Event Type</th>
+            <th class="px-4 py-3"><?= htmlspecialchars($homeTeam['name']) ?></th>
+            <th class="px-4 py-3"><?= htmlspecialchars($awayTeam['name']) ?></th>
+        </tr>
+    </thead>
+    <tbody>
     <?php
     $eventTypes = [
         'offside' => 'Offsides',
@@ -171,22 +186,30 @@ header('Content-Type: text/html; charset=utf-8');
     ];
     foreach ($eventTypes as $key => $label):
     ?>
-        <tr>
-            <td><?= $label ?></td>
-            <td><?= (int)($derivedByType[$key]['home'] ?? 0) ?></td>
-            <td><?= (int)($derivedByType[$key]['away'] ?? 0) ?></td>
+        <tr class="border-b border-border-soft hover:bg-bg-secondary/60 transition-colors">
+            <td class="px-4 py-2"><?= $label ?></td>
+            <td class="px-4 py-2"><?= (int)($derivedByType[$key]['home'] ?? 0) ?></td>
+            <td class="px-4 py-2"><?= (int)($derivedByType[$key]['away'] ?? 0) ?></td>
         </tr>
     <?php endforeach; ?>
-    <tr>
-        <td>Set Pieces (Corners+FK+Pens)</td>
-        <td><?= (int)($matchStats['home']['corners'] ?? 0) + (int)($matchStats['home']['free_kicks'] ?? 0) + (int)($matchStats['home']['penalties'] ?? 0) ?></td>
-        <td><?= (int)($matchStats['away']['corners'] ?? 0) + (int)($matchStats['away']['free_kicks'] ?? 0) + (int)($matchStats['away']['penalties'] ?? 0) ?></td>
-    </tr>
+        <tr>
+            <td class="px-4 py-2">Set Pieces (Corners+FK+Pens)</td>
+            <td class="px-4 py-2"><?= (int)($matchStats['home']['corners'] ?? 0) + (int)($matchStats['home']['free_kicks'] ?? 0) + (int)($matchStats['home']['penalties'] ?? 0) ?></td>
+            <td class="px-4 py-2"><?= (int)($matchStats['away']['corners'] ?? 0) + (int)($matchStats['away']['free_kicks'] ?? 0) + (int)($matchStats['away']['penalties'] ?? 0) ?></td>
+        </tr>
+    </tbody>
 </table>
 
 <h2>Efficiency & Discipline</h2>
-<table class="section-table">
-    <tr><th>Metric</th><th><?= htmlspecialchars($homeTeam['name']) ?></th><th><?= htmlspecialchars($awayTeam['name']) ?></th></tr>
+<table class="min-w-full bg-bg-tertiary text-text-primary text-xs rounded-xl overflow-hidden">
+    <thead>
+        <tr class="bg-bg-secondary text-text-muted uppercase font-semibold text-xs">
+            <th class="px-4 py-3">Metric</th>
+            <th class="px-4 py-3"><?= htmlspecialchars($homeTeam['name']) ?></th>
+            <th class="px-4 py-3"><?= htmlspecialchars($awayTeam['name']) ?></th>
+        </tr>
+    </thead>
+    <tbody>
     <?php
     $hShots = $homeShots;
     $aShots = $awayShots;
@@ -211,11 +234,12 @@ header('Content-Type: text/html; charset=utf-8');
     $hSPPS = $hShots > 0 ? round($hSetPieces / $hShots, 2) : '—';
     $aSPPS = $aShots > 0 ? round($aSetPieces / $aShots, 2) : '—';
     ?>
-    <tr><td>Shot Accuracy (%)</td><td><?= $hShotAcc ?></td><td><?= $aShotAcc ?></td></tr>
-    <tr><td>Shot Conversion (%)</td><td><?= $hShotConv ?></td><td><?= $aShotConv ?></td></tr>
-    <tr><td>Goals per Shot on Target</td><td><?= $hGPSOT ?></td><td><?= $aGPSOT ?></td></tr>
-    <tr><td>Fouls per Card</td><td><?= $hFPC ?></td><td><?= $aFPC ?></td></tr>
-    <tr><td>Set Pieces per Shot</td><td><?= $hSPPS ?></td><td><?= $aSPPS ?></td></tr>
+    <tr class="border-b border-border-soft hover:bg-bg-secondary/60 transition-colors"><td class="px-4 py-2">Shot Accuracy (%)</td><td class="px-4 py-2"><?= $hShotAcc ?></td><td class="px-4 py-2"><?= $aShotAcc ?></td></tr>
+    <tr class="border-b border-border-soft hover:bg-bg-secondary/60 transition-colors"><td class="px-4 py-2">Shot Conversion (%)</td><td class="px-4 py-2"><?= $hShotConv ?></td><td class="px-4 py-2"><?= $aShotConv ?></td></tr>
+    <tr class="border-b border-border-soft hover:bg-bg-secondary/60 transition-colors"><td class="px-4 py-2">Goals per Shot on Target</td><td class="px-4 py-2"><?= $hGPSOT ?></td><td class="px-4 py-2"><?= $aGPSOT ?></td></tr>
+    <tr class="border-b border-border-soft hover:bg-bg-secondary/60 transition-colors"><td class="px-4 py-2">Fouls per Card</td><td class="px-4 py-2"><?= $hFPC ?></td><td class="px-4 py-2"><?= $aFPC ?></td></tr>
+    <tr><td class="px-4 py-2">Set Pieces per Shot</td><td class="px-4 py-2"><?= $hSPPS ?></td><td class="px-4 py-2"><?= $aSPPS ?></td></tr>
+    </tbody>
 </table>
 
 <h2>Match Events</h2>
@@ -244,10 +268,19 @@ foreach ($substitutions as $sub) {
 $matchDuration = (int)($match['duration_minutes'] ?? 90);
 $hasRedCards = ((int)($matchStats['home']['red_cards'] ?? 0) + (int)($matchStats['away']['red_cards'] ?? 0)) > 0;
 ?>
-<table class="section-table">
-    <tr>
-        <th>#</th><th>Player</th><th>Position</th><th>Goals</th><th>Yellow Cards</th><?php if ($hasRedCards): ?><th>Red Cards</th><?php endif; ?><th>Minutes Played</th>
-    </tr>
+<table class="min-w-full bg-bg-tertiary text-text-primary text-xs rounded-xl overflow-hidden">
+    <thead>
+        <tr class="bg-bg-secondary text-text-muted uppercase font-semibold text-xs">
+            <th class="px-4 py-3">#</th>
+            <th class="px-4 py-3">Player</th>
+            <th class="px-4 py-3">Position</th>
+            <th class="px-4 py-3">Goals</th>
+            <th class="px-4 py-3">Yellow Cards</th>
+            <?php if ($hasRedCards): ?><th class="px-4 py-3">Red Cards</th><?php endif; ?>
+            <th class="px-4 py-3">Minutes Played</th>
+        </tr>
+    </thead>
+    <tbody>
     <?php foreach (($playerPerformance['starting_xi'] ?? []) as $player): ?>
         <?php
         $mpid = $player['match_player_id'] ?? null;
@@ -259,16 +292,17 @@ $hasRedCards = ((int)($matchStats['home']['red_cards'] ?? 0) + (int)($matchStats
         }
         $goals = (int)($player['goals'] ?? 0);
         ?>
-        <tr>
-            <td><?= htmlspecialchars($player['shirt_number'] ?? '-') ?></td>
-            <td><?= htmlspecialchars($player['name'] ?? '-') ?></td>
-            <td><?= htmlspecialchars($player['position'] ?? '-') ?></td>
-            <td><?= $goals > 0 ? $goals : '' ?></td>
-            <td><?= ($player['yellow_cards'] ?? 0 ? (int)$player['yellow_cards'] : '') ?></td>
-            <?php if ($hasRedCards): ?><td><?= ($player['red_cards'] ?? 0 ? (int)$player['red_cards'] : '') ?></td><?php endif; ?>
-            <td><?= $minutes !== '' ? $minutes : '—' ?></td>
+        <tr class="border-b border-border-soft hover:bg-bg-secondary/60 transition-colors">
+            <td class="px-4 py-2"><?= htmlspecialchars($player['shirt_number'] ?? '-') ?></td>
+            <td class="px-4 py-2"><?= htmlspecialchars($player['name'] ?? '-') ?></td>
+            <td class="px-4 py-2"><?= htmlspecialchars($player['position'] ?? '-') ?></td>
+            <td class="px-4 py-2"><?= $goals > 0 ? $goals : '' ?></td>
+            <td class="px-4 py-2"><?= ($player['yellow_cards'] ?? 0 ? (int)$player['yellow_cards'] : '') ?></td>
+            <?php if ($hasRedCards): ?><td class="px-4 py-2"><?= ($player['red_cards'] ?? 0 ? (int)$player['red_cards'] : '') ?></td><?php endif; ?>
+            <td class="px-4 py-2"><?= $minutes !== '' ? $minutes : '—' ?></td>
         </tr>
     <?php endforeach; ?>
+    </tbody>
 </table>
 
 <?php

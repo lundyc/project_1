@@ -48,7 +48,7 @@ ob_start();
                               <input type="date" name="end_date" class="form-control input-dark">
                     </div>
                     <div class="col-12 text-end">
-                              <button type="submit" class="btn btn-primary-soft btn-sm">Create season</button>
+                            <button type="submit" class="inline-flex items-center gap-2 bg-accent-primary text-white px-4 py-2 rounded-md hover:bg-accent-primary/80 transition">Create season</button>
                     </div>
           </form>
           <div id="season-create-error" class="text-danger small mt-2" style="display:none;"></div>
@@ -88,8 +88,8 @@ ob_start();
                                                                       <td><input type="date" class="form-control form-control-sm input-dark" name="start_date" value="<?= htmlspecialchars($season['start_date'] ?? '') ?>"></td>
                                                                       <td><input type="date" class="form-control form-control-sm input-dark" name="end_date" value="<?= htmlspecialchars($season['end_date'] ?? '') ?>"></td>
                                                                       <td class="text-end">
-                                                                                <button type="button" class="btn btn-secondary-soft btn-sm" data-action="save-season">Save</button>
-                                                                                <button type="button" class="btn btn-danger-soft btn-sm" data-action="delete-season">Delete</button>
+                                                                                <button type="button" class="inline-flex items-center gap-2 bg-bg-secondary text-text-primary border border-border-soft px-4 py-2 rounded-md hover:bg-bg-secondary/80 transition" data-action="save-season">Save</button>
+                                                                                <button type="button" class="inline-flex items-center gap-2 bg-accent-danger text-white px-4 py-2 rounded-md hover:bg-accent-danger/80 transition" data-action="delete-season">Delete</button>
                                                                       </td>
                                                             </tr>
                                                   <?php endforeach; ?>

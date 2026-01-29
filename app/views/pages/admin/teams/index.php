@@ -72,7 +72,7 @@ ob_start();
                     include __DIR__ . '/../../../partials/club_context_header.php';
                     ?>
                     <div class="flex justify-end mb-4 px-4 md:px-6 lg:px-8">
-                              <a href="<?= htmlspecialchars($base) ?>/admin/teams/create" class="btn-primary-soft px-4 py-2 text-sm font-semibold rounded-md">+ Create Team</a>
+                            <a href="<?= htmlspecialchars($base) ?>/admin/teams/create" class="inline-flex items-center gap-2 bg-accent-primary text-white px-4 py-2 rounded-md hover:bg-accent-primary/80 transition">+ Create Team</a>
                     </div>
                     <div class="grid grid-cols-12 gap-2 px-4 md:px-6 lg:px-8 w-full">
                               <!-- Left: Filters -->
@@ -101,8 +101,8 @@ ob_start();
                                                             </select>
                                                   </div>
                                                   <div class="flex gap-2">
-                                                            <button type="submit" class="btn btn-primary-soft btn-sm flex-1">Apply</button>
-                                                            <a href="<?= htmlspecialchars($base) ?>/admin/teams" class="btn btn-secondary-soft btn-sm flex-1">Clear</a>
+                                                            <button type="submit" class="inline-flex items-center gap-2 bg-accent-primary text-white px-4 py-2 rounded-md hover:bg-accent-primary/80 transition flex-1">Apply</button>
+                                                            <a href="<?= htmlspecialchars($base) ?>/admin/teams" class="inline-flex items-center gap-2 bg-bg-secondary text-text-primary border border-border-soft px-4 py-2 rounded-md hover:bg-bg-secondary/80 transition flex-1">Clear</a>
                                                   </div>
                                         </form>
                               </aside>
@@ -154,7 +154,7 @@ ob_start();
                                                                                                                         </a>
                                                                                                                         <form method="post" action="<?= htmlspecialchars($base) ?>/api/admin/teams/delete" class="inline" onsubmit="return confirm('Delete this team? This will fail if it has matches or related data.');">
                                                                                                                                   <input type="hidden" name="id" value="<?= $teamId ?>">
-                                                                                                                                  <button type="submit" class="inline-flex items-center rounded-md bg-red-700/60 px-2 py-1 text-xs text-white hover:bg-red-800 transition" aria-label="Delete team">
+                                                                                                                                <button type="submit" class="inline-flex items-center gap-2 bg-accent-danger text-white px-4 py-2 rounded-md hover:bg-accent-danger/80 transition text-xs" aria-label="Delete team">
                                                                                                                                             <i class="fa-solid fa-trash"></i>
                                                                                                                                   </button>
                                                                                                                         </form>

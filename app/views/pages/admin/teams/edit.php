@@ -44,7 +44,7 @@ ob_start();
                     <h1 class="mb-1">Edit Team</h1>
                     <p class="text-muted-alt text-sm mb-0">Update team details and assignments.</p>
           </div>
-          <a href="<?= htmlspecialchars($base) ?>/admin/teams" class="btn btn-secondary-soft btn-sm">Back to teams</a>
+        <a href="<?= htmlspecialchars($base) ?>/admin/teams" class="inline-flex items-center gap-2 bg-bg-secondary text-text-primary border border-border-soft px-4 py-2 rounded-md hover:bg-bg-secondary/80 transition">Back to teams</a>
 </div>
 
 <?php if ($flashError): ?>
@@ -93,7 +93,7 @@ ob_start();
 
                     <div class="d-flex justify-content-between align-items-center mt-4">
                               <span class="text-muted-alt text-sm">Changes apply immediately.</span>
-                              <button type="submit" class="btn btn-primary-soft btn-sm">Update team</button>
+                            <button type="submit" class="inline-flex items-center gap-2 bg-accent-primary text-white px-4 py-2 rounded-md hover:bg-accent-primary/80 transition">Update team</button>
                     </div>
           </form>
 
@@ -101,7 +101,7 @@ ob_start();
 
           <form method="post" action="<?= htmlspecialchars($base) ?>/api/admin/teams/delete" onsubmit="return confirm('Delete this team? This will fail if it has matches or related data.');">
                     <input type="hidden" name="id" value="<?= $teamId ?>">
-                    <button type="submit" class="btn btn-danger-soft btn-sm">Delete team</button>
+                    <button type="submit" class="inline-flex items-center gap-2 bg-accent-danger text-white px-4 py-2 rounded-md hover:bg-accent-danger/80 transition">Delete team</button>
           </form>
 </div>
 <?php

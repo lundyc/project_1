@@ -1,79 +1,99 @@
 
 <?php ob_start(); ?>
-<div class="space-y-6">
-    <header class="flex items-center justify-between">
-        <h1 class="text-2xl font-semibold text-white">League Intelligence Matches</h1>
-        <a href="/league-intelligence/matches/add" class="rounded bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 text-sm">Add Match</a>
-    </header>
-
-    <!-- Filters -->
-    <div class="flex flex-wrap gap-2 mb-4">
-        <select id="filter-team" class="rounded border border-slate-600 bg-slate-800 text-slate-100 px-2 py-1 text-xs">
-            <option value="">All Teams</option>
-            <?php foreach ($teams as $team): ?>
-                <option value="<?= htmlspecialchars($team['id']) ?>"><?= htmlspecialchars($team['name']) ?></option>
-            <?php endforeach; ?>
-        </select>
-        <select id="filter-competition" class="rounded border border-slate-600 bg-slate-800 text-slate-100 px-2 py-1 text-xs">
-            <option value="">All Competitions</option>
-            <!-- Options will be populated by JS -->
-        </select>
-        <select id="filter-status" class="rounded border border-slate-600 bg-slate-800 text-slate-100 px-2 py-1 text-xs">
-            <option value="">All Statuses</option>
-            <?php foreach ($statuses as $status): ?>
-                <option value="<?= htmlspecialchars($status) ?>"><?= ucfirst($status) ?></option>
-            <?php endforeach; ?>
-        </select>
+<div class="w-full mt-4 text-slate-200">
+    <div class="max-w-full">
+        <div class="grid grid-cols-12 gap-2 px-4 md:px-6 lg:px-8 w-full">
+            <!-- Left Sidebar: Filters -->
+            <aside class="col-span-2 space-y-4 min-w-0">
+                <div class="space-y-2">
+                    <h2 class="text-xs uppercase tracking-[0.3em] text-slate-400 font-semibold mb-2">Filters</h2>
+                    <form class="flex flex-col gap-3" role="search" onsubmit="return false;">
+                        <label class="block text-slate-400 text-xs mb-1">Team
+                            <select id="filter-team" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs">
+                                <option value="">All Teams</option>
+                                <?php foreach ($teams as $team): ?>
+                                    <option value="<?= htmlspecialchars($team['id']) ?>"><?= htmlspecialchars($team['name']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </label>
+                        <label class="block text-slate-400 text-xs mb-1">Competition
+                            <select id="filter-competition" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs">
+                                <option value="">All Competitions</option>
+                                <!-- Options will be populated by JS -->
+                            </select>
+                        </label>
+                        <label class="block text-slate-400 text-xs mb-1">Status
+                            <select id="filter-status" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs">
+                                <option value="">All Statuses</option>
+                                <?php foreach ($statuses as $status): ?>
+                                    <option value="<?= htmlspecialchars($status) ?>"><?= ucfirst($status) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </label>
+                    </form>
+                </div>
+            </aside>
+            <!-- Main Content -->
+            <main class="col-span-7 space-y-5 min-w-0">
+                <header class="flex items-center justify-between">
+                    <h1 class="text-2xl font-semibold text-white">League Intelligence Matches</h1>
+                    <a href="/league-intelligence/matches/add" class="rounded bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 text-sm">Add Match</a>
+                </header>
+                <div>
+                    <table class="min-w-full bg-bg-tertiary text-text-primary text-xs rounded-xl overflow-hidden">
+                        <thead>
+                            <tr class="bg-bg-secondary text-text-muted uppercase font-semibold text-xs">
+                                <th class="px-4 py-3">#</th>
+                                <th class="px-4 py-3">Date</th>
+                                <th class="px-4 py-3">Competition</th>
+                                <th class="px-4 py-3">Home</th>
+                                <th class="px-4 py-3">Away</th>
+                                <th class="px-4 py-3">HG</th>
+                                <th class="px-4 py-3">AG</th>
+                                <th class="px-4 py-3">Status</th>
+                                <th class="px-4 py-3">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php
+                            // Filtering logic
+                            // We'll render all rows, but hide/show with JS for live filtering
+                            foreach ($matches as $m):
+                                // UK date format: DD/MM/YY @ HH:MM
+                                $date = $m['kickoff_at'] ? date('d/m/y @ H:i', strtotime($m['kickoff_at'])) : '-';
+                                $home = $m['home_team_name'] ?? $m['home_team_id'];
+                                $away = $m['away_team_name'] ?? $m['away_team_id'];
+                                $hg = ($m['home_goals'] === null || $m['home_goals'] === '') ? '-' : htmlspecialchars($m['home_goals']);
+                                $ag = ($m['away_goals'] === null || $m['away_goals'] === '') ? '-' : htmlspecialchars($m['away_goals']);
+                                $competition = $m['competition_name'] ?? '-';
+                                $rowId = 'match-row-' . htmlspecialchars($m['match_id']);
+                            ?>
+                                <tr id="<?= $rowId ?>" data-match-id="<?= htmlspecialchars($m['match_id']) ?>" data-team="<?= htmlspecialchars($m['home_team_id']) ?>,<?= htmlspecialchars($m['away_team_id']) ?>" data-competition="<?= htmlspecialchars($m['competition_id']) ?>" data-status="<?= htmlspecialchars($m['status']) ?>" class="border-b border-border-soft hover:bg-bg-secondary/60 cursor-pointer transition-colors match-row">
+                                    <td class="px-4 py-2 text-center"><?= htmlspecialchars($m['match_id']) ?></td>
+                                    <td class="px-4 py-2"><?= $date ?></td>
+                                    <td class="px-4 py-2"><?= htmlspecialchars($competition) ?></td>
+                                    <td class="px-4 py-2"><?= htmlspecialchars($home) ?></td>
+                                    <td class="px-4 py-2"><?= htmlspecialchars($away) ?></td>
+                                    <td class="px-4 py-2 text-center"><?= $hg ?></td>
+                                    <td class="px-4 py-2 text-center"><?= $ag ?></td>
+                                    <td class="px-4 py-2 text-center"><?= htmlspecialchars($m['status']) ?></td>
+                                    <td class="px-4 py-2">
+                                        <a href="/league-intelligence/matches/edit/<?= urlencode($m['match_id']) ?>" class="text-indigo-400 hover:underline mr-2">Edit</a>
+                                        <form action="/league-intelligence/matches/delete/<?= urlencode($m['match_id']) ?>" method="post" style="display:inline" onsubmit="return confirm('Delete this match?');">
+                                            <input type="hidden" name="_redirect" value="<?= htmlspecialchars($_SERVER['REQUEST_URI']) ?>">
+                                            <button type="submit" class="text-rose-400 hover:underline">Delete</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </main>
+            <!-- Right Sidebar: Contextual Panels (empty for now) -->
+            <aside class="col-span-3 min-w-0"></aside>
+        </div>
     </div>
-
-    <table class="min-w-full bg-slate-900 text-slate-100 text-xs rounded-lg overflow-hidden">
-        <thead>
-            <tr class="bg-slate-800 text-slate-300">
-                <th class="px-2 py-2">#</th>
-                <th class="px-2 py-2">Date</th>
-                <th class="px-2 py-2">Competition</th>
-                <th class="px-2 py-2">Home</th>
-                <th class="px-2 py-2">Away</th>
-                <th class="px-2 py-2">HG</th>
-                <th class="px-2 py-2">AG</th>
-                <th class="px-2 py-2">Status</th>
-                <th class="px-2 py-2">Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php
-            // Filtering logic
-            // We'll render all rows, but hide/show with JS for live filtering
-            foreach ($matches as $m):
-                // UK date format: DD/MM/YY @ HH:MM
-                $date = $m['kickoff_at'] ? date('d/m/y @ H:i', strtotime($m['kickoff_at'])) : '-';
-                $home = $m['home_team_name'] ?? $m['home_team_id'];
-                $away = $m['away_team_name'] ?? $m['away_team_id'];
-                $hg = ($m['home_goals'] === null || $m['home_goals'] === '') ? '-' : htmlspecialchars($m['home_goals']);
-                $ag = ($m['away_goals'] === null || $m['away_goals'] === '') ? '-' : htmlspecialchars($m['away_goals']);
-                $competition = $m['competition_name'] ?? '-';
-                $rowId = 'match-row-' . htmlspecialchars($m['match_id']);
-            ?>
-                <tr id="<?= $rowId ?>" data-match-id="<?= htmlspecialchars($m['match_id']) ?>" data-team="<?= htmlspecialchars($m['home_team_id']) ?>,<?= htmlspecialchars($m['away_team_id']) ?>" data-competition="<?= htmlspecialchars($m['competition_id']) ?>" data-status="<?= htmlspecialchars($m['status']) ?>" class="border-b border-slate-700 cursor-pointer transition-colors match-row">
-                    <td class="px-2 py-1 text-center"><?= htmlspecialchars($m['match_id']) ?></td>
-                    <td class="px-2 py-1"><?= $date ?></td>
-                    <td class="px-2 py-1"><?= htmlspecialchars($competition) ?></td>
-                    <td class="px-2 py-1"><?= htmlspecialchars($home) ?></td>
-                    <td class="px-2 py-1"><?= htmlspecialchars($away) ?></td>
-                    <td class="px-2 py-1 text-center"><?= $hg ?></td>
-                    <td class="px-2 py-1 text-center"><?= $ag ?></td>
-                    <td class="px-2 py-1 text-center"><?= htmlspecialchars($m['status']) ?></td>
-                    <td class="px-2 py-1">
-                        <a href="/league-intelligence/matches/edit/<?= urlencode($m['match_id']) ?>" class="text-indigo-400 hover:underline mr-2">Edit</a>
-                        <form action="/league-intelligence/matches/delete/<?= urlencode($m['match_id']) ?>" method="post" style="display:inline" onsubmit="return confirm('Delete this match?');">
-                            <input type="hidden" name="_redirect" value="<?= htmlspecialchars($_SERVER['REQUEST_URI']) ?>">
-                            <button type="submit" class="text-rose-400 hover:underline">Delete</button>
-                        </form>
-                    </td>
-                </tr>
-            <?php endforeach; ?>
-        </tbody>
-    </table>
 </div>
 <style>
     .match-row.selected {

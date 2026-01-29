@@ -69,7 +69,7 @@ ob_start();
                     <h1 class="mb-1"><?= htmlspecialchars($title) ?></h1>
                     <p class="text-muted-alt text-sm mb-0">Maintain player info like positions, assignments, and status.</p>
           </div>
-          <a href="<?= htmlspecialchars($base) ?>/admin/players" class="btn btn-secondary-soft btn-sm">Back to players</a>
+        <a href="<?= htmlspecialchars($base) ?>/admin/players" class="inline-flex items-center gap-2 bg-bg-secondary text-text-primary border border-border-soft px-4 py-2 rounded-md hover:bg-bg-secondary/80 transition">Back to players</a>
 </div>
 
 <?php if ($flashError): ?>
@@ -127,7 +127,7 @@ ob_start();
 
                     <div class="d-flex justify-content-between align-items-center mt-4">
                               <span class="text-muted-alt text-sm">Changes are tracked in the audit log.</span>
-                              <button type="submit" class="btn btn-primary-soft btn-sm"><?= $isEdit ? 'Update player' : 'Create player' ?></button>
+                            <button type="submit" class="inline-flex items-center gap-2 bg-accent-primary text-white px-4 py-2 rounded-md hover:bg-accent-primary/80 transition"><?= $isEdit ? 'Update player' : 'Create player' ?></button>
                     </div>
           </form>
 </div>
