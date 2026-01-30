@@ -65,6 +65,12 @@ route('/league-intelligence/matches/delete/{id}', function () {
     }
 });
 
+route('/league-intelligence/(\d+)/match-preview', function ($matchId) {
+    require_role('platform_admin');
+    $_GET['match_id'] = (int)$matchId;
+    require __DIR__ . '/../app/views/pages/league-intelligence/match-preview.php';
+});
+
 require_once __DIR__ . '/../app/lib/auth.php';
 require_once __DIR__ . '/../app/lib/router.php';
 require_once __DIR__ . '/../app/lib/phase3.php';

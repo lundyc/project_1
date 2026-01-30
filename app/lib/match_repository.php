@@ -208,7 +208,6 @@ function get_li_scheduled_fixtures_for_club(int $clubId, int $limit = 10): array
           LEFT JOIN competitions comp ON comp.id = lim.competition_id
           LEFT JOIN matches m ON m.id = lim.match_id
           WHERE lim.status = \'scheduled\'
-            AND m.id IS NULL
             AND (ht.club_id = :club_id OR at.club_id = :club_id)
             AND (lim.kickoff_at IS NULL OR lim.kickoff_at >= :now)
           ORDER BY COALESCE(lim.kickoff_at, \'9999-12-31 23:59:59\') ASC, lim.match_id ASC

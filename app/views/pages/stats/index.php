@@ -350,10 +350,13 @@ All matches for <?= htmlspecialchars($clubContextName) ?>.
             </section>
 
             <section id="team-performance-panel" role="tabpanel" aria-labelledby="team-performance-tab" data-panel-id="team-performance" style="display:none;">
-            <div class="rounded-xl bg-slate-900/80 border border-white/10 p-3">
+                            <div class="rounded-xl bg-slate-800 border border-white/10 p-3">
                     <div class="d-flex flex-column flex-md-row align-items-start justify-content-between gap-3 mb-3">
-                        <div>
-                            <h3 class="mb-1">Team Performance</h3>
+                              <div>
+                            <h1 class="text-2xl font-semibold text-white mb-1">Team Performance</h1>
+                            <p class="text-xs text-slate-400">
+                                Team performance for <?= htmlspecialchars($clubContextName) ?>.
+                            </p>
                         </div>
                     </div>
                     
@@ -367,7 +370,7 @@ All matches for <?= htmlspecialchars($clubContextName) ?>.
                                         <h5 class="mb-0 text-light">Home vs Away Record</h5>
                                     </div>
                                     <div class="overflow-x-auto">
-                                        <table class="min-w-full bg-bg-tertiary text-text-primary text-xs rounded-xl overflow-hidden">
+                                        <table class="min-w-full bg-bg-tertiary text-text-primary text-xs rounded-xl overflow-hidden" id="matches-table">
                                             <thead>
                                                 <tr class="bg-bg-secondary text-text-muted uppercase font-semibold text-xs">
                                                     <th class="px-4 py-3">Venue</th>
@@ -413,10 +416,10 @@ All matches for <?= htmlspecialchars($clubContextName) ?>.
                                     <div class="d-flex align-items-center justify-content-between mb-3">
                                         <h5 class="mb-0 text-light">Clean Sheets</h5>
                                     </div>
-                                    <div class="overflow-x-auto">
-                                        <table class="min-w-full bg-bg-tertiary text-text-primary text-xs rounded-xl overflow-hidden">
-                                            <thead>
-                                                <tr class="bg-bg-secondary text-text-muted uppercase font-semibold text-xs">
+                                  
+                                        <table class="min-w-full bg-bg-tertiary text-text-primary text-xs rounded-xl overflow-hidden" id="matches-table">
+                                    <thead>
+                                    <tr class="bg-bg-secondary text-text-muted uppercase font-semibold text-xs">
                                                     <th class="px-4 py-3 text-left">Date</th>
                                                     <th class="px-4 py-3 text-left">Venue</th>
                                                     <th class="px-4 py-3 text-left">Opponent</th>
@@ -427,7 +430,7 @@ All matches for <?= htmlspecialchars($clubContextName) ?>.
                                             </thead>
                                             <tbody id="team-performance-clean-sheets-body">
                                                 <tr>
-                                                    <td colspan="5" class="text-center py-2 text-slate-400">—</td>
+                                                    <td colspan="6" class="text-center py-2 text-slate-400">—</td>
                                                 </tr>
                                             </tbody>
                                             <tfoot>
@@ -435,10 +438,11 @@ All matches for <?= htmlspecialchars($clubContextName) ?>.
                                                     <td colspan="5" class="px-3 py-2 text-right text-slate-200">
                                                         Total: <span id="team-performance-clean-sheets-total">—</span>
                                                     </td>
+                                                    <td class="px-3 py-2 text-right text-slate-200"></td>
                                                 </tr>
                                             </tfoot>
                                         </table>
-                                    </div>
+                                
                                 </div>
                             </div>
                         </div>
@@ -462,39 +466,56 @@ All matches for <?= htmlspecialchars($clubContextName) ?>.
                                     <div id="team-performance-form-empty" class="text-muted text-xs mt-2" style="display:none;">Add matches to capture your form.</div>
                                 </div>
                             </div>
-                            <div class="col-12 col-md-6">
+                            <div class="col-12 col-md-6 mt-3">
                                 <div class="rounded-xl border border-white/10 bg-slate-800/60 p-3">
-                                    <div class="d-flex align-items-center justify-content-between mb-3">
+                                    <div class="flex items-center justify-between mb-3">
                                         <h5 class="mb-0 text-light">Goals &amp; Clean Sheets</h5>
                                     </div>
-                                    <div class="overflow-x-auto">
-                                        <table class="min-w-full text-sm">
-                                            <thead class="bg-slate-900/90 text-slate-100 uppercase tracking-wider">
-                                                <tr>
-                                                    <th>Competition</th>
-                                                    <th class="text-center">For</th>
-                                                    <th class="text-center">Against</th>
-                                                    <th class="text-center">Diff</th>
-                                                    <th class="text-center">Clean</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody class="text-slate-200">
-                                                <tr data-competition-type="league">
-                                                    <td>League</td>
-                                                    <td class="text-center" data-league-stat="goals_for">—</td>
-                                                    <td class="text-center" data-league-stat="goals_against">—</td>
-                                                    <td class="text-center" data-league-stat="goal_difference">—</td>
-                                                    <td class="text-center" data-league-stat="clean_sheets">—</td>
-                                                </tr>
-                                                <tr data-competition-type="cup">
-                                                    <td>Cup</td>
-                                                    <td class="text-center" data-cup-stat="goals_for">—</td>
-                                                    <td class="text-center" data-cup-stat="goals_against">—</td>
-                                                    <td class="text-center" data-cup-stat="goal_difference">—</td>
-                                                    <td class="text-center" data-cup-stat="clean_sheets">—</td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="goals-clean-cards">
+                                        <!-- League Card -->
+                                        <div id="league-card" class="rounded-lg border border-white/10 bg-slate-900/80 px-6 py-6 flex flex-col items-center min-h-[200px]">
+                                            <div class="text-lg font-semibold text-slate-200 mb-4">League</div>
+                                            <div class="grid grid-cols-2 gap-6 w-full max-w-xs text-center">
+                                                <div>
+                                                    <div class="text-xs text-slate-400 mb-1">For</div>
+                                                    <div class="text-2xl font-bold text-emerald-400" data-league-stat="goals_for">—</div>
+                                                </div>
+                                                <div>
+                                                    <div class="text-xs text-slate-400 mb-1">Against</div>
+                                                    <div class="text-2xl font-bold text-red-400" data-league-stat="goals_against">—</div>
+                                                </div>
+                                                <div>
+                                                    <div class="text-xs text-slate-400 mb-1">Diff</div>
+                                                    <div class="text-2xl font-bold text-cyan-400" data-league-stat="goal_difference">—</div>
+                                                </div>
+                                                <div>
+                                                    <div class="text-xs text-slate-400 mb-1">Clean</div>
+                                                    <div class="text-2xl font-bold text-slate-100" data-league-stat="clean_sheets">—</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <!-- Cup Card -->
+                                        <div id="cup-card" class="rounded-lg border border-white/10 bg-slate-900/80 px-6 py-6 flex flex-col items-center min-h-[200px]">
+                                            <div class="text-lg font-semibold text-slate-200 mb-4">Cup</div>
+                                            <div class="grid grid-cols-2 gap-6 w-full max-w-xs text-center">
+                                                <div>
+                                                    <div class="text-xs text-slate-400 mb-1">For</div>
+                                                    <div class="text-2xl font-bold text-emerald-400" data-cup-stat="goals_for">—</div>
+                                                </div>
+                                                <div>
+                                                    <div class="text-xs text-slate-400 mb-1">Against</div>
+                                                    <div class="text-2xl font-bold text-red-400" data-cup-stat="goals_against">—</div>
+                                                </div>
+                                                <div>
+                                                    <div class="text-xs text-slate-400 mb-1">Diff</div>
+                                                    <div class="text-2xl font-bold text-cyan-400" data-cup-stat="goal_difference">—</div>
+                                                </div>
+                                                <div>
+                                                    <div class="text-xs text-slate-400 mb-1">Clean</div>
+                                                    <div class="text-2xl font-bold text-slate-100" data-cup-stat="clean_sheets">—</div>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -507,7 +528,7 @@ All matches for <?= htmlspecialchars($clubContextName) ?>.
             </section>
 
             <section id="player-performance-panel" role="tabpanel" aria-labelledby="player-performance-tab" data-panel-id="player-performance" style="display:none;">
-                <div class="rounded-xl bg-slate-900/80 border border-white/10 p-4">
+                <div class="rounded-xl bg-slate-800 border border-white/10 p-4">
                     <h3 class="mb-3">Player Performance</h3>
                     <!-- Filters moved to left sidebar -->
 
@@ -625,7 +646,7 @@ All matches for <?= htmlspecialchars($clubContextName) ?>.
             
             <!-- Right Sidebar: Team Performance Cards -->
             <aside id="team-performance-sidebar" class="col-span-3 min-w-0" style="display:none;">
-                <div class="rounded-xl bg-slate-900/80 border border-white/10 p-4">
+                <div class="rounded-xl bg-slate-800 border border-white/10 p-4">
                     <h5 class="text-slate-200 font-semibold mb-1">Team Statistics</h5>
                     <div class="text-slate-400 text-xs mb-4">Performance metrics</div>
                     <div class="space-y-3" id="team-performance-cards-sidebar"></div>
@@ -634,7 +655,7 @@ All matches for <?= htmlspecialchars($clubContextName) ?>.
             
             <!-- Right Sidebar: Player Performance Stats -->
             <aside id="player-performance-sidebar" class="col-span-3 min-w-0" style="display:none;">
-                <div class="rounded-xl bg-slate-900/80 border border-white/10 p-4">
+                <div class="rounded-xl bg-slate-800 border border-white/10 p-4">
                     <div class="space-y-3">
                         <!-- Option 1: Top Player Statistics -->
                         <div>
@@ -1454,7 +1475,7 @@ All matches for <?= htmlspecialchars($clubContextName) ?>.
             
             const html = `
                 <!-- Group 1: Goals & Clean Sheets -->
-                <article class="rounded-lg border border-white/10 bg-slate-800/40 px-3 py-3">
+                <article class="rounded-lg border border-white/10 bg-slate-900/80 px-3 py-3">
                     <div class="grid grid-cols-2 gap-3 text-center">
                         <div>
                             <div class="text-[10px] text-slate-400 mb-1">Goals For</div>
@@ -1470,7 +1491,7 @@ All matches for <?= htmlspecialchars($clubContextName) ?>.
                 <div class="border-t border-white/10"></div>
                 
                 <!-- Group 2: Match Results -->
-                <article class="rounded-lg border border-white/10 bg-slate-800/40 px-3 py-3">
+                <article class="rounded-lg border border-white/10 bg-slate-900/80 px-3 py-3">
                     <div class="text-xs font-semibold text-slate-300 mb-2 text-center">Match Results</div>
                     <div class="grid grid-cols-3 gap-3 text-center">
                         <div>
@@ -1491,7 +1512,7 @@ All matches for <?= htmlspecialchars($clubContextName) ?>.
                 <div class="border-t border-white/10"></div>
                 
                 <!-- Group 3: Goals Stats -->
-                <article class="rounded-lg border border-white/10 bg-slate-800/40 px-3 py-3">
+                <article class="rounded-lg border border-white/10 bg-slate-900/80 px-3 py-3">
                     <div class="text-xs font-semibold text-slate-300 mb-2 text-center">Goals</div>
                     <div class="grid grid-cols-3 gap-3 text-center">
                         <div>
@@ -1536,14 +1557,14 @@ All matches for <?= htmlspecialchars($clubContextName) ?>.
                 const label = venue.charAt(0).toUpperCase() + venue.slice(1);
                 return `
                     <tr>
-                        <td>${label}</td>
-                        <td class="text-center">${formatNumber(matches)}</td>
-                        <td class="text-center">${formatNumber(wins)}</td>
-                        <td class="text-center">${formatNumber(draws)}</td>
-                        <td class="text-center">${formatNumber(losses)}</td>
-                        <td class="text-center">${formatNumber(gf)}</td>
-                        <td class="text-center">${formatNumber(ga)}</td>
-                        <td class="text-center">${formatNumber(gd)}</td>
+                        <td class="px-3 py-2">${label}</td>
+                        <td class="text-center px-3 py-2">${formatNumber(matches)}</td>
+                        <td class="text-center px-3 py-2">${formatNumber(wins)}</td>
+                        <td class="text-center px-3 py-2">${formatNumber(draws)}</td>
+                        <td class="text-center px-3 py-2">${formatNumber(losses)}</td>
+                        <td class="text-center px-3 py-2">${formatNumber(gf)}</td>
+                        <td class="text-center px-3 py-2">${formatNumber(ga)}</td>
+                        <td class="text-center px-3 py-2">${formatNumber(gd)}</td>
                     </tr>
                 `;
             });
@@ -1634,7 +1655,7 @@ All matches for <?= htmlspecialchars($clubContextName) ?>.
                     const pill = document.createElement('div');
                     const result = entry.result ?? '—';
                     const colorClass = result === 'W' ? 'tp-form-result--W' : result === 'D' ? 'tp-form-result--D' : result === 'L' ? 'tp-form-result--L' : '';
-                    pill.className = `rounded-lg border border-white/10 bg-slate-800/40 p-3 w-full min-w-[7.5rem] text-center shadow-sm transition-transform duration-200 hover:-translate-y-0.5 ${colorClass}`;
+                    pill.className = `rounded-lg border border-white/10 bg-slate-900/80 p-3 w-full min-w-[7.5rem] text-center shadow-sm transition-transform duration-200 hover:-translate-y-0.5 ${colorClass}`;
                     const dateLabel = entry.date ? new Date(entry.date).toLocaleDateString() : 'TBD';
                     const venueLabel = entry.venue ?? 'Home';
                     const opponent = entry.opponent ?? 'Opponent';
@@ -1696,16 +1717,30 @@ All matches for <?= htmlspecialchars($clubContextName) ?>.
         function updateCompetitionTypeRows() {
             const typeSelect = document.getElementById('team-performance-type-filter');
             if (!typeSelect) return;
-            
             const selectedType = typeSelect.value;
             const leagueRow = document.querySelector('tr[data-competition-type="league"]');
             const cupRow = document.querySelector('tr[data-competition-type="cup"]');
-            
+            // Table rows (legacy, for safety)
             if (leagueRow) {
                 leagueRow.style.display = !selectedType || selectedType === 'league' ? '' : 'none';
             }
             if (cupRow) {
                 cupRow.style.display = !selectedType || selectedType === 'cup' ? '' : 'none';
+            }
+            // Card visibility
+            const leagueCard = document.getElementById('league-card');
+            const cupCard = document.getElementById('cup-card');
+            if (leagueCard && cupCard) {
+                if (!selectedType) {
+                    leagueCard.style.display = '';
+                    cupCard.style.display = '';
+                } else if (selectedType === 'league') {
+                    leagueCard.style.display = '';
+                    cupCard.style.display = 'none';
+                } else if (selectedType === 'cup') {
+                    leagueCard.style.display = 'none';
+                    cupCard.style.display = '';
+                }
             }
         }
 
@@ -2133,7 +2168,7 @@ All matches for <?= htmlspecialchars($clubContextName) ?>.
             
             container.innerHTML = `
                 <!-- Core Leaders grouped -->
-                <article class="rounded-lg border border-white/10 bg-slate-800/40 px-3 py-3">
+                <article class="rounded-lg border border-white/10 bg-slate-900/80 px-3 py-3">
                     <div class="text-xs font-semibold text-slate-300 mb-3">Top Leaders</div>
                     <div class="space-y-3">
                         <div class="flex items-center justify-between gap-2">
@@ -2148,7 +2183,7 @@ All matches for <?= htmlspecialchars($clubContextName) ?>.
                                 <div class="text-[10px] uppercase tracking-wide text-slate-400">Most Minutes</div>
                                 <div class="text-sm text-slate-300">${minuteLeader.name ? escapeHtml(minuteLeader.name) : '—'}</div>
                             </div>
-                            <div class="text-2xl font-bold text-cyan-400">${minuteLeader.minutes_played || 0}</div>
+                            <div class="text-2xl font-bold text-cyan-400">${Number(minuteLeader.minutes_played || 0).toLocaleString()}</div>
                         </div>
                         <div class="flex items-center justify-between gap-2">
                             <div>
@@ -2197,7 +2232,7 @@ All matches for <?= htmlspecialchars($clubContextName) ?>.
 
             container.innerHTML = `
                 <!-- Squad core stats grouped -->
-                <article class="rounded-lg border border-white/10 bg-slate-800/40 px-3 py-3">
+                <article class="rounded-lg border border-white/10 bg-slate-900/80 px-3 py-3">
                     <div class="text-xs font-semibold text-slate-300 mb-3">Squad Overview (Active)</div>
                     <div class="space-y-3">
                         <div class="flex items-center justify-between gap-2">
@@ -2219,7 +2254,7 @@ All matches for <?= htmlspecialchars($clubContextName) ?>.
                                 <div class="text-[10px] uppercase tracking-wide text-slate-400">Playing Time</div>
                                 <div class="text-xs text-slate-500 mt-1">${Math.round(avgMinutesPerPlayer)} mins avg per player</div>
                             </div>
-                            <div class="text-2xl font-bold text-cyan-400">${totalMinutes}</div>
+                            <div class="text-2xl font-bold text-cyan-400">${Number(totalMinutes).toLocaleString()}</div>
                         </div>
                         <div class="flex items-center justify-between gap-2 border-t border-white/10 pt-2 mt-2">
                             <div>
@@ -2231,33 +2266,50 @@ All matches for <?= htmlspecialchars($clubContextName) ?>.
                     </div>
                 </article>
 
-                <!-- Discipline Summary -->
-                <article class="rounded-lg border border-white/10 bg-slate-800/40 px-3 py-3">
-                    <div class="text-xs font-semibold text-slate-300 mb-2">Discipline</div>
-                    <div class="overflow-hidden rounded-lg border border-white/10">
-                        <div class="grid grid-cols-3 text-center divide-x divide-white/10 border-b border-white/10 bg-slate-900/60">
-                            <div class="px-3 py-2 text-left"></div>
-                            <div class="px-3 py-2 flex items-center justify-center">
-                                <svg class="h-4 w-3 text-yellow-400 fill-current" aria-hidden="true"><use xlink:href="/assets/svg/incident.svg#card"></use></svg>
+                <!-- Discipline Enhanced Overview -->
+                <article class="rounded-lg border border-white/10 bg-slate-900/80 px-3 py-3">
+                    <div class="text-xs font-semibold text-slate-300 mb-3">Discipline Overview</div>
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between gap-2">
+                            <div>
+                                <div class="text-[10px] uppercase tracking-wide text-slate-400">Total Yellow Cards</div>
+                                <div class="text-xs text-slate-500 mt-1">Active: ${totalYellow} &nbsp;|&nbsp; Inactive: ${inactiveYellow}</div>
                             </div>
-                            <div class="px-3 py-2 flex items-center justify-center">
-                                <svg class="h-4 w-3 text-red-500 fill-current" aria-hidden="true"><use xlink:href="/assets/svg/incident.svg#card"></use></svg>
+                            <div class="text-2xl font-bold text-yellow-400">${Number(totalYellowAll).toLocaleString()}</div>
+                        </div>
+                        <div class="flex items-center justify-between gap-2">
+                            <div>
+                                <div class="text-[10px] uppercase tracking-wide text-slate-400">Total Red Cards</div>
+                                <div class="text-xs text-slate-500 mt-1">Active: ${totalRed} &nbsp;|&nbsp; Inactive: ${inactiveRed}</div>
                             </div>
+                            <div class="text-2xl font-bold text-red-400">${Number(totalRedAll).toLocaleString()}</div>
                         </div>
-                        <div class="grid grid-cols-3 text-center divide-x divide-white/10">
-                            <div class="px-3 py-2 text-left text-xs font-semibold text-slate-200 bg-slate-900/50">Active</div>
-                            <div class="px-3 py-2 text-sm font-semibold text-slate-50 bg-slate-900/40">${totalYellow}</div>
-                            <div class="px-3 py-2 text-sm font-semibold text-slate-50 bg-slate-900/40">${totalRed}</div>
+                        <div class="flex items-center justify-between gap-2">
+                            <div>
+                                <div class="text-[10px] uppercase tracking-wide text-slate-400">Avg. Cards per Player</div>
+                                <div class="text-xs text-slate-500 mt-1">Yellow: ${(activePlayers.length ? (totalYellow/activePlayers.length).toFixed(2) : '0.00')} &nbsp;|&nbsp; Red: ${(activePlayers.length ? (totalRed/activePlayers.length).toFixed(2) : '0.00')}</div>
+                            </div>
+                            <div class="text-2xl font-bold text-slate-100">${activePlayers.length}</div>
                         </div>
-                        <div class="grid grid-cols-3 text-center divide-x divide-white/10 border-t border-white/10">
-                            <div class="px-3 py-2 text-left text-xs font-semibold text-slate-200 bg-slate-900/40">Inactive</div>
-                            <div class="px-3 py-2 text-sm font-semibold text-slate-50 bg-slate-900/30">${inactiveYellow}</div>
-                            <div class="px-3 py-2 text-sm font-semibold text-slate-50 bg-slate-900/30">${inactiveRed}</div>
-                        </div>
-                        <div class="grid grid-cols-3 text-center divide-x divide-white/10 border-t border-white/10">
-                            <div class="px-3 py-2 text-left text-xs font-semibold text-slate-100 bg-slate-900/55">Total</div>
-                            <div class="px-3 py-2 text-sm font-semibold text-slate-50 bg-slate-900/45">${totalYellowAll}</div>
-                            <div class="px-3 py-2 text-sm font-semibold text-slate-50 bg-slate-900/45">${totalRedAll}</div>
+                        <div class="flex items-center justify-between gap-2 border-t border-white/10 pt-2 mt-2">
+                            <div>
+                                <div class="text-[10px] uppercase tracking-wide text-slate-400">Most Carded</div>
+                                <div class="text-xs text-slate-500 mt-1">${(() => {
+                                    const all = [...activePlayers, ...inactivePlayers];
+                                    if (!all.length) return '—';
+                                    const most = all.reduce((max, p) => ((p.yellow_cards + p.red_cards) > (max.yellow_cards + max.red_cards) ? p : max), all[0]);
+                                    const total = (most.yellow_cards || 0) + (most.red_cards || 0);
+                                    if (!most.name || total === 0) return '—';
+                                    return `${escapeHtml(most.name)} (${total} cards)`;
+                                })()}</div>
+                            </div>
+                            <div class="text-2xl font-bold text-amber-400">${(() => {
+                                const all = [...activePlayers, ...inactivePlayers];
+                                if (!all.length) return '—';
+                                const most = all.reduce((max, p) => ((p.yellow_cards + p.red_cards) > (max.yellow_cards + max.red_cards) ? p : max), all[0]);
+                                const total = (most.yellow_cards || 0) + (most.red_cards || 0);
+                                return total > 0 ? total : '—';
+                            })()}</div>
                         </div>
                     </div>
                 </article>

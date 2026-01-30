@@ -282,15 +282,15 @@ include __DIR__ . '/../../partials/header.php';
                     <?php if ($displayedMatches === 0): ?>
                         <div class="rounded-xl border border-white/10 bg-slate-800/40 p-4 text-slate-400 text-sm">No matches found for the current view.</div>
                     <?php else: ?>
-                        <table class="min-w-full text-sm text-slate-200" id="matches-table">
-                            <thead class="bg-slate-900/90 text-slate-100 uppercase tracking-wider">
-                                <tr>
-                                    <th class="px-3 py-2">Match</th>
-                                    <th class="px-3 py-2">Date</th>
-                                    <th class="px-3 py-2">Time</th>
-                                    <th class="px-3 py-2">Competition</th>
-                                    <th class="px-3 py-2"></th>
-                                    <th class="px-3 py-2 text-center">Action</th>
+                              <table class="min-w-full bg-bg-tertiary text-text-primary text-xs rounded-xl overflow-hidden" id="matches-table">
+                                    <thead>
+                                    <tr class="bg-bg-secondary text-text-muted uppercase font-semibold text-xs">
+                                    <th class="px-4 py-3">Match</th>
+                                    <th class="px-4 py-3">Date</th>
+                                    <th class="px-4 py-3">Time</th>
+                                    <th class="px-4 py-3">Competition</th>
+                                    <th class="px-4 py-3"></th>
+                                    <th class="px-4 py-3 text-center">Action</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -322,14 +322,6 @@ include __DIR__ . '/../../partials/header.php';
                                         $venue = $match['venue'] ?? '';
                                     ?>
                                     <tr>
-
-                         
-                  
- 
-
-
-
-
                                         <td class="px-3 py-2">
                                             <a href="<?= $matchUrl ?>" class="text-indigo-300 hover:text-indigo-100">
                                                 <?= htmlspecialchars($title) ?>
@@ -348,7 +340,7 @@ include __DIR__ . '/../../partials/header.php';
                                                 <?= htmlspecialchars($timeLabel) ?>
                                           
                                         </td>
-                                        <td class="px-1 py-2 max-w-[8rem] truncate align-middle" title="<?= htmlspecialchars($displayCompetition) ?>">
+                                        <td class="px-3 py-2" title="<?= htmlspecialchars($displayCompetition) ?>">
                                             <?php
                                             if ($displayCompetition !== '') {
                                                 $shortComp = $displayCompetition;
