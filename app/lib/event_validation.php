@@ -157,6 +157,15 @@ function event_validation_trim_nullable_string($value): ?string
  * @return array<string, mixed>
  * @throws \RuntimeException
  */
+/**
+ * Validate and normalise an event payload coming from the APIs.
+ * Adds support for advanced shot schema for shot-type events.
+ *
+ * @param array<string, mixed> $input
+ * @param int $matchId
+ * @return array<string, mixed>
+ * @throws \RuntimeException
+ */
 function validate_event_payload(array $input, int $matchId): array
 {
           $matchSecond = isset($input['match_second']) && $input['match_second'] !== '' ? (int)$input['match_second'] : 0;
@@ -193,21 +202,104 @@ function validate_event_payload(array $input, int $matchId): array
           $phase = trim((string)($input['phase'] ?? ''));
           $matchPlayerId = isset($input['match_player_id']) && $input['match_player_id'] !== '' ? (int)$input['match_player_id'] : null;
 
-          $prepared = [
-                    'period_id' => $periodId,
-                    'match_second' => $matchSecond,
-                    'minute' => $minute,
-                    'minute_extra' => $minuteExtra,
-                    'team_side' => $teamSide,
-                    'event_type_id' => $eventTypeId,
-                    'importance' => $importance,
-                    'phase' => $phase !== '' ? $phase : null,
-                    'match_player_id' => $matchPlayerId,
-                    'opponent_detail' => event_validation_trim_nullable_string($input['opponent_detail'] ?? null),
-                    'outcome' => event_validation_trim_nullable_string($input['outcome'] ?? null),
-                    'zone' => event_validation_trim_nullable_string($input['zone'] ?? null),
-                    'notes' => event_validation_trim_nullable_string($input['notes'] ?? null),
-          ];
+
+        $prepared = [
+            'period_id' => $periodId,
+            'match_second' => $matchSecond,
+            'minute' => $minute,
+            'minute_extra' => $minuteExtra,
+            'team_side' => $teamSide,
+            'event_type_id' => $eventTypeId,
+            'importance' => $importance,
+            'phase' => $phase !== '' ? $phase : null,
+            'match_player_id' => $matchPlayerId,
+            'opponent_detail' => event_validation_trim_nullable_string($input['opponent_detail'] ?? null),
+            'outcome' => event_validation_trim_nullable_string($input['outcome'] ?? null),
+            'zone' => event_validation_trim_nullable_string($input['zone'] ?? null),
+            'notes' => event_validation_trim_nullable_string($input['notes'] ?? null),
+        ];
+
+        // --- Advanced Shot Data Model (Phase 1) ---
+        // Only for shot-type events: add validated 'shot' field to payload if present and valid
+        $shotEventKeys = ['shot', 'goal', 'shot_on_target'];
+        if (in_array((string)$typeKey, $shotEventKeys, true)) {
+            if (isset($input['shot']) && is_array($input['shot'])) {
+                $shot = $input['shot'];
+                $finalShot = [];
+                // Required: outcome
+                if (!isset($shot['outcome']) || !is_string($shot['outcome'])) {
+                    throw new \RuntimeException('shot_outcome_required');
+                }
+                $validOutcomes = ['goal', 'saved', 'blocked', 'off_target', 'on_target', 'woodwork'];
+                if (!in_array($shot['outcome'], $validOutcomes, true)) {
+                    throw new \RuntimeException('shot_outcome_invalid');
+                }
+                $finalShot['outcome'] = $shot['outcome'];
+
+                // Optional: body_part
+                if (isset($shot['body_part'])) {
+                    $validBodyParts = ['left_foot', 'right_foot', 'head', 'other'];
+                    if (!in_array($shot['body_part'], $validBodyParts, true)) {
+                        throw new \RuntimeException('shot_body_part_invalid');
+                    }
+                    $finalShot['body_part'] = $shot['body_part'];
+                }
+
+                // Optional: is_big_chance, is_one_on_one, from_set_piece (all bool)
+                foreach (['is_big_chance', 'is_one_on_one', 'from_set_piece'] as $flag) {
+                    if (array_key_exists($flag, $shot)) {
+                        if (!is_bool($shot[$flag])) {
+                            throw new \RuntimeException('shot_flag_invalid');
+                        }
+                        $finalShot[$flag] = $shot[$flag];
+                    }
+                }
+
+                // Optional: location
+                if (isset($shot['location'])) {
+                    if (!is_array($shot['location'])) {
+                        throw new \RuntimeException('shot_location_invalid');
+                    }
+                    $loc = $shot['location'];
+                    // Both start and end must exist
+                    if (!isset($loc['start'], $loc['end']) || !is_array($loc['start']) || !is_array($loc['end'])) {
+                        throw new \RuntimeException('shot_location_start_end_required');
+                    }
+                    // Validate start
+                    foreach (['x', 'y'] as $axis) {
+                        if (!isset($loc['start'][$axis]) || !is_numeric($loc['start'][$axis])) {
+                            throw new \RuntimeException('shot_location_start_invalid');
+                        }
+                        $val = floatval($loc['start'][$axis]);
+                        if ($val < 0.0 || $val > 1.0 || is_nan($val)) {
+                            throw new \RuntimeException('shot_location_start_out_of_range');
+                        }
+                        $loc['start'][$axis] = $val;
+                    }
+                    // Validate end
+                    foreach (['x', 'y'] as $axis) {
+                        if (!isset($loc['end'][$axis]) || !is_numeric($loc['end'][$axis])) {
+                            throw new \RuntimeException('shot_location_end_invalid');
+                        }
+                        $val = floatval($loc['end'][$axis]);
+                        if ($val < 0.0 || $val > 1.0 || is_nan($val)) {
+                            throw new \RuntimeException('shot_location_end_out_of_range');
+                        }
+                        $loc['end'][$axis] = $val;
+                    }
+                    $finalShot['location'] = [
+                        'start' => $loc['start'],
+                        'end' => $loc['end'],
+                    ];
+                }
+
+                // Never allow empty shot object
+                if (count($finalShot) > 0) {
+                    $prepared['shot'] = $finalShot;
+                }
+            }
+        }
+        // --- End Advanced Shot Data Model ---
 
           try {
                     $normalized = normalize_event_payload($prepared);

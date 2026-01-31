@@ -943,22 +943,42 @@ ob_start();
                                         </div>
                                         <div id="shotPlayerModal" class="goal-player-modal shot-player-modal" role="dialog" aria-modal="true" aria-hidden="true" hidden>
                                             <div class="goal-player-modal-backdrop" data-shot-modal-close></div>
-                                            <div class="panel-dark goal-player-modal-card">
-                                                <div class="goal-player-modal-header">
-                                                    <div>
-                                                        <div class="text-sm text-subtle">Shot recorder</div>
-                                                        <div class="text-xs text-muted-alt">Select the shooter and outcome</div>
+                                            <div class="panel-dark goal-player-modal-card shot-modal-advanced" style="max-width:90vw;width:90vw;min-width:600px;">
+                                                <div class="shot-modal-columns" style="display:flex;gap:2.5rem;align-items:flex-start;">
+                                                    <!-- Left: Existing controls -->
+                                                    <div class="shot-modal-left" style="flex:1 1 320px;min-width:260px;">
+                                                        <div class="goal-player-modal-header">
+                                                            <div>
+                                                                <div class="text-sm text-subtle">Shot recorder</div>
+                                                                <div class="text-xs text-muted-alt">Select the shooter and outcome</div>
+                                                            </div>
+                                                            <div class="goal-player-modal-header-actions">
+                                                                <button type="button" class="ghost-btn ghost-btn-sm" data-shot-unknown>Unknown player</button>
+                                                                <button type="button" class="editor-modal-close" data-shot-modal-close aria-label="Close shot modal">✕</button>
+                                                            </div>
+                                                        </div>
+                                                        <div class="shot-outcome-controls">
+                                                            <button type="button" class="ghost-btn shot-outcome-btn" data-shot-outcome="on_target">On Target</button>
+                                                            <button type="button" class="ghost-btn shot-outcome-btn" data-shot-outcome="off_target">Off Target</button>
+                                                        </div>
+                                                        <div id="shotPlayerList" class="goal-player-modal-list shot-player-modal-list"></div>
                                                     </div>
-                                                    <div class="goal-player-modal-header-actions">
-                                                        <button type="button" class="ghost-btn ghost-btn-sm" data-shot-unknown>Unknown player</button>
-                                                        <button type="button" class="editor-modal-close" data-shot-modal-close aria-label="Close shot modal">✕</button>
+                                                    <!-- Right: SVG pitch selector -->
+                                                    <div class="shot-modal-right" style="flex:1 1 400px;min-width:320px;max-width:520px;">
+                                                        <div class="shot-pitch-area" style="padding:1.2em 1em 1.5em 1em;border-radius:1em;box-shadow:0 2px 12px #0002;">
+                                                            <div class="text-xs text-muted-alt mb-1" style="text-align:center;">Shot taken from</div>
+                                                            <svg id="shotOriginSvg" style="width:100%;height:180px;display:block;border-radius:0.7em;"></svg>
+                                                            <div id="shotOriginClearWrap" style="text-align:center;margin-top:0.3em;display:none;">
+                                                                <button type="button" class="ghost-btn ghost-btn-xs" id="shotOriginClearBtn">Clear origin</button>
+                                                            </div>
+                                                            <div class="text-xs text-muted-alt mt-3 mb-1" style="text-align:center;">Shot target</div>
+                                                            <svg id="shotTargetSvg" style="width:100%;height:140px;display:block;border-radius:0.7em;"></svg>
+                                                            <div id="shotTargetClearWrap" style="text-align:center;margin-top:0.3em;display:none;">
+                                                                <button type="button" class="ghost-btn ghost-btn-xs" id="shotTargetClearBtn">Clear target</button>
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                                <div class="shot-outcome-controls">
-                                                    <button type="button" class="ghost-btn shot-outcome-btn" data-shot-outcome="on_target">On Target</button>
-                                                    <button type="button" class="ghost-btn shot-outcome-btn" data-shot-outcome="off_target">Off Target</button>
-                                                </div>
-                                                <div id="shotPlayerList" class="goal-player-modal-list shot-player-modal-list"></div>
                                             </div>
                                         </div>
                                         <div id="cardPlayerModal" class="goal-player-modal card-player-modal" role="dialog" aria-modal="true" aria-hidden="true" hidden>
@@ -1314,6 +1334,205 @@ ob_start();
             window.location.href = target;
         });
     })();
+</script>
+
+<script>
+// --- Shot Recorder SVG rendering (debug version, forced) ---
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+document.addEventListener("DOMContentLoaded", function() {
+    console.debug("[ShotSVG] DOMContentLoaded");
+});
+
+window.debugShotSVG = function() {
+    const shotOriginSvg = document.getElementById("shotOriginSvg");
+    const shotTargetSvg = document.getElementById("shotTargetSvg");
+    const shotModal = document.getElementById("shotPlayerModal");
+    console.debug("[ShotSVG] debugShotSVG called", {
+        shotOriginSvg,
+        shotTargetSvg,
+        shotModal,
+        shotOriginSvg_display: shotOriginSvg && shotOriginSvg.style.display,
+        shotTargetSvg_display: shotTargetSvg && shotTargetSvg.style.display,
+        shotOriginSvg_offset: shotOriginSvg && shotOriginSvg.offsetWidth,
+        shotTargetSvg_offset: shotTargetSvg && shotTargetSvg.offsetWidth,
+        shotModal_hidden: shotModal && shotModal.hidden,
+        shotModal_style: shotModal && shotModal.style.display
+    });
+    if (shotOriginSvg) {
+        shotOriginSvg.setAttribute("width", "400");
+        shotOriginSvg.setAttribute("height", "180");
+        renderShotOriginSvg(shotOriginSvg);
+    }
+    if (shotTargetSvg) {
+        shotTargetSvg.setAttribute("width", "400");
+        shotTargetSvg.setAttribute("height", "140");
+        renderShotTargetSvg(shotTargetSvg);
+    }
+};
+
+function renderShotOriginSvg(svg) {
+    console.debug("[ShotSVG] renderShotOriginSvg called", svg);
+    if (!svg) {
+        console.debug("[ShotSVG] shotOriginSvg not found");
+        return;
+    }
+    svg.innerHTML = "";
+    svg.setAttribute("viewBox", "0 0 100 100");
+    svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+
+    // Outer pitch
+    const pitch = document.createElementNS(SVG_NS, "rect");
+    pitch.setAttribute("x", "5");
+    pitch.setAttribute("y", "5");
+    pitch.setAttribute("width", "90");
+    pitch.setAttribute("height", "90");
+    pitch.setAttribute("stroke", "#e5e7eb");
+    pitch.setAttribute("stroke-width", "2");
+    pitch.setAttribute("fill", "none");
+    svg.appendChild(pitch);
+    console.debug("[ShotSVG] pitch rect appended");
+
+    // Penalty box
+    const penaltyBox = document.createElementNS(SVG_NS, "rect");
+    penaltyBox.setAttribute("x", "20");
+    penaltyBox.setAttribute("y", "5");
+    penaltyBox.setAttribute("width", "60");
+    penaltyBox.setAttribute("height", "30");
+    penaltyBox.setAttribute("stroke", "#e5e7eb");
+    penaltyBox.setAttribute("stroke-width", "2");
+    penaltyBox.setAttribute("fill", "none");
+    svg.appendChild(penaltyBox);
+    console.debug("[ShotSVG] penalty box appended");
+
+    // Six yard box
+    const sixYardBox = document.createElementNS(SVG_NS, "rect");
+    sixYardBox.setAttribute("x", "35");
+    sixYardBox.setAttribute("y", "5");
+    sixYardBox.setAttribute("width", "30");
+    sixYardBox.setAttribute("height", "15");
+    sixYardBox.setAttribute("stroke", "#e5e7eb");
+    sixYardBox.setAttribute("stroke-width", "2");
+    sixYardBox.setAttribute("fill", "none");
+    svg.appendChild(sixYardBox);
+    console.debug("[ShotSVG] six yard box appended");
+
+    // Penalty spot
+    const penaltySpot = document.createElementNS(SVG_NS, "circle");
+    penaltySpot.setAttribute("cx", "50");
+    penaltySpot.setAttribute("cy", "28");
+    penaltySpot.setAttribute("r", "1.5");
+    penaltySpot.setAttribute("fill", "#e5e7eb");
+    svg.appendChild(penaltySpot);
+    console.debug("[ShotSVG] penalty spot appended");
+
+    // Penalty arc
+    const arc = document.createElementNS(SVG_NS, "path");
+    arc.setAttribute("d", "M35 35 A15 15 0 0 0 65 35");
+    arc.setAttribute("stroke", "#e5e7eb");
+    arc.setAttribute("fill", "none");
+    svg.appendChild(arc);
+    console.debug("[ShotSVG] penalty arc appended");
+}
+
+function renderShotTargetSvg(svg) {
+    console.debug("[ShotSVG] renderShotTargetSvg called", svg);
+    if (!svg) {
+        console.debug("[ShotSVG] shotTargetSvg not found");
+        return;
+    }
+    svg.innerHTML = "";
+    svg.setAttribute("viewBox", "0 0 120 60");
+    svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+
+    // Left post
+    const leftPost = document.createElementNS(SVG_NS, "line");
+    leftPost.setAttribute("x1", "20");
+    leftPost.setAttribute("y1", "10");
+    leftPost.setAttribute("x2", "20");
+    leftPost.setAttribute("y2", "50");
+    leftPost.setAttribute("stroke", "#e5e7eb");
+    leftPost.setAttribute("stroke-width", "3");
+    svg.appendChild(leftPost);
+    console.debug("[ShotSVG] left post appended");
+
+    // Right post
+    const rightPost = document.createElementNS(SVG_NS, "line");
+    rightPost.setAttribute("x1", "100");
+    rightPost.setAttribute("y1", "10");
+    rightPost.setAttribute("x2", "100");
+    rightPost.setAttribute("y2", "50");
+    rightPost.setAttribute("stroke", "#e5e7eb");
+    rightPost.setAttribute("stroke-width", "3");
+    svg.appendChild(rightPost);
+    console.debug("[ShotSVG] right post appended");
+
+    // Crossbar
+    const crossbar = document.createElementNS(SVG_NS, "line");
+    crossbar.setAttribute("x1", "20");
+    crossbar.setAttribute("y1", "10");
+    crossbar.setAttribute("x2", "100");
+    crossbar.setAttribute("y2", "10");
+    crossbar.setAttribute("stroke", "#e5e7eb");
+    crossbar.setAttribute("stroke-width", "3");
+    svg.appendChild(crossbar);
+    console.debug("[ShotSVG] crossbar appended");
+
+    // Net grid - vertical lines
+    for (let x = 30; x <= 90; x += 10) {
+        const vLine = document.createElementNS(SVG_NS, "line");
+        vLine.setAttribute("x1", x);
+        vLine.setAttribute("y1", "20");
+        vLine.setAttribute("x2", x);
+        vLine.setAttribute("y2", "50");
+        vLine.setAttribute("stroke", "#9ca3af");
+        vLine.setAttribute("stroke-width", "1");
+        svg.appendChild(vLine);
+    }
+    console.debug("[ShotSVG] net grid verticals appended");
+    // Net grid - horizontal lines
+    for (let y = 20; y <= 50; y += 10) {
+        const hLine = document.createElementNS(SVG_NS, "line");
+        hLine.setAttribute("x1", "30");
+        hLine.setAttribute("y1", y);
+        hLine.setAttribute("x2", "90");
+        hLine.setAttribute("y2", y);
+        hLine.setAttribute("stroke", "#9ca3af");
+        hLine.setAttribute("stroke-width", "1");
+        svg.appendChild(hLine);
+    }
+    console.debug("[ShotSVG] net grid horizontals appended");
+}
+
+// Modal integration: always render SVGs after modal is visible
+window.openShotModal = function(...args) {
+    console.debug("[ShotSVG] openShotModal called", args);
+    const modal = document.getElementById("shotPlayerModal");
+    if (!modal) {
+        console.debug("[ShotSVG] shotPlayerModal not found");
+        return;
+    }
+    // If already visible, render immediately
+    if (!modal.hidden && getComputedStyle(modal).display !== 'none') {
+        window.debugShotSVG();
+        return;
+    }
+    // Otherwise, observe for it becoming visible
+    const observer = new MutationObserver(() => {
+        if (!modal.hidden && getComputedStyle(modal).display !== 'none') {
+            observer.disconnect();
+            window.debugShotSVG();
+        }
+    });
+    observer.observe(modal, { attributes: true, attributeFilter: ['hidden', 'style', 'class'] });
+    // Fallback: also try after a short delay in case of animation
+    setTimeout(() => {
+        if (!modal.hidden && getComputedStyle(modal).display !== 'none') {
+            observer.disconnect();
+            window.debugShotSVG();
+        }
+    }, 350);
+};
 </script>
 <div class="mt-3 text-muted-alt text-sm" id="deskStatus"></div>
 <?php

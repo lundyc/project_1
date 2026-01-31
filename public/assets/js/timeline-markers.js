@@ -491,6 +491,19 @@
                               }
                               marker.dataset.annotationId = String(entry.id);
                               renderMarkerPosition(marker, entry, entry.timestamp);
+                              // Location-missing indicator for shots/goals
+                              if ((entry.toolType === 'Shot' || entry.toolType === 'Goal') && (!entry.location || !entry.location.start || !entry.location.end)) {
+                                        const warn = document.createElement('span');
+                                        warn.className = 'timeline-location-missing';
+                                        warn.textContent = '⚠️';
+                                        warn.title = 'Shot location not recorded';
+                                        warn.style.fontSize = '1em';
+                                        warn.style.marginLeft = '2px';
+                                        warn.style.opacity = '0.65';
+                                        warn.style.verticalAlign = 'middle';
+                                        marker.appendChild(warn);
+                                        marker.title = (marker.title ? marker.title + '\n' : '') + 'Shot location not recorded';
+                              }
                               marker.addEventListener('pointerdown', (event) => handleMarkerPointerDown(entry, marker, event));
                               marker.addEventListener('click', (event) => {
                                         event.preventDefault();
