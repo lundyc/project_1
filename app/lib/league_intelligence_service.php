@@ -570,26 +570,35 @@ SQL;
           }
 
 
-          public function syncMatches(): void
-          {
-                    $filters = [
-                              'm.home_team_id IS NOT NULL',
-                              'm.away_team_id IS NOT NULL',
-                    ];
-                    $params = [];
+            /**
+             * Syncs matches from core tables into league_intelligence_matches.
+             * If $syncAll is true, syncs ALL competitions and seasons (used for weekly updates).
+             * Otherwise, filters by competitionId/seasonId (used for league table views).
+             *
+             * @param bool $syncAll If true, disables competition/season filters for global sync.
+             */
+            public function syncMatches(bool $syncAll = false): void
+            {
+                $filters = [
+                      'm.home_team_id IS NOT NULL',
+                      'm.away_team_id IS NOT NULL',
+                ];
+                $params = [];
 
-                    if ($this->competitionId !== null) {
-                              $filters[] = 'comp.id = :competition_id';
-                              $params['competition_id'] = $this->competitionId;
-                    }
+                // For weekly updates, sync all competitions/seasons (no filters)
+                if (!$syncAll) {
+                  if ($this->competitionId !== null) {
+                    $filters[] = 'comp.id = :competition_id';
+                    $params['competition_id'] = $this->competitionId;
+                  }
+                  if ($this->seasonId !== null) {
+                    $filters[] = 'COALESCE(m.season_id, comp.season_id) = :season_id';
+                    $params['season_id'] = $this->seasonId;
+                  }
+                }
 
-                    if ($this->seasonId !== null) {
-                              $filters[] = 'COALESCE(m.season_id, comp.season_id) = :season_id';
-                              $params['season_id'] = $this->seasonId;
-                    }
-
-                    $sql = '
-INSERT INTO `league_intelligence_matches` (
+                $sql = '
+      INSERT INTO `league_intelligence_matches` (
   `match_id`,
   `competition_id`,
   `season_id`,

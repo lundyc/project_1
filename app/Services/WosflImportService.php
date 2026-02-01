@@ -450,6 +450,30 @@ class LeagueIntelligenceMatchRepository
 
 class WosflImportService
 {
+    /**
+     * Parses a stored UTC datetime string (Y-m-d H:i:s) into DateTimeImmutable.
+     * Returns null if invalid.
+     */
+    private function parseStoredDateTime(?string $value): ?DateTimeImmutable
+    {
+        $value = trim((string)$value);
+        if ($value === '') {
+            return null;
+        }
+
+        $dt = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $value, $this->targetTimezone);
+        if ($dt instanceof DateTimeImmutable) {
+            return $dt;
+        }
+
+        // Fallback: let DateTimeImmutable try to parse it
+        try {
+            return new DateTimeImmutable($value, $this->targetTimezone);
+        } catch (\Throwable $e) {
+            error_log('WOSFL: parseStoredDateTime failed: ' . $value . ' (' . $e->getMessage() . ')');
+            return null;
+        }
+    }
     private const BASE_URL = 'https://www.wosfl.co.uk';
     private const STANDINGS_URL = 'https://www.wosfl.co.uk/standingsForDate/847802708/2/-1/-1.html';
 
@@ -516,19 +540,46 @@ class WosflImportService
         $filtered = [];
         foreach ($matches as $match) {
             $dateTime = $match['date_time'] ?? null;
+            $score = $match['home_goals'] ?? null;
+            $hasScore = isset($match['home_goals'], $match['away_goals']) && is_numeric($match['home_goals']) && is_numeric($match['away_goals']);
+
             if (empty($dateTime)) {
+                // Defensive: If match is completed (has score) but date_time is missing, log and skip.
+                if ($hasScore) {
+                    error_log('WOSFL: Completed match missing date_time, not included: ' . json_encode($match));
+                }
                 continue;
             }
 
             $parsed = $this->parseStoredDateTime($dateTime);
             if (!$parsed) {
+                // Defensive: If match is completed but date_time is unparseable, log and skip.
+                if ($hasScore) {
+                    error_log('WOSFL: Completed match with unparseable date_time, not included: ' . json_encode($match));
+                }
                 continue;
             }
 
+            // Only include matches within ±7 days of today (inclusive)
             if ($parsed >= $start && $parsed <= $end) {
+                // Allow completed matches even if kickoff time is defaulted (e.g., 15:00:00), as long as date is valid.
+                // This ensures matches are not excluded just because time is imprecise.
                 $filtered[] = $match;
+            } else {
+                // Defensive: If match is completed but outside window, log reason.
+                if ($hasScore) {
+                    error_log('WOSFL: Completed match outside ±7 day window, not included: ' . json_encode($match));
+                }
             }
         }
+
+        /*
+         * Filtering logic:
+         * - Only include matches with a valid, parseable date_time within ±7 days of today.
+         * - Completed matches (with a valid score) are included even if kickoff time is defaulted (e.g., 15:00:00).
+         * - Defensive: If a completed match is missing or has an unparseable date_time, log and skip (do not silently drop).
+         * - Matches qualify for inclusion if their date_time is valid and in range, regardless of time precision.
+         */
 
         return $filtered;
     }
@@ -887,71 +938,74 @@ class WosflImportService
             return null;
         }
 
-        $date = null;
-        $time = null;
+        // Try to parse using DateTimeImmutable directly (handles most textual formats)
+        $dt = null;
+        $parseText = $text;
+        $hasTime = preg_match('/\b\d{1,2}:\d{2}\b/', $parseText);
 
-        if (preg_match('/\b(\d{1,2}\/\d{1,2}\/\d{2,4})\b/', $text, $matches)) {
-            $date = $matches[1];
+        // If no time is present, append default time (15:00)
+        if (!$hasTime) {
+            $parseText = trim($parseText) . ' 15:00';
         }
 
-        if (preg_match('/\b(\d{1,2}:\d{2})\b/', $text, $matches)) {
-            $time = $matches[1];
-        }
-
-        return $this->normalizeDateTime($date, $time);
-    }
-
-    private function normalizeDateTime(?string $date, ?string $time): ?string
-    {
-        if ($date === null || $date === '') {
-            return null;
-        }
-
-        $date = trim($date);
-        $time = $time !== null ? trim($time) : null;
-
-        $yearPart = substr($date, strrpos($date, '/') + 1);
-        $format = strlen($yearPart) === 4 ? 'd/m/Y' : 'd/m/y';
-        $value = $date;
-
-        if ($time !== null && $time !== '') {
-            $format .= ' H:i';
-            $value .= ' ' . $time;
-        }
-
+        // Try parsing with Carbon if available, else DateTimeImmutable
         try {
-            // Prefer Carbon when available, fall back to DateTimeImmutable.
             if (class_exists('Carbon\\Carbon')) {
-                $dt = \Carbon\Carbon::createFromFormat($format, $value, $this->sourceTimezone);
+                $dt = \Carbon\Carbon::parse($parseText, $this->sourceTimezone);
             } else {
-                $dt = DateTimeImmutable::createFromFormat($format, $value, $this->sourceTimezone);
+                $dt = new DateTimeImmutable($parseText, $this->sourceTimezone);
             }
-        } catch (Throwable $e) {
-            error_log('WOSFL date parse failed: ' . $value . ' (' . $e->getMessage() . ')');
-            return null;
+        } catch (\Throwable $e) {
+            error_log('WOSFL: Failed to parse date: ' . $parseText);
+            $dt = null;
+        }
+
+        // If parsing failed, try fallback regex for dd/mm/yyyy and dd/mm/yy
+        if (!$dt) {
+            $date = null;
+            $time = null;
+            if (preg_match('/\b(\d{1,2}\/\d{1,2}\/\d{2,4})\b/', $text, $matches)) {
+                $date = $matches[1];
+            }
+            if (preg_match('/\b(\d{1,2}:\d{2})\b/', $text, $matches)) {
+                $time = $matches[1];
+            }
+            // If no time, default to 15:00
+            if (!$time) {
+                $time = '15:00';
+            }
+            if ($date) {
+                $format = (strlen(substr($date, strrpos($date, '/') + 1)) === 4) ? 'd/m/Y' : 'd/m/y';
+                $format .= ' H:i';
+                $value = $date . ' ' . $time;
+                try {
+                    if (class_exists('Carbon\\Carbon')) {
+                        $dt = \Carbon\Carbon::createFromFormat($format, $value, $this->sourceTimezone);
+                    } else {
+                        $dt = DateTimeImmutable::createFromFormat($format, $value, $this->sourceTimezone);
+                    }
+                } catch (\Throwable $e) {
+                    error_log('WOSFL date parse failed: ' . $value . ' (' . $e->getMessage() . ')');
+                    return null;
+                }
+            }
         }
 
         if (!$dt) {
             return null;
         }
 
+        // Always return UTC datetime string in Y-m-d H:i:s
         $dt = $dt->setTimezone($this->targetTimezone);
-
         return $dt->format('Y-m-d H:i:s');
     }
 
-    private function parseStoredDateTime(string $dateTime): ?DateTimeImmutable
+    /**
+     * Parses a score string like "2 - 1" and returns ['home'=>int,'away'=>int], or null if not matched.
+     */
+    private function parseScore(?string $text): ?array
     {
-        try {
-            return new DateTimeImmutable($dateTime, $this->targetTimezone);
-        } catch (Throwable $e) {
-            return null;
-        }
-    }
-
-    private function parseScore(string $text): ?array
-    {
-        $text = $this->normalizeWhitespace($text);
+        $text = $this->normalizeWhitespace((string)$text);
         if ($text === '') {
             return null;
         }
@@ -1003,14 +1057,11 @@ class WosflImportService
         $dom = new DOMDocument();
         libxml_use_internal_errors(true);
 
-        $loaded = false;
-        if (function_exists('mb_convert_encoding')) {
-            $loaded = $dom->loadHTML(mb_convert_encoding($html, 'HTML-ENTITIES', 'UTF-8'));
-        }
-
-        if (!$loaded) {
-            $loaded = $dom->loadHTML($html);
-        }
+        // Use modern, non-deprecated encoding injection for PHP 8.2+
+        $loaded = $dom->loadHTML(
+            '<?xml encoding="UTF-8">' . $html,
+            LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD
+        );
 
         libxml_clear_errors();
 

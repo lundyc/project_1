@@ -297,6 +297,7 @@ class LeagueIntelligenceImportController extends Controller
                     continue;
                 }
 
+
                 $matches = $matchRepository->findByKickoffAndTeams($kickoffAt, $homeTeamId, $awayTeamId, $competitionId);
 
                 if (!empty($matches)) {
@@ -311,6 +312,15 @@ class LeagueIntelligenceImportController extends Controller
                         ));
                     }
                     $match = $matches[0];
+                    // SAFEGUARD: Never overwrite a match that is already completed with non-null goals
+                    $isCompleted = (strtolower((string)($match['status'] ?? '')) === 'completed');
+                    $hasGoals = isset($match['home_goals'], $match['away_goals']) && $match['home_goals'] !== null && $match['away_goals'] !== null;
+                    if ($isCompleted && $hasGoals) {
+                        // Skip updating goals and status; keep existing values
+                        // This rule is mandatory and must not be bypassed.
+                        $counts['skipped']++;
+                        continue;
+                    }
                     $updateHomeGoals = $homeGoals;
                     $updateAwayGoals = $awayGoals;
                     if ((int)($match['home_team_id'] ?? 0) === $awayTeamId && (int)($match['away_team_id'] ?? 0) === $homeTeamId) {
@@ -482,7 +492,6 @@ class LeagueIntelligenceImportController extends Controller
         $this->requirePlatformAdmin();
         $this->requirePost();
 
-        $matches = $this->importService->scrapeWeek();
         $clubId = $this->resolveClubId();
         if (!$clubId) {
             $_SESSION['wosfl_import_error'] = 'Unable to determine a club for this update.';
@@ -495,16 +504,39 @@ class LeagueIntelligenceImportController extends Controller
             redirect('/league-intelligence');
         }
 
+        // 1. Sync internal matches (events → league_intelligence_matches) first
+        $leagueService = new LeagueIntelligenceService();
+        // For weekly updates, sync ALL competitions/seasons to ensure all valid matches are included
+        $leagueService->syncMatches(true);
+
+        // 2. Import WOSFL results ONLY for matches still marked as scheduled
+        $matches = $this->importService->scrapeWeek();
+        // Filter to only scheduled matches (never overwrite completed matches)
+        $scheduledMatches = array_filter($matches, function ($row) {
+            // Precedence rule: Only import WOSFL data for matches still scheduled (no goals recorded internally)
+            $status = strtolower((string)($row['status'] ?? ''));
+            $hasGoals = isset($row['home_goals'], $row['away_goals']) && is_numeric($row['home_goals']) && is_numeric($row['away_goals']);
+            // Accept only if status is scheduled and no goals
+            return $status === 'scheduled' && !$hasGoals;
+        });
+
         try {
-            $counts = $this->persistImportRows($matches, $clubId, $seasonId, false);
+            $counts = $this->persistImportRows($scheduledMatches, $clubId, $seasonId, false);
         } catch (Throwable $e) {
             error_log('WOSFL weekly update failed: ' . $e->getMessage());
             $_SESSION['wosfl_import_error'] = 'Weekly update failed. Please try again.';
             redirect('/league-intelligence');
         }
 
-        $leagueService = new LeagueIntelligenceService();
-        $leagueService->syncMatches();
+        // Log summary of update counts
+        error_log('WOSFL updateWeek: updated=' . ($counts['updated'] ?? 0) . ', added=' . ($counts['added'] ?? 0) . ', skipped=' . ($counts['skipped'] ?? 0));
+
+        /*
+         * Precedence rule:
+         * 1. Internal match events are always synced first (internal goals take priority).
+         * 2. WOSFL results are only imported for matches still marked as scheduled (no goals recorded internally).
+         * 3. This ensures matches with existing goals are never overwritten by WOSFL data.
+         */
 
         $messageParts = [
             sprintf(
