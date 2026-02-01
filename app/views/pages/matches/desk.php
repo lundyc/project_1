@@ -967,7 +967,7 @@ ob_start();
                                                     <div class="shot-modal-right" style="flex:1 1 400px;min-width:320px;max-width:520px;">
                                                         <div class="shot-pitch-area" style="padding:1.2em 1em 1.5em 1em;border-radius:1em;box-shadow:0 2px 12px #0002;">
                                                             <div class="text-xs text-muted-alt mb-1" style="text-align:center;">Shot taken from</div>
-                                                            <svg id="shotOriginSvg" style="width:100%;height:180px;display:block;border-radius:0.7em;"></svg>
+                                                            <svg id="shotOriginSvg" style="width:100%;height:180px;display:block;border-radius:0.2em;"></svg>
                                                             <div id="shotOriginClearWrap" style="text-align:center;margin-top:0.3em;display:none;">
                                                                 <button type="button" class="ghost-btn ghost-btn-xs" id="shotOriginClearBtn">Clear origin</button>
                                                             </div>
@@ -1386,9 +1386,9 @@ function renderShotOriginSvg(svg) {
     pitch.setAttribute("x", "5");
     pitch.setAttribute("y", "5");
     pitch.setAttribute("width", "90");
-    pitch.setAttribute("height", "90");
+    pitch.setAttribute("height", "70");
     pitch.setAttribute("stroke", "#e5e7eb");
-    pitch.setAttribute("stroke-width", "2");
+    pitch.setAttribute("stroke-width", "1");
     pitch.setAttribute("fill", "none");
     svg.appendChild(pitch);
     console.debug("[ShotSVG] pitch rect appended");
@@ -1400,7 +1400,7 @@ function renderShotOriginSvg(svg) {
     penaltyBox.setAttribute("width", "60");
     penaltyBox.setAttribute("height", "30");
     penaltyBox.setAttribute("stroke", "#e5e7eb");
-    penaltyBox.setAttribute("stroke-width", "2");
+    penaltyBox.setAttribute("stroke-width", "1");
     penaltyBox.setAttribute("fill", "none");
     svg.appendChild(penaltyBox);
     console.debug("[ShotSVG] penalty box appended");
@@ -1412,7 +1412,7 @@ function renderShotOriginSvg(svg) {
     sixYardBox.setAttribute("width", "30");
     sixYardBox.setAttribute("height", "15");
     sixYardBox.setAttribute("stroke", "#e5e7eb");
-    sixYardBox.setAttribute("stroke-width", "2");
+    sixYardBox.setAttribute("stroke-width", "1");
     sixYardBox.setAttribute("fill", "none");
     svg.appendChild(sixYardBox);
     console.debug("[ShotSVG] six yard box appended");

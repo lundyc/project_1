@@ -1636,6 +1636,17 @@ $(function () {
             setShotOutcomeSelection(null);
             setShotModalControlsEnabled(true);
             $shotPlayerModal.removeAttr('hidden').attr('aria-hidden', 'false').addClass('is-active');
+            // --- Shot SVG rendering integration ---
+            setTimeout(function () {
+                  var shotOriginSvg = document.getElementById('shotOriginSvg');
+                  var shotTargetSvg = document.getElementById('shotTargetSvg');
+                  if (shotOriginSvg && shotOriginSvg.childNodes.length === 0 && typeof window.renderShotOriginSvg === 'function') {
+                        window.renderShotOriginSvg(shotOriginSvg);
+                  }
+                  if (shotTargetSvg && shotTargetSvg.childNodes.length === 0 && typeof window.renderShotTargetSvg === 'function') {
+                        window.renderShotTargetSvg(shotTargetSvg);
+                  }
+            }, 0);
       }
 
       function closeShotPlayerModal() {
