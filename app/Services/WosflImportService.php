@@ -450,30 +450,6 @@ class LeagueIntelligenceMatchRepository
 
 class WosflImportService
 {
-    /**
-     * Parses a stored UTC datetime string (Y-m-d H:i:s) into DateTimeImmutable.
-     * Returns null if invalid.
-     */
-    private function parseStoredDateTime(?string $value): ?DateTimeImmutable
-    {
-        $value = trim((string)$value);
-        if ($value === '') {
-            return null;
-        }
-
-        $dt = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $value, $this->targetTimezone);
-        if ($dt instanceof DateTimeImmutable) {
-            return $dt;
-        }
-
-        // Fallback: let DateTimeImmutable try to parse it
-        try {
-            return new DateTimeImmutable($value, $this->targetTimezone);
-        } catch (\Throwable $e) {
-            error_log('WOSFL: parseStoredDateTime failed: ' . $value . ' (' . $e->getMessage() . ')');
-            return null;
-        }
-    }
     private const BASE_URL = 'https://www.wosfl.co.uk';
     private const STANDINGS_URL = 'https://www.wosfl.co.uk/standingsForDate/847802708/2/-1/-1.html';
 
@@ -533,55 +509,33 @@ class WosflImportService
             return [];
         }
 
-        $today = new DateTimeImmutable('today', $this->targetTimezone);
+        $today = new DateTimeImmutable('today', new DateTimeZone('UTC'));
         $start = $today->modify('-7 days');
         $end = $today->modify('+7 days')->setTime(23, 59, 59);
 
-        $filtered = [];
-        foreach ($matches as $match) {
-            $dateTime = $match['date_time'] ?? null;
-            $score = $match['home_goals'] ?? null;
-            $hasScore = isset($match['home_goals'], $match['away_goals']) && is_numeric($match['home_goals']) && is_numeric($match['away_goals']);
-
-            if (empty($dateTime)) {
-                // Defensive: If match is completed (has score) but date_time is missing, log and skip.
-                if ($hasScore) {
-                    error_log('WOSFL: Completed match missing date_time, not included: ' . json_encode($match));
-                }
+        foreach ($matches as &$match) {
+            $dateTimeRaw = $match['date_time'] ?? null;
+            if (empty($dateTimeRaw)) {
+                $match['skip_reason'] = 'missing_datetime';
                 continue;
             }
-
-            $parsed = $this->parseStoredDateTime($dateTime);
-            if (!$parsed) {
-                // Defensive: If match is completed but date_time is unparseable, log and skip.
-                if ($hasScore) {
-                    error_log('WOSFL: Completed match with unparseable date_time, not included: ' . json_encode($match));
-                }
+            try {
+                $dt = new DateTimeImmutable($dateTimeRaw, new DateTimeZone('UTC'));
+            } catch (\Throwable $e) {
+                $dt = false;
+            }
+            if (!$dt) {
+                $match['skip_reason'] = 'invalid_datetime';
                 continue;
             }
-
-            // Only include matches within ±7 days of today (inclusive)
-            if ($parsed >= $start && $parsed <= $end) {
-                // Allow completed matches even if kickoff time is defaulted (e.g., 15:00:00), as long as date is valid.
-                // This ensures matches are not excluded just because time is imprecise.
-                $filtered[] = $match;
-            } else {
-                // Defensive: If match is completed but outside window, log reason.
-                if ($hasScore) {
-                    error_log('WOSFL: Completed match outside ±7 day window, not included: ' . json_encode($match));
-                }
+            if ($dt < $start || $dt > $end) {
+                $match['skip_reason'] = 'outside_window';
+                continue;
             }
+            // No skip_reason means included
         }
-
-        /*
-         * Filtering logic:
-         * - Only include matches with a valid, parseable date_time within ±7 days of today.
-         * - Completed matches (with a valid score) are included even if kickoff time is defaulted (e.g., 15:00:00).
-         * - Defensive: If a completed match is missing or has an unparseable date_time, log and skip (do not silently drop).
-         * - Matches qualify for inclusion if their date_time is valid and in range, regardless of time precision.
-         */
-
-        return $filtered;
+        unset($match);
+        return $matches;
     }
 
     public function preparePreviewRows(array $matches): array
@@ -647,6 +601,11 @@ class WosflImportService
                 'competition_found' => $competitionFound,
                 'competition_ambiguous' => $competitionAmbiguous,
                 'existing_match' => $existingMatch,
+                // Team-resolution diagnostics
+                'home_team_lookup_status' => $homeLookup['status'] ?? null,
+                'away_team_lookup_status' => $awayLookup['status'] ?? null,
+                'home_team_lookup_matches' => $homeLookup['matches'] ?? null,
+                'away_team_lookup_matches' => $awayLookup['matches'] ?? null,
             ]);
         }
 

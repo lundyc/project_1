@@ -203,6 +203,17 @@ class LeagueIntelligenceImportController extends Controller
             'created_teams' => 0,
             'created_competitions' => 0,
         ];
+        $skipped = [
+            'missing_team' => 0,
+            'ambiguous_team' => 0,
+            'missing_competition' => 0,
+            'ambiguous_competition' => 0,
+            'invalid_datetime' => 0,
+            'outside_window' => 0,
+            'already_exists' => 0,
+            'other' => 0,
+        ];
+        $skippedLogCount = 0;
 
         $pdo->beginTransaction();
         try {
@@ -211,11 +222,52 @@ class LeagueIntelligenceImportController extends Controller
                     continue;
                 }
 
-                if ($allowDeletes) {
-                    $isDeleted = ($row['deleted'] ?? $row['delete'] ?? '') === '1';
-                    if ($isDeleted) {
-                        continue;
+                // Instrumented skip logic
+                $skipReason = null;
+                if (empty($row['home_team_found']) || empty($row['away_team_found'])) {
+                    $skipReason = 'missing_team';
+                } elseif (!empty($row['home_team_ambiguous']) || !empty($row['away_team_ambiguous'])) {
+                    $skipReason = 'ambiguous_team';
+                } elseif (empty($row['competition_found'])) {
+                    $skipReason = 'missing_competition';
+                } elseif (!empty($row['competition_ambiguous'])) {
+                    $skipReason = 'ambiguous_competition';
+                } elseif (empty($row['date_time'])) {
+                    $skipReason = 'invalid_datetime';
+                } elseif (!empty($row['existing_match'])) {
+                    $skipReason = 'already_exists';
+                }
+                if ($skipReason !== null) {
+                    $counts['skipped']++;
+                    if (isset($skipped[$skipReason])) {
+                        $skipped[$skipReason]++;
+                    } else {
+                        $skipped['other']++;
                     }
+                    if ($skippedLogCount < 20) {
+                        if ($skipReason === 'missing_team') {
+                            error_log('[WOSFL SKIP] ' . json_encode([
+                                'reason' => 'missing_team',
+                                'home_team' => $row['home_team_name'] ?? null,
+                                'away_team' => $row['away_team_name'] ?? null,
+                                'home_lookup_status' => $row['home_team_lookup_status'] ?? null,
+                                'away_lookup_status' => $row['away_team_lookup_status'] ?? null,
+                                'home_lookup_matches' => $row['home_team_lookup_matches'] ?? null,
+                                'away_lookup_matches' => $row['away_team_lookup_matches'] ?? null,
+                                'competition' => $row['competition_name'] ?? null,
+                            ]));
+                        } else {
+                            error_log('[WOSFL SKIP] ' . json_encode([
+                                'reason' => $skipReason,
+                                'home' => $row['home_team_name'] ?? null,
+                                'away' => $row['away_team_name'] ?? null,
+                                'competition' => $row['competition_name'] ?? null,
+                                'date_time' => $row['date_time'] ?? null,
+                            ]));
+                        }
+                        $skippedLogCount++;
+                    }
+                    continue;
                 }
 
                 $kickoffAt = $this->normalizeDateTimeInput($row['date_time'] ?? null);
@@ -226,11 +278,6 @@ class LeagueIntelligenceImportController extends Controller
                 $homeGoals = $this->normalizeScore($row['home_goals'] ?? null);
                 $awayGoals = $this->normalizeScore($row['away_goals'] ?? null);
                 $status = $this->normalizeStatus($row['status'] ?? null, $homeGoals, $awayGoals);
-
-                if (!$kickoffAt || $homeTeamName === '' || $awayTeamName === '') {
-                    $counts['skipped']++;
-                    continue;
-                }
 
                 $homeTeamId = isset($row['home_team_id']) ? (int)$row['home_team_id'] : 0;
                 if ($homeTeamId <= 0) {
@@ -264,11 +311,6 @@ class LeagueIntelligenceImportController extends Controller
                     }
                 }
 
-                if ($homeTeamId <= 0 || $awayTeamId <= 0) {
-                    $counts['skipped']++;
-                    continue;
-                }
-
                 $competitionId = isset($row['competition_id']) ? (int)$row['competition_id'] : 0;
                 $competitionSeasonId = $seasonId;
                 if ($competitionId > 0) {
@@ -292,12 +334,6 @@ class LeagueIntelligenceImportController extends Controller
                     }
                 }
 
-                if ($competitionId <= 0) {
-                    $counts['skipped']++;
-                    continue;
-                }
-
-
                 $matches = $matchRepository->findByKickoffAndTeams($kickoffAt, $homeTeamId, $awayTeamId, $competitionId);
 
                 if (!empty($matches)) {
@@ -316,9 +352,18 @@ class LeagueIntelligenceImportController extends Controller
                     $isCompleted = (strtolower((string)($match['status'] ?? '')) === 'completed');
                     $hasGoals = isset($match['home_goals'], $match['away_goals']) && $match['home_goals'] !== null && $match['away_goals'] !== null;
                     if ($isCompleted && $hasGoals) {
-                        // Skip updating goals and status; keep existing values
-                        // This rule is mandatory and must not be bypassed.
                         $counts['skipped']++;
+                        $skipped['already_exists']++;
+                        if ($skippedLogCount < 20) {
+                            error_log('[WOSFL SKIP] ' . json_encode([
+                                'reason' => 'already_exists',
+                                'home' => $row['home_team_name'] ?? null,
+                                'away' => $row['away_team_name'] ?? null,
+                                'competition' => $row['competition_name'] ?? null,
+                                'date_time' => $row['date_time'] ?? null,
+                            ]));
+                            $skippedLogCount++;
+                        }
                         continue;
                     }
                     $updateHomeGoals = $homeGoals;
@@ -359,6 +404,8 @@ class LeagueIntelligenceImportController extends Controller
             throw $e;
         }
 
+        $counts['skipped'] = array_sum($skipped);
+        $counts['skipped_breakdown'] = $skipped;
         return $counts;
     }
 
@@ -528,37 +575,49 @@ class LeagueIntelligenceImportController extends Controller
             redirect('/league-intelligence');
         }
 
-        // Log summary of update counts
-        error_log('WOSFL updateWeek: updated=' . ($counts['updated'] ?? 0) . ', added=' . ($counts['added'] ?? 0) . ', skipped=' . ($counts['skipped'] ?? 0));
+        // Build skip breakdown for UI
+        $skipped = $counts['skipped_breakdown'] ?? [];
+        $updated = $counts['updated'] ?? 0;
+        $added = $counts['added'] ?? 0;
+        $createdTeams = $counts['created_teams'] ?? 0;
+        $createdCompetitions = $counts['created_competitions'] ?? 0;
+        $conflicts = $counts['conflicts'] ?? 0;
 
-        /*
-         * Precedence rule:
-         * 1. Internal match events are always synced first (internal goals take priority).
-         * 2. WOSFL results are only imported for matches still marked as scheduled (no goals recorded internally).
-         * 3. This ensures matches with existing goals are never overwritten by WOSFL data.
-         */
+        $parts = [];
+        if (is_array($skipped)) {
+            foreach ($skipped as $reason => $count) {
+                if ($count > 0) {
+                    $parts[] = ucfirst(str_replace('_', ' ', $reason)) . ": {$count}";
+                }
+            }
+        }
+        $skipBreakdown = $parts ? ' Skipped → ' . implode(', ', $parts) : '';
 
-        $messageParts = [
-            sprintf(
-                'Weekly update complete. %d matches updated, %d added.',
-                $counts['updated'],
-                $counts['added']
-            ),
-        ];
-        if ($counts['created_teams'] > 0) {
-            $messageParts[] = sprintf('%d teams created.', $counts['created_teams']);
-        }
-        if ($counts['created_competitions'] > 0) {
-            $messageParts[] = sprintf('%d competitions created.', $counts['created_competitions']);
-        }
-        if ($counts['conflicts'] > 0) {
-            $messageParts[] = sprintf('%d conflicts resolved.', $counts['conflicts']);
-        }
-        if ($counts['skipped'] > 0) {
-            $messageParts[] = sprintf('%d rows skipped.', $counts['skipped']);
+        $success = sprintf(
+            'Weekly update complete. %d matches updated, %d added. %d rows skipped.%s',
+            $updated,
+            $added,
+            is_array($skipped) ? array_sum($skipped) : 0,
+            $skipBreakdown
+        );
+
+        // If missing_team > 0, append UI hint
+        if (is_array($skipped) && !empty($skipped['missing_team'])) {
+            $success .= ' (team matching failed — check names)';
         }
 
-        $_SESSION['wosfl_import_success'] = implode(' ', $messageParts);
+        // Optionally append created teams/competitions/conflicts as before
+        if ($createdTeams > 0) {
+            $success .= sprintf(' %d teams created.', $createdTeams);
+        }
+        if ($createdCompetitions > 0) {
+            $success .= sprintf(' %d competitions created.', $createdCompetitions);
+        }
+        if ($conflicts > 0) {
+            $success .= sprintf(' %d conflicts resolved.', $conflicts);
+        }
+
+        $_SESSION['wosfl_import_success'] = $success;
 
         redirect('/league-intelligence');
     }

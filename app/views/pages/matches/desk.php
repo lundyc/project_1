@@ -938,6 +938,7 @@ ob_start();
                                                         <button type="button" class="editor-modal-close" data-goal-modal-close aria-label="Close goal scorer modal">✕</button>
                                                     </div>
                                                 </div>
+                                                <div id="goalShotInfo" class="goal-shot-info" style="margin:0.5em 0 1em 0;display:none;"></div>
                                                 <div id="goalPlayerList" class="goal-player-modal-list"></div>
                                             </div>
                                         </div>
@@ -947,14 +948,16 @@ ob_start();
                                                 <div class="shot-modal-columns" style="display:flex;gap:2.5rem;align-items:flex-start;">
                                                     <!-- Left: Existing controls -->
                                                     <div class="shot-modal-left" style="flex:1 1 320px;min-width:260px;">
-                                                        <div class="goal-player-modal-header">
+                                                        <div style="display: flex; justify-content: flex-end; align-items: flex-start;">
+                                                            <button type="button" class="editor-modal-close" data-shot-modal-close aria-label="Close shot modal" style="font-size:1.5em;line-height:1;position:absolute;top:18px;right:30px;z-index:10;background:none;border:none;">✕</button>
+                                                        </div>
+                                                        <div class="goal-player-modal-header" style="margin-top:2.5em;">
                                                             <div>
                                                                 <div class="text-sm text-subtle">Shot recorder</div>
                                                                 <div class="text-xs text-muted-alt">Select the shooter and outcome</div>
                                                             </div>
                                                             <div class="goal-player-modal-header-actions">
                                                                 <button type="button" class="ghost-btn ghost-btn-sm" data-shot-unknown>Unknown player</button>
-                                                                <button type="button" class="editor-modal-close" data-shot-modal-close aria-label="Close shot modal">✕</button>
                                                             </div>
                                                         </div>
                                                         <div class="shot-outcome-controls">

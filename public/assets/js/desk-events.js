@@ -1121,18 +1121,50 @@ $(function () {
             });
       }
 
-      function buildPlayerOptionsHtml(primaryClass, secondaryClass = '') {
-            const sortedPlayers = getSortedPlayers();
-            if (!sortedPlayers.length) {
-                  return '<div class="text-sm text-muted-alt">No players available</div>';
+      function buildPlayerOptionsHtml(primaryClass, secondaryClass = '', teamFilter = null) {
+            let filteredPlayers = getSortedPlayers();
+            if (teamFilter && ['home', 'away'].includes(teamFilter)) {
+                  filteredPlayers = filteredPlayers.filter((p) => (p.team_side || 'unknown') === teamFilter);
             }
-            return sortedPlayers
+            if (!filteredPlayers.length) {
+                  // Only show Unknown Player button if no players for this team
+                  return '<button type="button" class="goal-player-option" data-player-id="" data-goal-unknown data-shot-unknown data-card-unknown data-offside-unknown>Unknown Player</button>';
+            }
+            // For shot modal, sort by shirt number (numeric, ascending), then surname
+            if (secondaryClass && secondaryClass.includes('shot-player-option')) {
+                  filteredPlayers = filteredPlayers.slice().sort((a, b) => {
+                        // Sort by shirt_number (numeric, missing last), then surname
+                        const aNum = parseInt(a.shirt_number, 10);
+                        const bNum = parseInt(b.shirt_number, 10);
+                        if (!isNaN(aNum) && !isNaN(bNum)) {
+                              if (aNum !== bNum) return aNum - bNum;
+                        } else if (!isNaN(aNum)) {
+                              return -1;
+                        } else if (!isNaN(bNum)) {
+                              return 1;
+                        }
+                        // If shirt numbers are equal or missing, sort by surname
+                        const aSurname = (a.surname || '').toLowerCase();
+                        const bSurname = (b.surname || '').toLowerCase();
+                        if (aSurname < bSurname) return -1;
+                        if (aSurname > bSurname) return 1;
+                        return 0;
+                  });
+            }
+            return filteredPlayers
                   .map((player) => {
                         const teamSide = player.team_side || 'unknown';
-                        const teamLabel = teamSideLabels[teamSide] || teamSideLabels.unknown;
-                        const shirt = player.shirt_number ? ` #${player.shirt_number}` : '';
                         const playerId = String(player.id || '');
-                        const label = player.display_name || 'Player';
+                        // Format: #{Number} Surname, Firstname
+                        let formattedName = '';
+                        if (player.shirt_number) {
+                              formattedName += `#${player.shirt_number} `;
+                        }
+                        if (player.surname && player.firstname) {
+                              formattedName += `${player.surname}, ${player.firstname}`;
+                        } else {
+                              formattedName += player.display_name || 'Player';
+                        }
                         const baseClasses = [primaryClass];
                         if (secondaryClass) {
                               baseClasses.push(...secondaryClass.split(' ').filter(Boolean));
@@ -1140,10 +1172,18 @@ $(function () {
                         const baseClassList = baseClasses.join(' ');
                         const sideClassList = baseClasses.map((cls) => `${cls}--${teamSide}`).join(' ');
                         const optionClassList = `${baseClassList} ${sideClassList}`.trim();
-                        return `<button type="button" class="${optionClassList}" data-player-id="${h(playerId)}" data-team-side="${h(teamSide)}">
-                                                  <span class="goal-player-option-name">${h(label)}${shirt ? h(shirt) : ''}</span>
-                                                  <span class="goal-player-option-meta">${h(teamLabel)}</span>
-                                        </button>`;
+                        // Remove Home/Away label for Shot modal only
+                        if (secondaryClass && secondaryClass.includes('shot-player-option')) {
+                              return `<button type="button" class="${optionClassList}" data-player-id="${h(playerId)}" data-team-side="${h(teamSide)}">
+                                    <span class="goal-player-option-name">${h(formattedName)}</span>
+                              </button>`;
+                        } else {
+                              const teamLabel = teamSideLabels[teamSide] || teamSideLabels.unknown;
+                              return `<button type="button" class="${optionClassList}" data-player-id="${h(playerId)}" data-team-side="${h(teamSide)}">
+                                    <span class="goal-player-option-name">${h(formattedName)}</span>
+                                    <span class="goal-player-option-meta">${h(teamLabel)}</span>
+                              </button>`;
+                        }
                   })
                   .join('');
       }
@@ -1301,7 +1341,7 @@ $(function () {
 
       function renderGoalPlayerList() {
             if (!$goalPlayerList.length) return;
-            $goalPlayerList.html(buildPlayerOptionsHtml('goal-player-option'));
+            $goalPlayerList.html(buildPlayerOptionsHtml('goal-player-option', '', currentTeam));
       }
 
       function openGoalPlayerModal(payload, label) {
@@ -1315,7 +1355,24 @@ $(function () {
             const session = getDeskSession();
             goalModalState.wasPlaying = session ? session.isPlaying() : !!($video.length && !$video[0].paused);
             pausePlayback('goal_modal');
+            renderGoalPlayerList(); // Always update player list to match current team
             setGoalPlayerOptionsEnabled(true);
+            // Show shot info if available from last shot
+            if (window.lastShotInfo && ($goalPlayerModal.find('#goalShotInfo').length)) {
+                  const infoDiv = $goalPlayerModal.find('#goalShotInfo');
+                  let html = '';
+                  if (window.lastShotInfo.origin) {
+                        html += `<div><strong>Shot taken from:</strong> ${window.lastShotInfo.origin}</div>`;
+                  }
+                  if (window.lastShotInfo.target) {
+                        html += `<div><strong>Shot target:</strong> ${window.lastShotInfo.target}</div>`;
+                  }
+                  if (html) {
+                        infoDiv.html(html).show();
+                  } else {
+                        infoDiv.hide();
+                  }
+            }
             $goalPlayerModal.removeAttr('hidden').attr('aria-hidden', 'false').addClass('is-active');
       }
 
@@ -1398,7 +1455,7 @@ $(function () {
 
       function renderCardPlayerList() {
             if (!$cardPlayerList.length) return;
-            $cardPlayerList.html(buildPlayerOptionsHtml('goal-player-option'));
+            $cardPlayerList.html(buildPlayerOptionsHtml('goal-player-option', '', currentTeam));
       }
 
       function openCardPlayerModal(payload, label) {
@@ -1496,7 +1553,7 @@ $(function () {
 
       function renderOffsidePlayerList() {
             if (!$offsidePlayerList.length) return;
-            $offsidePlayerList.html(buildPlayerOptionsHtml('goal-player-option'));
+            $offsidePlayerList.html(buildPlayerOptionsHtml('goal-player-option', '', currentTeam));
       }
 
       function openOffsidePlayerModal(payload, label) {
@@ -1610,7 +1667,7 @@ $(function () {
 
       function renderShotPlayerList() {
             if (!$shotPlayerList.length) return;
-            $shotPlayerList.html(buildPlayerOptionsHtml('goal-player-option', 'shot-player-option'));
+            $shotPlayerList.html(buildPlayerOptionsHtml('goal-player-option', 'shot-player-option', currentTeam));
             setShotPlayerSelection(null);
       }
 
@@ -1688,6 +1745,11 @@ $(function () {
             if (playerId) {
                   payload.match_player_id = playerId;
             }
+            // Store shot info for use in goal modal
+            window.lastShotInfo = {
+                  origin: shotModalState.payload.shotOriginLabel || '',
+                  target: shotModalState.payload.shotTargetLabel || ''
+            };
             sendShotEventRequest(payload, shotModalState.label, outcome);
       }
 
@@ -1737,7 +1799,7 @@ $(function () {
                               )}`
                         );
                         setStatus('Tagged');
-                        loadEvents();
+                        loadEvents(true); // Force reload from API so timeline updates immediately
                         closeShotPlayerModal();
                   })
                   .fail((xhr, status, error) => {
@@ -1813,7 +1875,8 @@ $(function () {
                         showToast(`${quickTagLabel} tagged at ${formatMatchSecondWithExtra(normalizedSecond, 0)}`);
                         setStatus('Tagged');
                         syncUndoRedoFromMeta(res.meta);
-                        loadEvents();
+                        // Force reload from API, not embedded config, so timeline updates immediately
+                        loadEvents(true);
                   })
                   .fail((xhr, status, error) => showError('Save failed', xhr.responseText || error || status));
       }
@@ -1902,9 +1965,9 @@ $(function () {
                         loadEvents();
                   });
       }
-      function loadEvents() {
-            // STRATEGY A: Use embedded events from window.DeskConfig for first paint, do not re-fetch on load
-            if (Array.isArray(cfg.events)) {
+      function loadEvents(forceApi = false) {
+            // If forceApi is true, always fetch from API. Otherwise, use embedded events for first paint only.
+            if (!forceApi && Array.isArray(cfg.events)) {
                   events = applyEventLabelReplacements(cfg.events);
                   refreshPeriodStateFromEvents();
                   // meta and selectedId are not available from embedded, so skip those
@@ -1912,7 +1975,7 @@ $(function () {
                   if (selectedId) selectEvent(selectedId);
                   return;
             }
-            // Fallback: fetch if not present (should not happen)
+            // Always fetch from API if forceApi is true
             const url = endpoint('events');
             if (!url) {
                   showError('Failed to load events', 'Missing events endpoint');
@@ -2416,28 +2479,18 @@ $(function () {
       }
 
       function handleMatrixPointerDown(e) {
-            if (e.button !== 0) return;
-            if ($(e.target).closest('.matrix-dot').length) return;
-            const viewport = e.currentTarget;
-            matrixPan = { active: true, startX: e.clientX, scrollLeft: viewport.scrollLeft };
-            viewport.setPointerCapture && viewport.setPointerCapture(e.pointerId);
-            $(viewport).addClass('is-dragging');
-            e.preventDefault();
+            // Timeline drag-to-scroll disabled
+            return;
       }
 
       function handleMatrixPointerMove(e) {
-            if (!matrixPan.active) return;
-            const viewport = e.currentTarget;
-            const dx = matrixPan.startX - e.clientX;
-            viewport.scrollLeft = clampScrollValue(matrixPan.scrollLeft + dx, viewport);
+            // Timeline drag-to-scroll disabled
+            return;
       }
 
       function handleMatrixPointerUp(e) {
-            if (!matrixPan.active) return;
-            const viewport = e.currentTarget;
-            matrixPan = { active: false, startX: 0, scrollLeft: 0 };
-            viewport.releasePointerCapture && viewport.releasePointerCapture(e.pointerId);
-            $(viewport).removeClass('is-dragging');
+            // Timeline drag-to-scroll disabled
+            return;
       }
 
       function updateDrawingDragElement() {
@@ -2779,7 +2832,7 @@ $(function () {
                         setStatus('Saved');
                         setEditorCollapsed(true, 'Click a timeline item to edit details', true);
                         selectedId = null;
-                        loadEvents();
+                        loadEvents(true);
                   })
                   .fail((xhr, status, error) => {
                         const errorMsg = xhr.responseText || error || status || 'Unknown error';
@@ -2813,7 +2866,7 @@ $(function () {
                               selectedId = null;
                               fillForm(null);
                         }
-                        loadEvents();
+                        loadEvents(true);
                         setStatus(`${label} applied`);
                   })
                   .fail((xhr, status, error) => showError(`${label} failed`, xhr.responseText || error || status));
@@ -2844,7 +2897,7 @@ $(function () {
                               selectedId = null;
                               fillForm(null);
                         }
-                        loadEvents();
+                        loadEvents(true);
                         attemptCloseEditor();
                         setStatus('Deleted');
                   })
@@ -2877,7 +2930,7 @@ $(function () {
                         }
                         selectedId = null;
                         fillForm(null);
-                        loadEvents();
+                        loadEvents(true);
                         setStatus('Deleted all visible');
                   })
                   .catch((e) => showError('Delete failed', e && e.message ? e.message : 'Unknown'));
@@ -4666,7 +4719,7 @@ $(function () {
                         clipState = { id: null, start: null, end: null };
                         updateClipUi();
                         setStatus('Clip deleted');
-                        loadEvents();
+                        loadEvents(true);
                   })
                   .fail((xhr, status, error) => showError('Clip delete failed', xhr.responseText || error || status));
       }
@@ -4969,16 +5022,17 @@ $(function () {
                   const mode = $(this).data('mode');
                   setTimelineMode(mode);
             });
+            // Timeline drag-to-scroll and wheel scroll disabled
             if ($timelineMatrix.length && !matrixWheelListenerBound) {
                   const matrixEl = $timelineMatrix[0];
                   if (matrixEl) {
                         matrixWheelListenerBound = true;
-                        matrixEl.addEventListener('wheel', matrixViewportWheelListener, { passive: false }); // Non-passive because the handler calls preventDefault for horizontal scroll.
+                        matrixEl.removeEventListener && matrixEl.removeEventListener('wheel', matrixViewportWheelListener);
                   }
             }
-            $timelineMatrix.on('pointerdown', '.matrix-viewport', handleMatrixPointerDown);
-            $timelineMatrix.on('pointermove', '.matrix-viewport', handleMatrixPointerMove);
-            $timelineMatrix.on('pointerup pointerleave pointercancel', '.matrix-viewport', handleMatrixPointerUp);
+            $timelineMatrix.off('pointerdown', '.matrix-viewport', handleMatrixPointerDown);
+            $timelineMatrix.off('pointermove', '.matrix-viewport', handleMatrixPointerMove);
+            $timelineMatrix.off('pointerup pointerleave pointercancel', '.matrix-viewport', handleMatrixPointerUp);
             $(window).on('resize', handleMatrixResize);
             $timelineMatrix.on('click', '.matrix-period-marker', function (e) {
                   e.preventDefault();
