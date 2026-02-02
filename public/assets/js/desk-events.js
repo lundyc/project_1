@@ -7,6 +7,16 @@ const teamSideLabels = {
 // Ensure playlist filter popover is hidden on page load
 // --- Playlist Filter Popover Dropdown ---
 $(function () {
+      // Force a second render after initial load to fix timeline stretching and missing bucket labels
+      setTimeout(function () {
+            if (typeof renderTimeline === 'function') {
+                  renderTimeline();
+            }
+      }, 50);
+      // Force timeline resize/re-render on initial load to fix scaling
+      setTimeout(function () {
+            $(window).trigger('resize');
+      }, 0);
       var $playlistFilterPopover = $('#playlistFilterPopover');
       if ($playlistFilterPopover.length) {
             $playlistFilterPopover.attr('hidden', '');
@@ -2247,7 +2257,8 @@ $(function () {
                   { label: '75-90', start: 4500, end: 5400 },
                   { label: '90+', start: 5400, end: 6000 },
                   { label: 'ET 1', start: 6000, end: 6900 },
-                  { label: 'ET 2', start: 6900, end: 7800 },
+                  { label: 'ET 2', start: 6900, end: 7800 }
+
             ];
             const axisPad = axisOffset();
             const baseDuration = buckets[buckets.length - 1].end;
