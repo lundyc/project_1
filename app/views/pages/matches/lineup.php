@@ -77,8 +77,6 @@ $lineupConfig = [
                     'timing' => [
                               'match_period_id' => null,
                               'match_second' => 0,
-                              'minute' => 0,
-                              'minute_extra' => 0,
                     ],
           ],
 ];

@@ -128,12 +128,12 @@ if (isset($match['id'])) {
                     $homeGoals = array_filter($goalEvents, fn($e) => ($e['team_side'] ?? '') === 'home');
                     $awayGoals = array_filter($goalEvents, fn($e) => ($e['team_side'] ?? '') === 'away');
                     
-                    // Sort by minute
+                    // Sort by match_second (which represents time in seconds)
                     usort($homeGoals, function($a, $b) {
-                              return ((int)($a['minute'] ?? 0)) - ((int)($b['minute'] ?? 0));
+                              return ((int)($a['match_second'] ?? 0)) - ((int)($b['match_second'] ?? 0));
                     });
                     usort($awayGoals, function($a, $b) {
-                              return ((int)($a['minute'] ?? 0)) - ((int)($b['minute'] ?? 0));
+                              return ((int)($a['match_second'] ?? 0)) - ((int)($b['match_second'] ?? 0));
                     });
                     
                     // Get max count to display equal rows
@@ -144,14 +144,14 @@ if (isset($match['id'])) {
                                         <?php foreach ($homeGoals as $goal): ?>
                                                   <div class="text-sm flex items-center gap-1">
                                                             <svg fill="currentColor" viewBox="0 0 20 20" style="width: 16px; height: 16px;" data-testid="wcl-icon-incidents-goal-soccer" class="wcl-icon_WGKvC"><title>Goal</title><path fill-rule="evenodd" class="incidents-goal-soccer" d="M17 2.93a9.96 9.96 0 1 0-14.08 14.1A9.96 9.96 0 0 0 17 2.92Zm.41 2.77a8.5 8.5 0 0 1 1.1 3.43L16.66 8.1l.75-2.4Zm-1.37-1.8.37.4-1.11 3.57-1.33.4-3.32-2.41V4.5l3.16-2.2a8.6 8.6 0 0 1 2.22 1.6ZM9.96 1.4c.78-.01 1.55.1 2.3.3l-2.3 1.6-2.3-1.6c.75-.2 1.52-.31 2.3-.3ZM3.9 3.9a8.6 8.6 0 0 1 2.22-1.6l3.16 2.2v1.36l-3.32 2.4-1.32-.4L3.52 4.3l.37-.4ZM2.52 5.7l.75 2.4-1.85 1.03a8.5 8.5 0 0 1 1.1-3.43Zm1.37 10.35-.22-.23H5.7l.65 1.95a8.6 8.6 0 0 1-2.45-1.72Zm2.01-1.6H2.63A8.5 8.5 0 0 1 1.4 10.7l2.75-1.55 1.41.43 1.28 3.91-.95.95Zm6.05 3.89c-1.3.3-2.66.3-3.97 0l-1.01-3.02 1.1-1.1h3.79l1.1 1.1-1.01 3.02Zm-.07-5.44H8.05L6.86 9.25 9.96 7l3.1 2.25-1.18 3.65Zm4.15 3.15a8.6 8.6 0 0 1-2.45 1.72l.66-1.94h2.01l-.22.22Zm-2-1.6-.95-.95 1.27-3.91 1.41-.43 2.76 1.55a8.5 8.5 0 0 1-1.22 3.74h-3.27Z"></path></svg>
-                                                            <span><?= htmlspecialchars(getPlayerName($goal['match_player_id'] ?? null, $matchPlayers)) ?> <?= (int)($goal['minute'] ?? 0) ?>'</span>
+                                                            <span><?= htmlspecialchars(getPlayerName($goal['match_player_id'] ?? null, $matchPlayers)) ?> <?= (int)floor((int)($goal['match_second'] ?? 0) / 60) ?>'</span>
                                         </div>
                               <?php endforeach; ?>
                               </div>
                               <div class="events-column">
                                         <?php foreach ($awayGoals as $goal): ?>
                                                   <div class="text-sm flex items-center gap-1 justify-end">
-                                                            <span><?= htmlspecialchars(getPlayerName($goal['match_player_id'] ?? null, $matchPlayers)) ?> <?= (int)($goal['minute'] ?? 0) ?>'</span>
+                                                            <span><?= htmlspecialchars(getPlayerName($goal['match_player_id'] ?? null, $matchPlayers)) ?> <?= (int)floor((int)($goal['match_second'] ?? 0) / 60) ?>'</span>
                                                             <svg fill="currentColor" viewBox="0 0 20 20" style="width: 16px; height: 16px;" data-testid="wcl-icon-incidents-goal-soccer" class="wcl-icon_WGKvC"><title>Goal</title><path fill-rule="evenodd" class="incidents-goal-soccer" d="M17 2.93a9.96 9.96 0 1 0-14.08 14.1A9.96 9.96 0 0 0 17 2.92Zm.41 2.77a8.5 8.5 0 0 1 1.1 3.43L16.66 8.1l.75-2.4Zm-1.37-1.8.37.4-1.11 3.57-1.33.4-3.32-2.41V4.5l3.16-2.2a8.6 8.6 0 0 1 2.22 1.6ZM9.96 1.4c.78-.01 1.55.1 2.3.3l-2.3 1.6-2.3-1.6c.75-.2 1.52-.31 2.3-.3ZM3.9 3.9a8.6 8.6 0 0 1 2.22-1.6l3.16 2.2v1.36l-3.32 2.4-1.32-.4L3.52 4.3l.37-.4ZM2.52 5.7l.75 2.4-1.85 1.03a8.5 8.5 0 0 1 1.1-3.43Zm1.37 10.35-.22-.23H5.7l.65 1.95a8.6 8.6 0 0 1-2.45-1.72Zm2.01-1.6H2.63A8.5 8.5 0 0 1 1.4 10.7l2.75-1.55 1.41.43 1.28 3.91-.95.95Zm6.05 3.89c-1.3.3-2.66.3-3.97 0l-1.01-3.02 1.1-1.1h3.79l1.1 1.1-1.01 3.02Zm-.07-5.44H8.05L6.86 9.25 9.96 7l3.1 2.25-1.18 3.65Zm4.15 3.15a8.6 8.6 0 0 1-2.45 1.72l.66-1.94h2.01l-.22.22Zm-2-1.6-.95-.95 1.27-3.91 1.41-.43 2.76 1.55a8.5 8.5 0 0 1-1.22 3.74h-3.27Z"></path></svg>
                                         </div>
                               <?php endforeach; ?>
@@ -175,7 +175,7 @@ if (isset($match['id'])) {
                                                   foreach ($homeYellow as $card) {
                                                             echo '<div class="text-sm d-flex align-items-center gap-1">';
                                                             echo '<span>';
-                                                            echo htmlspecialchars(getPlayerName($card['match_player_id'] ?? null, $matchPlayers)) . ' ' . (int)($card['minute'] ?? 0). "'";
+                                                            echo htmlspecialchars(getPlayerName($card['match_player_id'] ?? null, $matchPlayers)) . ' ' . (int)floor((int)($card['match_second'] ?? 0) / 60). "'";
                                                             echo '</span>';
                                                             echo '<svg class="card-ico yellowCard-ico" style="width: 12px; height: 16px;"><title>Yellow Card</title><use xlink:href="/assets/svg/incident.svg#card"></use></svg>';
                                                             echo '</div>';
@@ -183,7 +183,7 @@ if (isset($match['id'])) {
                                                   foreach ($homeRed as $card) {
                                                             echo '<div class="text-sm d-flex align-items-center gap-1">';
                                                             echo '<span>';
-                                                            echo htmlspecialchars(getPlayerName($card['match_player_id'] ?? null, $matchPlayers)) . ' ' . (int)($card['minute'] ?? 0) . "'";
+                                                            echo htmlspecialchars(getPlayerName($card['match_player_id'] ?? null, $matchPlayers)) . ' ' . (int)floor((int)($card['match_second'] ?? 0) / 60) . "'";
                                                             echo '</span>';
                                                             echo '<svg class="card-ico redCard-ico" style="width: 12px; height: 16px;"><title>Red Card</title><use xlink:href="/assets/svg/incident.svg#card"></use></svg>';
                                                            echo '</div>';
@@ -196,7 +196,7 @@ if (isset($match['id'])) {
                                                             echo '<div class="text-sm d-flex align-items-right gap-1 justify-content-end">';
                                                             echo '<svg class="card-ico yellowCard-ico" style="width: 12px; height: 16px;"><title>Yellow Card</title><use xlink:href="/assets/svg/incident.svg#card"></use></svg>';
                                                             echo '<span>';
-                                                            echo htmlspecialchars(getPlayerName($card['match_player_id'] ?? null, $matchPlayers)) . ' ' . (int)($card['minute'] ?? 0) . "'";
+                                                            echo htmlspecialchars(getPlayerName($card['match_player_id'] ?? null, $matchPlayers)) . ' ' . (int)floor((int)($card['match_second'] ?? 0) / 60) . "'";
                                                             echo '</span>';
                                                             echo '</div>';
                                                   }
@@ -204,7 +204,7 @@ if (isset($match['id'])) {
                                                             echo '<div class="text-sm d-flex align-items-right gap-1 justify-content-end">';
                                                             echo '<svg class="card-ico redCard-ico" style="width: 12px; height: 16px;"><title>Red Card</title><use xlink:href="/assets/svg/incident.svg#card"></use></svg>';
                                                             echo '<span>';
-                                                            echo htmlspecialchars(getPlayerName($card['match_player_id'] ?? null, $matchPlayers)) . ' ' . (int)($card['minute'] ?? 0) . "'";
+                                                            echo htmlspecialchars(getPlayerName($card['match_player_id'] ?? null, $matchPlayers)) . ' ' . (int)floor((int)($card['match_second'] ?? 0) / 60) . "'";
                                                             echo '</span>';
                                                             echo '</div>';
                                                   }

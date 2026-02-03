@@ -1,19 +1,23 @@
 /* Alternating row colors for matches table in stats section */
-#matches-table tbody tr:nth-child(even) {
+#matches-table tbody tr:nth-child(even),
+#playersTable tbody tr:nth-child(even) {
           background-color: rgba(30, 41, 59, 0.7);
           /* slate-800/70 */
 }
 
-#matches-table tbody tr:nth-child(odd) {
+#matches-table tbody tr:nth-child(odd),
+#playersTable tbody tr:nth-child(odd) {
           background-color: rgba(15, 23, 42, 0.7);
           /* slate-900/70 */
 }
 
-#matches-table tbody tr {
+#matches-table tbody tr,
+#playersTable tbody tr {
           transition: background 0.2s;
 }
 
-#matches-table tbody tr:hover {
+#matches-table tbody tr:hover,
+#playersTable tbody tr:hover {
           background-color: rgba(99, 102, 241, 0.12);
           /* indigo-500/12 */
 }

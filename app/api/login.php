@@ -45,4 +45,4 @@ get_csrf_token();
  * primary landing page after login. Using a leading slash ensures the
  * generated URL respects the configured base path.
  */
-redirect('/stats');
+redirect('/matches');

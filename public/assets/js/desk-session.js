@@ -12,7 +12,7 @@
   const videoElementId = bootstrap.videoElementId || 'deskVideoPlayer';
 
   const video = document.getElementById(videoElementId);
-  if (!video || !sessionEndpoint) {
+  if (!video) {
     return;
   }
 
@@ -62,16 +62,12 @@
     }
   }
 
-  // Listen for video readiness
-  video.addEventListener('loadedmetadata', () => {
-    videoReady = true;
-    maybeApplyBufferedState();
-  });
-  // Optionally, wait for canplay for extra safety
-  video.addEventListener('canplay', () => {
-    videoReady = true;
-    maybeApplyBufferedState();
-  });
+  // Forward declarations and definitions of functions that may be called during initialization
+
+  // Will be populated after sessionApi is created
+  let handleLocalPlayPause;
+  let saveVideoTime;
+  let restoreVideoTime;
 
   const statusElementId = bootstrap.ui?.statusElementId || 'deskSessionStatus';
   const ownerElementId = bootstrap.ui?.ownerElementId || 'deskControlOwner';
@@ -171,10 +167,11 @@
     const controlOwner = lastState.controlOwner;
     const myUserId = Number(window.DeskConfig?.userId || bootstrap.userId || 0);
     const mySocketId = socket?.id || null;
-    return (
+    const result = (
       (myUserId > 0 && Number(controlOwner.userId || 0) === myUserId) ||
       (mySocketId && controlOwner.socketId && controlOwner.socketId === mySocketId)
     );
+    return result;
   };
 
   const updateStatusFromState = () => {
@@ -302,69 +299,50 @@
   };
 
   const requestControl = (reason = 'interaction') => {
-    if (roleHint !== 'analyst') {
-      return Promise.resolve(false);
-    }
-    if (!socket || !connected) {
-      return Promise.resolve(false);
-    }
-    if (isOwner()) {
-      socket.emit('request_control', { matchId, reason });
-      return Promise.resolve(true);
-    }
-    if (pendingControlRequest) {
-      return pendingControlRequest.promise;
-    }
-
-    let resolveFn = null;
-    const promise = new Promise((resolve) => {
-      resolveFn = resolve;
-    });
-    const timeoutId = window.setTimeout(() => {
-      if (pendingControlRequest) {
-        pendingControlRequest = null;
-      }
-      resolveFn(false);
-    }, 2500);
-
-    pendingControlRequest = {
-      promise,
-      resolve: (value) => {
-        window.clearTimeout(timeoutId);
-        pendingControlRequest = null;
-        resolveFn(Boolean(value));
-      },
-    };
-
-    socket.emit('request_control', { matchId, reason });
-    return promise;
+    // Local-only control (WebSockets disabled)
+    return Promise.resolve(true);
   };
 
   const emitPlaybackCommand = async (type, payload = {}) => {
-    if (roleHint !== 'analyst' || !socket || !connected) {
-      return false;
-    }
+    // Local-only playback control (WebSockets disabled)
     if (type === 'play') {
       localOverrideUntilMs = Date.now() + 1500;
       recentUserGestureUntilMs = Date.now() + 2000;
-      video.play().catch(() => {
-        /* autoplay may still be blocked */
+      if (lastState) {
+        lastState.playing = true;
+        lastState.time = video.currentTime;
+        lastState.baseTime = getServerNow();
+      }
+      video.play().catch((err) => {
+        console.error('[DeskSession] Play error:', err);
       });
     } else if (type === 'pause') {
       localOverrideUntilMs = Date.now() + 800;
+      if (lastState) {
+        lastState.playing = false;
+        lastState.time = video.currentTime;
+        lastState.baseTime = getServerNow();
+      }
       video.pause();
+    } else if (type === 'seek') {
+      const timeSeconds = payload.time;
+      if (Number.isFinite(timeSeconds)) {
+        localOverrideUntilMs = Date.now() + 500;
+        video.currentTime = timeSeconds;
+        if (lastState) {
+          lastState.time = timeSeconds;
+          lastState.baseTime = getServerNow();
+        }
+      }
+    } else if (type === 'rate') {
+      const rate = payload.rate;
+      if (Number.isFinite(rate) && rate > 0) {
+        video.playbackRate = rate;
+        if (lastState) {
+          lastState.rate = rate;
+        }
+      }
     }
-    const gotControl = isOwner() ? true : await requestControl(type);
-    if (!gotControl) {
-      dispatch('desk:session-denied', { matchId, type, controlOwner: lastState?.controlOwner || null });
-      return false;
-    }
-    socket.emit('playback_cmd', {
-      matchId,
-      type,
-      time: payload.time,
-      rate: payload.rate,
-    });
     return true;
   };
 
@@ -381,10 +359,8 @@
   };
 
   const releaseControl = () => {
-    if (!socket || !connected || roleHint !== 'analyst') {
-      return;
-    }
-    socket.emit('release_control', { matchId });
+    // Local-only control (WebSockets disabled)
+    return;
   };
 
   const getCurrentTime = () => {
@@ -435,189 +411,117 @@
   sessionApi.ready = readyPromise;
   window.DeskSession = sessionApi;
 
-  const handleLocalPlayPause = () => {
+  // Now assign the functions to the forward-declared variables
+  handleLocalPlayPause = () => {
     if (applyingServerState) {
       return;
     }
     if (Date.now() < localOverrideUntilMs) {
       return;
     }
+    // Update session state to reflect actual video playback state
+    if (lastState) {
+      lastState.playing = !video.paused;
+      lastState.time = video.currentTime;
+      lastState.baseTime = getServerNow();
+    }
     sessionApi.applyState(true);
   };
 
+  // Save video time to localStorage periodically
+  saveVideoTime = () => {
+    try {
+      const storageKey = `desk-video-time-${matchId}`;
+      localStorage.setItem(storageKey, JSON.stringify({
+        time: video.currentTime,
+        duration: video.duration,
+        timestamp: Date.now()
+      }));
+    } catch (e) {
+      console.error('[DeskSession] Failed to save video time:', e);
+    }
+  };
+
+  // Restore video time from localStorage
+  restoreVideoTime = () => {
+    try {
+      const storageKey = `desk-video-time-${matchId}`;
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const data = JSON.parse(saved);
+        video.currentTime = data.time;
+      }
+    } catch (e) {
+      console.error('[DeskSession] Failed to restore video time:', e);
+    }
+  };
+
+  // Set up event listeners for play/pause tracking and time persistence
   video.addEventListener('play', handleLocalPlayPause);
   video.addEventListener('pause', handleLocalPlayPause);
 
+  // Save video time every 2 seconds
+  setInterval(saveVideoTime, 2000);
+
+  // Restore video time when metadata is loaded
+  video.addEventListener('loadedmetadata', () => {
+    videoReady = true;
+    maybeApplyBufferedState();
+    // Restore after applying buffered state so it doesn't get overwritten
+    restoreVideoTime();
+  });
+
   const connect = async () => {
-    setStatus('Connecting session…');
+    setStatus('Initializing video player…');
 
-    let sessionConfig = null;
-    try {
-      const url = new URL(sessionEndpoint, window.location.origin);
-      url.searchParams.set('role', roleHint);
-      const response = await fetch(url.toString(), {
-        credentials: 'same-origin',
-        headers: {
-          Accept: 'application/json',
-        },
-      });
-      sessionConfig = await response.json();
-    } catch (err) {
-      setStatus('Session endpoint unavailable');
-      dispatch('desk:session-error', { code: 'session_endpoint_failed', error: err });
-      return;
+    // WebSockets disabled - initialize with local-only state
+    // Skip the session endpoint fetch entirely
+
+    // Get current user info
+    const myUserId = Number(window.DeskConfig?.userId || bootstrap.userId || 0);
+    const myUserName = window.DeskConfig?.userName || bootstrap.userName || 'Local User';
+
+    // Initialize with a basic local state
+    // Set current user as control owner so they can control playback
+    const initialState = {
+      matchId,
+      playing: false,
+      time: 0,
+      baseTime: 0,
+      rate: 1,
+      updatedAt: Date.now(),
+      controlOwner: myUserId > 0 ? { userId: myUserId, userName: myUserName, socketId: null } : null,
+      serverTime: Date.now(),
+      reason: 'local-init',
+    };
+
+    if (!videoReady) {
+      bufferedSessionState = initialState;
+      bufferedSessionReason = 'local-init';
+    } else {
+      lastState = initialState;
+      sessionApi.applyState(true);
     }
 
-    if (!sessionConfig || sessionConfig.ok === false) {
-      setStatus('Session unavailable');
-      dispatch('desk:session-error', { code: 'session_config_invalid', sessionConfig });
-      return;
+    // Create a mock socket object for compatibility
+    socket = {
+      id: 'local-' + Math.random().toString(36).substr(2, 9),
+      on: () => { },
+      emit: () => { },
+      off: () => { },
+      disconnect: () => { },
+    };
+
+    // Mark as connected locally
+    connected = true;
+    setStatus(roleHint === 'viewer' ? 'Viewer mode (local)' : 'Connected (local)');
+
+    // Dispatch ready immediately
+    if (resolveReady) {
+      resolveReady(sessionApi);
+      resolveReady = null;
     }
-
-    // If the session endpoint returns a bare origin (no path), prefer the
-    // HTTPS reverse-proxy path we configured for Socket.IO.
-    try {
-      const parsedWsUrl = new URL(sessionConfig.websocketUrl, window.location.origin);
-      const isSameHost = parsedWsUrl.host === window.location.host;
-      const hasNoPath = !parsedWsUrl.pathname || parsedWsUrl.pathname === '/';
-      if (isSameHost && hasNoPath) {
-        sessionConfig.websocketUrl = `${window.location.origin}/match-session`;
-      }
-    } catch (err) {
-      /* ignore URL normalization issues */
-    }
-
-    if (sessionConfig.snapshot) {
-      // Buffer the initial snapshot if video is not ready
-      const snapshot = sessionConfig.snapshot;
-      const serverTime = Number(sessionConfig.serverTime || Date.now());
-      const baseTime = Number(snapshot.baseTime || 0);
-      const rate = Number(snapshot.rate || 1);
-      const updatedAt = Number(snapshot.updatedAt || serverTime);
-      const elapsedSeconds = snapshot.playing ? Math.max(0, serverTime - updatedAt) / 1000 * rate : 0;
-      const initialState = {
-        matchId,
-        playing: Boolean(snapshot.playing),
-        time: baseTime + elapsedSeconds,
-        baseTime,
-        rate,
-        updatedAt,
-        controlOwner: snapshot.controlOwner || null,
-        serverTime,
-        reason: 'snapshot',
-      };
-      if (!videoReady) {
-        bufferedSessionState = initialState;
-        bufferedSessionReason = 'snapshot';
-      } else {
-        lastState = initialState;
-        sessionApi.applyState(true);
-      }
-    }
-
-    if (!window.io) {
-      setStatus('Socket client missing');
-      dispatch('desk:session-error', { code: 'socket_client_missing' });
-      return;
-    }
-
-    // Socket.IO expects the base origin separately from the path. If we pass
-    // a URL that includes `/match-session`, it is treated as a namespace and
-    // triggers "Invalid namespace". Use the origin + explicit path instead.
-    const parsedWsUrl = new URL(sessionConfig.websocketUrl, window.location.origin);
-    const socketBaseUrl = parsedWsUrl.origin;
-    const socketPath = '/match-session/socket.io';
-
-    socket = window.io(socketBaseUrl, {
-      // Allow polling fallback (helps behind proxies/CDNs like Cloudflare).
-      transports: ['websocket', 'polling'],
-      withCredentials: true,
-      reconnection: true,
-      reconnectionDelay: 500,
-      reconnectionDelayMax: 2000,
-      path: socketPath,
-    });
-
-    socket.on('connect', () => {
-      connected = true;
-      setStatus(roleHint === 'viewer' ? 'Viewer mode' : 'Connected');
-      socket.emit('session_join', {
-        matchId,
-        role: roleHint,
-        userId: window.DeskConfig?.userId || bootstrap.userId || null,
-        userName: window.DeskConfig?.userName || bootstrap.userName || null,
-        token: sessionConfig.token,
-        durationSeconds: getDurationSeconds(),
-      });
-      startStateRequests();
-      if (roleHint === 'analyst') {
-        autoControlPending = true;
-        autoPausePending = true;
-        requestControl('auto');
-      }
-      if (resolveReady) {
-        resolveReady(sessionApi);
-        resolveReady = null;
-      }
-      dispatch('desk:session-ready', sessionApi);
-    });
-
-    socket.on('disconnect', () => {
-      connected = false;
-      stopStateRequests();
-      updateStatusFromState();
-      dispatch('desk:session-disconnect', { matchId });
-    });
-
-    socket.on('connect_error', (err) => {
-      setStatus('Session connection failed');
-    });
-
-    socket.on('reconnect_attempt', () => { });
-
-    socket.on('session_state', (state) => {
-      // Buffer state if video not ready
-      handleIncomingState(state, state.reason);
-    });
-
-    socket.on('control_owner_changed', (payload) => {
-      updateControlOwner(payload);
-    });
-
-    socket.on('control_granted', (payload) => {
-      if (pendingControlRequest) {
-        pendingControlRequest.resolve(true);
-      }
-      updateControlOwner(payload);
-      if (autoControlPending) {
-        autoControlPending = false;
-      }
-      if (autoPausePending) {
-        autoPausePending = false;
-        pause();
-      }
-      dispatch('desk:control-granted', payload);
-    });
-
-    socket.on('control_denied', (payload) => {
-      if (pendingControlRequest) {
-        pendingControlRequest.resolve(false);
-      }
-      updateControlOwner(payload);
-      if (autoControlPending) {
-        autoControlPending = false;
-        if (window.Toast && typeof window.Toast.show === 'function') {
-          const ownerName = payload?.controlOwner?.userName;
-          const msg = ownerName ? `Control denied (owned by ${ownerName})` : 'Control denied';
-          window.Toast.show(msg, 'warning');
-        }
-      }
-      dispatch('desk:control-denied', payload);
-    });
-
-    socket.on('error', (payload) => {
-      dispatch('desk:session-error', payload);
-    });
+    dispatch('desk:session-ready', sessionApi);
   };
 
   connect();

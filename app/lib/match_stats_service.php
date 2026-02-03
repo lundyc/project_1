@@ -229,7 +229,7 @@ function fetch_cached_match_stats(int $matchId, int $eventsVersion): ?array
 function store_match_stats(int $matchId, int $eventsVersion, array $payload): void
 {
           $stmt = db()->prepare(
-                    'INSERT INTO derived_stats (match_id, events_version_used, computed_at, payload_json)
+                    'REPLACE INTO derived_stats (match_id, events_version_used, computed_at, payload_json)
              VALUES (:match_id, :events_version, :computed_at, :payload)'
           );
 

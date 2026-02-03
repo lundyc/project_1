@@ -295,29 +295,22 @@ ob_start();
         $matchDescription = 'Manual entry for ' . htmlspecialchars($homeTeamName) . ' vs ' . htmlspecialchars($awayTeamName) . '.';
         $clubContextName = $selectedClub['name'] ?? 'Saltcoats Victoria F.C.';
         $showClubSelector = true;
-        include __DIR__ . '/../../partials/match_context_header.php';
+$headerTitle = 'Edit Match';
+$headerDescription = 'Manual entry for ' . htmlspecialchars($homeTeamName) . ' vs ' . htmlspecialchars($awayTeamName) . '.';
+//$headerButtons[] = '<a href="' . htmlspecialchars($base) . '/admin/players/create" class="stats-tab w-full justify-start text-left px-4 py-2.5 text-sm font-medium rounded-lg border transition-all duration-200 bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20 flex">Create Player</a>';
+$headerButtons[] =  '<a href="'. htmlspecialchars($base).'/matches" class="stats-tab w-50 justify-start text-left px-4 py-2.5 text-sm font-medium rounded-lg border transition-all duration-200 bg-slate-600 border-slate-500 text-white shadow-lg shadow-slate-500/20 flex" aria-label="Back to matches">Back to matches</a>';
+
+// Add Next Match button if available
+if (isset($nextMatchId) && $nextMatchId) {
+    $headerButtons[] = '<a href="' . htmlspecialchars($base) . '/matches/' . $nextMatchId . '/edit" class="stats-tab w-50 justify-start text-left px-4 py-2.5 text-sm font-medium rounded-lg border transition-all duration-200 bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20 flex hover:text-white" aria-label="Next Match">Next Match</a>';
+}
+
+// Add Repair Lineups button if match is ready
+if (isset($matchStatus) && $matchStatus === 'ready') {
+    $headerButtons[] = '<a href="' . htmlspecialchars($base) . '/matches/' . $matchId . '/repair-lineups" class="stats-tab w-50 justify-start text-left px-4 py-2.5 text-sm font-medium rounded-lg border transition-all duration-200 bg-green-700 border-green-600 text-white shadow-lg shadow-green-600/20 flex hover:text-white" aria-label="Repair Starting Lineups">Repair Lineups</a>';
+}
+    include __DIR__ . '/../../partials/header.php';
         ?>
-                    <div class="flex items-center justify-end gap-2 mb-0">
-            <a href="<?= htmlspecialchars($base) ?>/matches" class="inline-flex items-center rounded-md bg-slate-700/60 px-2 py-1 text-xs text-slate-200 hover:bg-slate-700/80 transition" aria-label="Back to matches">
-                ← Back to matches
-            </a>
-            <?php if (isset($nextMatchId) && $nextMatchId): ?>
-            <a href="<?= htmlspecialchars($base) ?>/matches/<?= $nextMatchId ?>/edit" class="inline-flex items-center rounded-md bg-indigo-700/60 px-2 py-1 text-xs text-white hover:bg-indigo-700 transition" aria-label="Next Match">
-                Next Match <span aria-hidden="true">→</span>
-            </a>
-            <?php endif; ?>
-            <?php if (isset($matchStatus) && $matchStatus === 'ready'): ?>
-                <a href="/matches/<?= urlencode($matchId) ?>/repair-lineups" class="inline-flex items-center rounded-md bg-green-700/80 px-2 py-1 text-xs text-white hover:bg-green-800 transition shadow" aria-label="Repair Starting Lineups">
-                    <i class="fa-solid fa-wrench mr-1"></i> Repair Lineups
-                </a>
-            <?php elseif (isset($matchStatus)): ?>
-                <span class="inline-flex items-center rounded-md bg-slate-700/60 px-2 py-1 text-xs text-slate-200" aria-label="Match Status">
-                    Status: <?= htmlspecialchars(ucfirst($matchStatus)) ?>
-                </span>
-            <?php endif; ?>
-        </div>
-
-
 
 <div class="px-4 md:px-6 lg:px-8">
                 <?php if ($error): ?>
@@ -1901,5 +1894,30 @@ $clubPlayersJson = json_encode(array_map(function($p) {
 }, $clubPlayers));
 
 $footerScripts .= "<script>window.clubPlayers = {$clubPlayersJson};</script>";
+
+// Add script to handle tab parameter in URL
+$footerScripts .= '<script>
+(function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const tabParam = urlParams.get("tab");
+    
+    if (tabParam) {
+        // Wait for DOM to be ready
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", function() {
+                const tabButton = document.querySelector(`.edit-nav-item[data-section="${CSS.escape(tabParam)}"]`);
+                if (tabButton) {
+                    tabButton.click();
+                }
+            });
+        } else {
+            const tabButton = document.querySelector(`.edit-nav-item[data-section="${CSS.escape(tabParam)}"]`);
+            if (tabButton) {
+                tabButton.click();
+            }
+        }
+    }
+})();
+</script>';
 
 require __DIR__ . '/../../layout.php';

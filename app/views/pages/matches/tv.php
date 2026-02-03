@@ -64,7 +64,7 @@ $sessionBootstrap = [
 ];
 
 $footerScripts = '<script>window.DeskSessionBootstrap = ' . json_encode($sessionBootstrap) . ';</script>';
-$footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/vendor/socket.io.min.js' . asset_version('/assets/js/vendor/socket.io.min.js') . '"></script>';
+// WebSocket disabled: $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/vendor/socket.io.min.js' . asset_version('/assets/js/vendor/socket.io.min.js') . '"></script>';
 $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-session.js' . asset_version('/assets/js/desk-session.js') . '"></script>';
 $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-tv.js' . asset_version('/assets/js/desk-tv.js') . '"></script>';
 

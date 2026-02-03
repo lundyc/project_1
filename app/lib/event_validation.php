@@ -6,6 +6,13 @@ require_once __DIR__ . '/match_period_repository.php';
 /**
  * Auto-calculate period and stoppage time based on event_time and period definitions.
  * 
+ * Strategy:
+ * 1. EXACT MATCH: Find period where matchSecond falls within [start_second, end_second]
+ * 2. ONGOING PERIOD: Find period where start_second is set but end_second is null (still active)
+ * 3. STOPPAGE TIME: Find period where matchSecond > end_second and no subsequent period has started yet
+ * 
+ * This ensures events are assigned to the correct period even when there's a gap between periods (e.g., halftime).
+ * 
  * @param int $matchId
  * @param int $matchSecond The event time in seconds
  * @return array{period_id: ?int, minute_extra: int} Period ID and calculated stoppage minutes
@@ -16,32 +23,61 @@ function calculate_period_from_event_time(int $matchId, int $matchSecond): array
           $periodId = null;
           $minuteExtra = 0;
 
-          // Find the period that contains this event
+          // STRATEGY 1: First pass - look for EXACT MATCH (event within period range)
           foreach ($periods as $period) {
                     $start = $period['start_second'] ?? null;
                     $end = $period['end_second'] ?? null;
 
-                    if ($start === null) {
-                              continue;
+                    // Event is within this period's completed time range
+                    if ($start !== null && $end !== null && $matchSecond >= $start && $matchSecond <= $end) {
+                              return [
+                                        'period_id' => (int)$period['id'],
+                                        'minute_extra' => 0,
+                              ];
                     }
+          }
 
-                    // Event is within this period's time range
-                    if ($end !== null && $matchSecond >= $start && $matchSecond <= $end) {
-                              $periodId = (int)$period['id'];
-                              break;
+          // STRATEGY 2: Second pass - look for ONGOING PERIOD (started but not ended)
+          foreach ($periods as $period) {
+                    $start = $period['start_second'] ?? null;
+                    $end = $period['end_second'] ?? null;
+
+                    // Period has started but no end recorded yet, and event is after start
+                    if ($start !== null && $end === null && $matchSecond >= $start) {
+                              return [
+                                        'period_id' => (int)$period['id'],
+                                        'minute_extra' => 0,
+                              ];
                     }
-                    // Event is after period start but period hasn't ended yet
-                    if ($end === null && $matchSecond >= $start) {
-                              $periodId = (int)$period['id'];
-                              break;
-                    }
-                    // Event is after period end - it's stoppage time
+          }
+
+          // STRATEGY 3: Third pass - look for STOPPAGE TIME (after a period ends but before next period starts)
+          foreach ($periods as $period) {
+                    $start = $period['start_second'] ?? null;
+                    $end = $period['end_second'] ?? null;
+
+                    // Event is after this period's end
                     if ($end !== null && $matchSecond > $end) {
-                              $periodId = (int)$period['id'];
-                              // Calculate how many minutes past the end
-                              $secondsPastEnd = $matchSecond - $end;
-                              $minuteExtra = (int)ceil($secondsPastEnd / 60);
-                              break;
+                              // Check if any subsequent period has started
+                              $nextPeriodStarted = false;
+                              foreach ($periods as $p) {
+                                        $nextStart = $p['start_second'] ?? null;
+                                        // If there's a later period that has started before our event
+                                        if ($nextStart !== null && $nextStart > $end && $matchSecond >= $nextStart) {
+                                                  $nextPeriodStarted = true;
+                                                  break;
+                                        }
+                              }
+
+                              // If no subsequent period has started, this is stoppage time of current period
+                              if (!$nextPeriodStarted) {
+                                        $secondsPastEnd = $matchSecond - $end;
+                                        $minuteExtra = (int)ceil($secondsPastEnd / 60);
+                                        return [
+                                                  'period_id' => (int)$period['id'],
+                                                  'minute_extra' => $minuteExtra,
+                                        ];
+                              }
                     }
           }
 
@@ -64,16 +100,6 @@ function normalize_event_payload(array $data): array
                     $matchSecond = 0;
           }
 
-          $minute = isset($data['minute']) && $data['minute'] !== '' ? (int)$data['minute'] : (int)floor($matchSecond / 60);
-          if ($minute < 0) {
-                    $minute = 0;
-          }
-
-          $minuteExtra = isset($data['minute_extra']) && $data['minute_extra'] !== '' ? (int)$data['minute_extra'] : 0;
-          if ($minuteExtra < 0) {
-                    $minuteExtra = 0;
-          }
-
           $teamSide = isset($data['team_side']) ? (string)$data['team_side'] : 'unknown';
           if (!in_array($teamSide, ['home', 'away', 'unknown'], true)) {
                     $teamSide = 'unknown';
@@ -93,11 +119,9 @@ function normalize_event_payload(array $data): array
           $isPenalty = isset($data['is_penalty']) ? (int)$data['is_penalty'] : 0;
           $isPenalty = $isPenalty ? 1 : 0;
 
-          return [
+          $normalized = [
                     'period_id' => isset($data['period_id']) && $data['period_id'] !== '' ? (int)$data['period_id'] : null,
                     'match_second' => $matchSecond,
-                    'minute' => $minute,
-                    'minute_extra' => $minuteExtra,
                     'team_side' => $teamSide,
                     'event_type_id' => $eventTypeId,
                     'importance' => $importance,
@@ -109,6 +133,17 @@ function normalize_event_payload(array $data): array
                     'zone' => $data['zone'] ?? null,
                     'notes' => $data['notes'] ?? null,
           ];
+
+          $shotCoordFields = ['shot_origin_x', 'shot_origin_y', 'shot_target_x', 'shot_target_y'];
+          foreach ($shotCoordFields as $field) {
+                    if (!array_key_exists($field, $data)) {
+                              continue;
+                    }
+                    $value = $data[$field];
+                    $normalized[$field] = ($value === '' || $value === null) ? null : floatval($value);
+          }
+
+          return $normalized;
 }
 
 /**
@@ -189,8 +224,6 @@ function validate_event_payload(array $input, int $matchId): array
           }
 
           $periodId = isset($input['period_id']) && $input['period_id'] !== '' ? (int)$input['period_id'] : null;
-          $minute = isset($input['minute']) && $input['minute'] !== '' ? (int)$input['minute'] : null;
-          $minuteExtra = isset($input['minute_extra']) && $input['minute_extra'] !== '' ? (int)$input['minute_extra'] : null;
           $teamSide = $input['team_side'] ?? 'unknown';
           if (!in_array($teamSide, ['home', 'away', 'unknown'], true)) {
                     $teamSide = 'unknown';
@@ -206,8 +239,6 @@ function validate_event_payload(array $input, int $matchId): array
         $prepared = [
             'period_id' => $periodId,
             'match_second' => $matchSecond,
-            'minute' => $minute,
-            'minute_extra' => $minuteExtra,
             'team_side' => $teamSide,
             'event_type_id' => $eventTypeId,
             'importance' => $importance,
@@ -218,6 +249,26 @@ function validate_event_payload(array $input, int $matchId): array
             'zone' => event_validation_trim_nullable_string($input['zone'] ?? null),
             'notes' => event_validation_trim_nullable_string($input['notes'] ?? null),
         ];
+
+        $shotCoordFields = ['shot_origin_x', 'shot_origin_y', 'shot_target_x', 'shot_target_y'];
+        foreach ($shotCoordFields as $field) {
+            if (!array_key_exists($field, $input)) {
+                continue;
+            }
+            $value = $input[$field];
+            if ($value === null || $value === '') {
+                $prepared[$field] = null;
+                continue;
+            }
+            if (!is_numeric($value)) {
+                throw new \RuntimeException('shot_location_invalid');
+            }
+            $floatVal = floatval($value);
+            if ($floatVal < 0.0 || $floatVal > 1.0 || is_nan($floatVal)) {
+                throw new \RuntimeException('shot_location_out_of_range');
+            }
+            $prepared[$field] = $floatVal;
+        }
 
         // --- Advanced Shot Data Model (Phase 1) ---
         // Only for shot-type events: add validated 'shot' field to payload if present and valid
@@ -317,10 +368,6 @@ function validate_event_payload(array $input, int $matchId): array
                     // Auto-calculate period and stoppage time from match_second
                     $calculated = calculate_period_from_event_time($matchId, $normalized['match_second']);
                     $normalized['period_id'] = $calculated['period_id'];
-                    // Only set minute_extra if not already provided and we calculated stoppage time
-                    if (($normalized['minute_extra'] ?? 0) === 0 && $calculated['minute_extra'] > 0) {
-                              $normalized['minute_extra'] = $calculated['minute_extra'];
-                    }
           }
 
           if ($normalized['match_player_id'] !== null) {

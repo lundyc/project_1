@@ -120,11 +120,11 @@ if ($recentHome) {
         if ($m['home_team_id'] == $homeTeam['id']) {
             $homeFirstHalfGoals += (int)($m['home_goals_first_half'] ?? 0);
             $homeSecondHalfGoals += (int)($m['home_goals'] - ($m['home_goals_first_half'] ?? 0));
-                if (isset($m['minute']) && $m['minute'] >= 75) $homeLateGoalsConceded += (int)($m['away_goals'] ?? 0);
+                if (isset($m['match_second']) && (int)($m['match_second'] ?? 0) / 60 >= 75) $homeLateGoalsConceded += (int)($m['away_goals'] ?? 0);
         } else {
             $homeFirstHalfGoals += (int)($m['away_goals_first_half'] ?? 0);
             $homeSecondHalfGoals += (int)($m['away_goals'] - ($m['away_goals_first_half'] ?? 0));
-                if (isset($m['minute']) && $m['minute'] >= 75) $homeLateGoalsConceded += (int)($m['home_goals'] ?? 0);
+                if (isset($m['match_second']) && (int)($m['match_second'] ?? 0) / 60 >= 75) $homeLateGoalsConceded += (int)($m['home_goals'] ?? 0);
         }
     }
     // Set-piece goals (event_tags)
@@ -191,8 +191,8 @@ if ($recentAway) {
         if ($ga == 0) $oppCleanSheets++;
         if (($gf + $ga) >= 4) $oppHighScoring++;
         if (($gf + $ga) <= 1) $oppLowScoring++;
-           if (isset($m['minute']) && $m['minute'] >= 75 && $gf > 0) $oppLateGoalsScored++;
-           if (isset($m['minute']) && $m['minute'] >= 75 && $ga > 0) $oppLateGoalsConceded++;
+           if (isset($m['match_second']) && (int)($m['match_second'] ?? 0) / 60 >= 75 && $gf > 0) $oppLateGoalsScored++;
+           if (isset($m['match_second']) && (int)($m['match_second'] ?? 0) / 60 >= 75 && $ga > 0) $oppLateGoalsConceded++;
     }
     if ($oppHighScoring > $oppLowScoring) $oppVolatility = 'High';
     elseif ($oppLowScoring > $oppHighScoring) $oppVolatility = 'Low';

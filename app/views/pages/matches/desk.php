@@ -138,7 +138,7 @@ if ($videoLabEnabled) {
     $videoSrc = $videoReady ? $standardRelative : '';
 
     $defaultFormatId = 'standard';
-    $placeholderMessage = 'This match video is downloading; it will appear once ready.';
+    $placeholderMessage = '';
     $videoFormats = [
         [
             'id' => 'standard',
@@ -244,7 +244,7 @@ $sessionBootstrap = [
 
 $footerScripts = '<script>window.DeskConfig = ' . json_encode($deskConfig) . ';</script>';
 $footerScripts .= '<script>window.DeskSessionBootstrap = ' . json_encode($sessionBootstrap) . ';</script>';
-$footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/vendor/socket.io.min.js' . asset_version('/assets/js/vendor/socket.io.min.js') . '"></script>';
+// WebSocket disabled: $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/vendor/socket.io.min.js' . asset_version('/assets/js/vendor/socket.io.min.js') . '"></script>';
 $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-session.js' . asset_version('/assets/js/desk-session.js') . '"></script>';
 $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/toast.js' . asset_version('/assets/js/toast.js') . '"></script>';
 $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-events.js' . asset_version('/assets/js/desk-events.js') . '"></script>';
@@ -283,6 +283,21 @@ ob_start();
     @keyframes pulse {
         0%, 100% { opacity: 1; }
         50% { opacity: 0.4; }
+    }
+    .video-transform-layer { position: relative; }
+    .desk-corner-time-display {
+        position: absolute;
+        top: 12px;
+        right: 18px;
+        z-index: 100;
+        font-size: 1.1em;
+        background: rgba(0,0,0,0.55);
+        color: #fff;
+        padding: 2px 10px;
+        border-radius: 6px;
+        pointer-events: none;
+        user-select: none;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
     }
 </style>
 <div id="deskLoadingSkeleton" class="desk-loading-skeleton">
@@ -627,6 +642,7 @@ ob_start();
                                             <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
                                         </span>
                                     </div>
+                                    <!-- Removed persistent time display in video corner -->
                               </div>
                               <div class="panoramic-shell" data-panoramic-shell>
                                   <video id="deskPanoramicVideo" playsinline muted poster="<?= htmlspecialchars($posterUrl) ?>" data-panoramic-video></video>
@@ -648,6 +664,11 @@ ob_start();
                                       </div>
                                   </div>
                               </div>
+                              <!-- Move desk-time-display outside controls for persistent visibility -->
+                              <div class="desk-time-display" id="deskTimeDisplay" style="position:absolute;bottom:18px;left:18px;z-index:100;pointer-events:none;background:rgba(0,0,0,0.55);color:#fff;padding:2px 10px;border-radius:6px;font-size:1.1em;user-select:none;box-shadow:0 2px 8px rgba(0,0,0,0.15);">
+                                  <span class="desk-time-current">00:00</span>
+                                  <span class="desk-time-total-block"> / 00:00</span>
+                              </div>
                               <div class="custom-video-controls" id="deskControls">
                                   <div class="desk-timeline" id="deskTimeline" role="slider" tabindex="0" aria-label="Video timeline" data-video-timeline>
                                   <div class="desk-timeline-track" id="deskTimelineTrack" data-video-timeline-track>
@@ -659,65 +680,61 @@ ob_start();
                                   </div>
                               </div>
                               <div class="desk-control-group" style="display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; width: 100%; gap: 12px;">
-                                  <div style="justify-self: start;">
-                                          <div class="desk-time-display" id="deskTimeDisplay">
-                                              <span class="desk-time-current">00:00</span>
-                                              <span class="desk-time-total-block"> / 00:00</span>
-                                          </div>
-                                  </div>
-                                      <div style="justify-self: center; display: flex; gap: 12px;">
-                                          <span class="control-btn-shell">
-                                              <button id="deskPlayPause" class="control-btn" aria-label="Play or pause" aria-describedby="tooltip-deskPlayPause">
-                                                  <i class="fa-solid fa-play" aria-hidden="true"></i>
-                                              </button>
-                                              <div id="tooltip-deskPlayPause" role="tooltip" class="video-control-tooltip">Play/Pause</div>
-                                          </span>
-                                          <span class="control-btn-shell">
-                                              <button id="deskRewind" class="control-btn" aria-label="Back 5 seconds" aria-describedby="tooltip-deskRewind">
-                                                  <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>
-                                              </button>
-                                              <div id="tooltip-deskRewind" role="tooltip" class="video-control-tooltip">Back 5s</div>
-                                          </span>
-                                          <span class="control-btn-shell">
-                                              <button id="deskForward" class="control-btn" aria-label="Forward 5 seconds" aria-describedby="tooltip-deskForward">
-                                                  <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
-                                              </button>
-                                              <div id="tooltip-deskForward" role="tooltip" class="video-control-tooltip">Forward 5s</div>
-                                          </span>
-                                      </div>
-                                      <div style="justify-self: end; display: flex; gap: 12px;">
-                                          <span class="control-btn-shell" style="display:none;">
-                                              <button id="drawingToolbarToggleBtn" class="control-btn" aria-label="Show/hide drawing toolbar" aria-pressed="false" type="button" aria-describedby="tooltip-drawingToolbarToggle">
-                                                  <i class="fa-solid fa-pen-ruler" aria-hidden="true"></i>
-                                              </button>
-                                              <div id="tooltip-drawingToolbarToggle" role="tooltip" class="video-control-tooltip">Show/hide drawing tools</div>
-                                          </span>
-                                          <div class="speed-selector">
-                                              <button id="deskSpeedToggle" class="control-btn" aria-label="Playback speed">
-                                                  <i class="fa-solid fa-gauge-simple" aria-hidden="true"></i>
-                                                  <span class="speed-label">1×</span>
-                                              </button>
-                                              <ul id="deskSpeedOptions" class="speed-options" role="menu"></ul>
-                                          </div>
-                                          <span class="control-btn-shell">
-                                              <button id="deskMuteToggle" class="control-btn" aria-label="Toggle mute" aria-describedby="tooltip-deskMuteToggle">
-                                                  <i class="fa-solid fa-volume-high" aria-hidden="true"></i>
-                                              </button>
-                                              <div id="tooltip-deskMuteToggle" role="tooltip" class="video-control-tooltip">Mute</div>
-                                          </span>
-                                          <span class="control-btn-shell">
-                                              <button id="deskFullscreen" class="control-btn" aria-label="Toggle fullscreen" aria-describedby="tooltip-deskFullscreen">
-                                                  <i class="fa-solid fa-expand" aria-hidden="true"></i>
-                                              </button>
-                                              <div id="tooltip-deskFullscreen" role="tooltip" class="video-control-tooltip">Fullscreen</div>
-                                          </span>
-                                          <span class="control-btn-shell" style="display:none;">
-                                              <button id="deskDetachVideo" class="control-btn" aria-label="Detach video" aria-describedby="tooltip-deskDetachVideo" type="button">
-                                                  <i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i>
-                                              </button>
-                                              <div id="tooltip-deskDetachVideo" role="tooltip" class="video-control-tooltip">Detach video</div>
-                                          </span>
-                                      </div>
+                                    <div style="justify-self: center; display: flex; gap: 12px;"></div>
+
+                                     <div style="justify-self: center; display: flex; gap: 12px;">
+                                        <span class="control-btn-shell">
+                                            <button id="deskRewind" class="control-btn" aria-label="Back 5 seconds" aria-describedby="tooltip-deskRewind">
+                                                <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>
+                                            </button>
+                                            <div id="tooltip-deskRewind" role="tooltip" class="video-control-tooltip">Back 5s</div>
+                                        </span>
+                                        <span class="control-btn-shell">
+                                            <button id="deskPlayPause" class="control-btn" aria-label="Play or pause" aria-describedby="tooltip-deskPlayPause">
+                                                <i class="fa-solid fa-play" aria-hidden="true"></i>
+                                            </button>
+                                            <div id="tooltip-deskPlayPause" role="tooltip" class="video-control-tooltip">Play/Pause</div>
+                                        </span>
+                                        <span class="control-btn-shell">
+                                            <button id="deskForward" class="control-btn" aria-label="Forward 5 seconds" aria-describedby="tooltip-deskForward">
+                                                <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
+                                            </button>
+                                            <div id="tooltip-deskForward" role="tooltip" class="video-control-tooltip">Forward 5s</div>
+                                        </span>
+                                    </div>
+                                    <div style="justify-self: end; display: flex; gap: 12px;">
+                                        <span class="control-btn-shell" style="display:none;">
+                                            <button id="drawingToolbarToggleBtn" class="control-btn" aria-label="Show/hide drawing toolbar" aria-pressed="false" type="button" aria-describedby="tooltip-drawingToolbarToggle">
+                                                <i class="fa-solid fa-pen-ruler" aria-hidden="true"></i>
+                                            </button>
+                                            <div id="tooltip-drawingToolbarToggle" role="tooltip" class="video-control-tooltip">Show/hide drawing tools</div>
+                                        </span>
+                                        <div class="speed-selector">
+                                            <button id="deskSpeedToggle" class="control-btn" aria-label="Playback speed">
+                                                <i class="fa-solid fa-gauge-simple" aria-hidden="true"></i>
+                                                <span class="speed-label">1×</span>
+                                            </button>
+                                            <ul id="deskSpeedOptions" class="speed-options" role="menu"></ul>
+                                        </div>
+                                        <span class="control-btn-shell">
+                                            <button id="deskMuteToggle" class="control-btn" aria-label="Toggle mute" aria-describedby="tooltip-deskMuteToggle">
+                                                <i class="fa-solid fa-volume-high" aria-hidden="true"></i>
+                                            </button>
+                                            <div id="tooltip-deskMuteToggle" role="tooltip" class="video-control-tooltip">Mute</div>
+                                        </span>
+                                        <span class="control-btn-shell">
+                                            <button id="deskFullscreen" class="control-btn" aria-label="Toggle fullscreen" aria-describedby="tooltip-deskFullscreen">
+                                                <i class="fa-solid fa-expand" aria-hidden="true"></i>
+                                            </button>
+                                            <div id="tooltip-deskFullscreen" role="tooltip" class="video-control-tooltip">Fullscreen</div>
+                                        </span>
+                                        <span class="control-btn-shell" style="display:none;">
+                                            <button id="deskDetachVideo" class="control-btn" aria-label="Detach video" aria-describedby="tooltip-deskDetachVideo" type="button">
+                                                <i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i>
+                                            </button>
+                                            <div id="tooltip-deskDetachVideo" role="tooltip" class="video-control-tooltip">Detach video</div>
+                                        </span>
+                                    </div>
                             <?php
                             /*
                                           <button id="deskInteractiveToggle" class="control-btn" data-tooltip="Interactive mode" aria-label="Toggle interactive mode" aria-pressed="false">
@@ -729,9 +746,7 @@ ob_start();
                                   </div>
                               </div>
                             </div>
-                        <div id="deskVideoPlaceholder" class="text-center text-muted mb-3<?= $videoReady ? ' d-none' : '' ?>">
-                            <?= htmlspecialchars($placeholderMessage) ?>
-                        </div>
+                        <div id="deskVideoPlaceholder" class="text-center text-muted mb-3<?= $videoReady ? ' d-none' : '' ?>">                        </div>
                         <?php if ($showVideoProgressPanel): ?>
                         <div class="panel p-3 rounded-md panel-dark mt-3<?= $videoReady ? ' d-none' : '' ?>" id="deskVideoProgressPanel">
                             <div class="d-flex justify-content-between align-items-center mb-2">
@@ -1123,7 +1138,7 @@ ob_start();
         <script src="<?= htmlspecialchars($base) ?>/assets/js/desk-toolbar-toggle.js<?= asset_version('/assets/js/desk-toolbar-toggle.js') ?>" defer></script>
 </div>
 
-        <div id="editorPanel" class="editor-modal is-hidden" role="dialog" aria-modal="true" aria-labelledby="editorTitle">
+        <div id="editorPanel" class="editor-modal is-hidden" role="dialog" aria-modal="true" aria-labelledby="editorTitle" inert>
             <div class="editor-modal-backdrop" data-editor-close></div>
             <div class="panel-dark editor-modal-card">
                 <div class="editor-modal-header">
@@ -1131,23 +1146,20 @@ ob_start();
                         <div id="editorTitle" class="text-sm text-subtle">Event editor</div>
                         <div id="editorHint" class="text-xs text-muted-alt">Click a timeline item to edit details</div>
                     </div>
+                                  <div class="editor-tabs" role="tablist">
+                        <button id="editorTabDetails" class="editor-tab is-active" data-panel="details" role="tab" aria-controls="editorTabpanelDetails" aria-selected="true">Details</button>
+                        <button id="editorTabNotes" class="editor-tab" data-panel="notes" role="tab" aria-controls="editorTabpanelNotes" aria-selected="false">Notes</button>
+                        <button id="editorTabClip" class="editor-tab" data-panel="clip" role="tab" aria-controls="editorTabpanelClip" aria-selected="false">Clip</button>
+                    </div>
                     <div class="editor-modal-header-actions">
                         <button type="button" class="editor-modal-close" data-editor-close aria-label="Close event editor">✕</button>
                     </div>
                 </div>
                 <input type="hidden" id="eventId">
-                <!-- match_second is the canonical source; minute is derived from it, minute_extra stores stoppage metadata -->
+                <!-- match_second is the canonical source of event timing in seconds -->
                 <input type="hidden" id="match_second" value="0">
-                <input type="hidden" id="minute" value="0">
-                <input type="hidden" id="minute_extra" value="0">
                 <input type="hidden" class="desk-editable" id="team_side" value="home">
-                <div class="editor-tabs-row">
-                    <div class="editor-tabs" role="tablist">
-                        <button id="editorTabDetails" class="editor-tab is-active" data-panel="details" role="tab" aria-controls="editorTabpanelDetails" aria-selected="true">Details</button>
-                        <button id="editorTabNotes" class="editor-tab" data-panel="notes" role="tab" aria-controls="editorTabpanelNotes" aria-selected="false">Notes</button>
-                        <button id="editorTabClip" class="editor-tab" data-panel="clip" role="tab" aria-controls="editorTabpanelClip" aria-selected="false">Clip</button>
-                    </div>
-                </div>
+
                 <div class="editor-tab-panels">
                     <div id="editorTabpanelDetails" class="editor-tab-panel is-active" data-panel="details" role="tabpanel" aria-labelledby="editorTabDetails">
                         <div class="editor-modal-content">
@@ -1207,21 +1219,15 @@ ob_start();
                                 </select>
                             </div>
 
-                            <div class="editor-content-right">
-                                <label class="field-label">Player</label>
-                                <div id="playerSelectorContainer" style="display:none;">
-                                    <div class="player-selector-columns">
-                                        <div class="player-selector-column">
-                                            <div class="player-selector-column-label">Starting XI</div>
-                                            <div id="playerSelectorStarting" class="player-selector-buttons"></div>
-                                        </div>
-                                        <div class="player-selector-column">
-                                            <div class="player-selector-column-label">Subs</div>
-                                            <div id="playerSelectorSubs" class="player-selector-buttons"></div>
-                                        </div>
-                                    </div>
-                                    <input type="hidden" class="input-dark desk-editable" id="match_player_id" value="">
-                                </div>
+                            <div class="editor-content-middle" id="playerSelectorContainer" style="display:none;">
+                                <label class="field-label">Starting XI</label>
+                                <div id="playerSelectorStarting" class="player-selector-buttons"></div>
+                            </div>
+
+                            <div class="editor-content-right" id="playerSelectorSubsContainer" style="display:none;">
+                                <label class="field-label">Subs</label>
+                                <div id="playerSelectorSubs" class="player-selector-buttons"></div>
+                                <input type="hidden" class="input-dark desk-editable" id="match_player_id" value="">
                             </div>
 
                             <!-- Hidden fields for Importance and Phase - not user-editable but retained for API -->
@@ -1266,9 +1272,9 @@ ob_start();
                 </div>
                 <div class="panel-row editor-modal-footer">
                     <div class="btn-row">
-                        <button class="primary-btn desk-editable" id="eventSaveBtn" type="button">Save edits</button>
+                        <button class="danger-btn desk-editable" id="eventDeleteBtn" type="button">Delete</button>
                     </div>
-                    <button class="danger-btn desk-editable" id="eventDeleteBtn" type="button">Delete event</button>
+                    <button class="primary-btn desk-editable" id="eventSaveBtn" type="button">Save</button>
                 </div>
         </div>
     </div>
@@ -1333,8 +1339,8 @@ ob_start();
         }
 
         toggleBtn.addEventListener('click', () => {
-            const target = `${normalizedBase || ''}/matches/${encodeURIComponent(contextMatchId)}/lineup`;
-            window.location.href = target;
+            const target = `${normalizedBase || ''}/matches/${encodeURIComponent(contextMatchId)}/edit`;
+            window.location.href = target + '?tab=lineups';
         });
     })();
 </script>
@@ -1343,41 +1349,181 @@ ob_start();
 // --- Shot Recorder SVG rendering (debug version, forced) ---
 const SVG_NS = "http://www.w3.org/2000/svg";
 
-document.addEventListener("DOMContentLoaded", function() {
-    console.debug("[ShotSVG] DOMContentLoaded");
-});
-
 window.debugShotSVG = function() {
+    console.debug("[ShotSVG] debugShotSVG CALLED");
     const shotOriginSvg = document.getElementById("shotOriginSvg");
     const shotTargetSvg = document.getElementById("shotTargetSvg");
     const shotModal = document.getElementById("shotPlayerModal");
-    console.debug("[ShotSVG] debugShotSVG called", {
-        shotOriginSvg,
-        shotTargetSvg,
-        shotModal,
-        shotOriginSvg_display: shotOriginSvg && shotOriginSvg.style.display,
-        shotTargetSvg_display: shotTargetSvg && shotTargetSvg.style.display,
-        shotOriginSvg_offset: shotOriginSvg && shotOriginSvg.offsetWidth,
-        shotTargetSvg_offset: shotTargetSvg && shotTargetSvg.offsetWidth,
-        shotModal_hidden: shotModal && shotModal.hidden,
-        shotModal_style: shotModal && shotModal.style.display
-    });
+    
     if (shotOriginSvg) {
         shotOriginSvg.setAttribute("width", "400");
         shotOriginSvg.setAttribute("height", "180");
         renderShotOriginSvg(shotOriginSvg);
+        attachSinglePointHandler(shotOriginSvg, "origin");
     }
     if (shotTargetSvg) {
         shotTargetSvg.setAttribute("width", "400");
         shotTargetSvg.setAttribute("height", "140");
         renderShotTargetSvg(shotTargetSvg);
+        attachSinglePointHandler(shotTargetSvg, "target");
     }
 };
 
+// State variables for shot points
+window.shotOriginPoint = null;
+window.shotTargetPoint = null;
+window.shotOriginCleared = false;
+window.shotTargetCleared = false;
+
+function getShotSvg(type) {
+    return document.getElementById(type === 'origin' ? 'shotOriginSvg' : 'shotTargetSvg');
+}
+
+function getShotClearWrap(type) {
+    return document.getElementById(type === 'origin' ? 'shotOriginClearWrap' : 'shotTargetClearWrap');
+}
+
+function setShotClearVisible(type, visible) {
+    const wrap = getShotClearWrap(type);
+    if (!wrap) return;
+    wrap.style.display = visible ? 'block' : 'none';
+}
+
+function setShotPointState(type, point) {
+    if (type === 'origin') {
+        window.shotOriginPoint = point;
+        window.shotOriginCleared = false;
+    } else {
+        window.shotTargetPoint = point;
+        window.shotTargetCleared = false;
+    }
+}
+
+function clearShotPointState(type) {
+    if (type === 'origin') {
+        window.shotOriginPoint = null;
+        window.shotOriginCleared = true;
+    } else {
+        window.shotTargetPoint = null;
+        window.shotTargetCleared = true;
+    }
+}
+
+function renderShotPoint(type, point) {
+    const svg = getShotSvg(type);
+    if (!svg) return;
+
+    const existing = svg.querySelector(`[data-shot-point="${type}"]`);
+    if (!point) {
+        if (existing) {
+            existing.remove();
+        }
+        setShotClearVisible(type, false);
+        return;
+    }
+
+    const viewBox = svg.getAttribute('viewBox');
+    if (!viewBox) return;
+    const [vbX, vbY, vbWidth, vbHeight] = viewBox.split(' ').map(Number);
+    const svgX = vbX + (point.x * vbWidth);
+    const svgY = vbY + (point.y * vbHeight);
+
+    let pointCircle = existing;
+    if (!pointCircle) {
+        pointCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        pointCircle.setAttribute('data-shot-point', type);
+        pointCircle.setAttribute('r', '2.5');
+        pointCircle.setAttribute('fill', '#ef4444');
+        pointCircle.setAttribute('stroke', '#ffffff');
+        pointCircle.setAttribute('stroke-width', '1');
+        svg.appendChild(pointCircle);
+    }
+
+    pointCircle.setAttribute('cx', svgX);
+    pointCircle.setAttribute('cy', svgY);
+    setShotClearVisible(type, true);
+}
+
+window.renderShotPoint = renderShotPoint;
+window.setShotPointState = setShotPointState;
+window.clearShotPointState = clearShotPointState;
+
+const shotOriginClearBtn = document.getElementById('shotOriginClearBtn');
+if (shotOriginClearBtn) {
+    shotOriginClearBtn.addEventListener('click', () => {
+        clearShotPointState('origin');
+        renderShotPoint('origin', null);
+    });
+}
+
+const shotTargetClearBtn = document.getElementById('shotTargetClearBtn');
+if (shotTargetClearBtn) {
+    shotTargetClearBtn.addEventListener('click', () => {
+        clearShotPointState('target');
+        renderShotPoint('target', null);
+    });
+}
+
+/**
+ * Attaches a single-point click handler to an SVG element
+ * Normalises coordinates to 0-1 range and stores/updates state
+ */
+function attachSinglePointHandler(svg, type) {
+    // Skip if already attached
+    if (svg.dataset.shotPointHandlerAttached) {
+        return;
+    }
+    svg.dataset.shotPointHandlerAttached = 'true';
+
+    svg.addEventListener('click', (e) => {
+        const viewBox = svg.getAttribute('viewBox');
+        const [vbX, vbY, vbWidth, vbHeight] = viewBox.split(' ').map(Number);
+
+        let svgX = 0;
+        let svgY = 0;
+
+        if (typeof svg.createSVGPoint === 'function' && svg.getScreenCTM()) {
+            const point = svg.createSVGPoint();
+            point.x = e.clientX;
+            point.y = e.clientY;
+            const transformed = point.matrixTransform(svg.getScreenCTM().inverse());
+            svgX = transformed.x;
+            svgY = transformed.y;
+        } else {
+            const rect = svg.getBoundingClientRect();
+            const clickX = e.clientX;
+            const clickY = e.clientY;
+            const xNormFallback = Math.max(0, Math.min(1, (clickX - rect.left) / rect.width));
+            const yNormFallback = Math.max(0, Math.min(1, (clickY - rect.top) / rect.height));
+            svgX = vbX + (xNormFallback * vbWidth);
+            svgY = vbY + (yNormFallback * vbHeight);
+        }
+
+        const xNorm = Math.max(0, Math.min(1, (svgX - vbX) / vbWidth));
+        const yNorm = Math.max(0, Math.min(1, (svgY - vbY) / vbHeight));
+
+        const point = { x: xNorm, y: yNorm };
+        setShotPointState(type, point);
+        renderShotPoint(type, point);
+
+        if (type === 'origin') {
+            console.log(`Shot origin updated:\nx: ${point.x.toFixed(2)}\ny: ${point.y.toFixed(2)}`);
+        } else if (type === 'target') {
+            console.log(`Shot target updated:\nx: ${point.x.toFixed(2)}\ny: ${point.y.toFixed(2)}`);
+        }
+
+        document.dispatchEvent(new CustomEvent('shot-point-updated', {
+            detail: {
+                type,
+                point,
+                source: 'click',
+            },
+        }));
+    });
+}
+
 function renderShotOriginSvg(svg) {
-    console.debug("[ShotSVG] renderShotOriginSvg called", svg);
     if (!svg) {
-        console.debug("[ShotSVG] shotOriginSvg not found");
         return;
     }
     svg.innerHTML = "";
@@ -1394,7 +1540,6 @@ function renderShotOriginSvg(svg) {
     pitch.setAttribute("stroke-width", "1");
     pitch.setAttribute("fill", "none");
     svg.appendChild(pitch);
-    console.debug("[ShotSVG] pitch rect appended");
 
     // Penalty box
     const penaltyBox = document.createElementNS(SVG_NS, "rect");
@@ -1406,7 +1551,6 @@ function renderShotOriginSvg(svg) {
     penaltyBox.setAttribute("stroke-width", "1");
     penaltyBox.setAttribute("fill", "none");
     svg.appendChild(penaltyBox);
-    console.debug("[ShotSVG] penalty box appended");
 
     // Six yard box
     const sixYardBox = document.createElementNS(SVG_NS, "rect");
@@ -1418,7 +1562,6 @@ function renderShotOriginSvg(svg) {
     sixYardBox.setAttribute("stroke-width", "1");
     sixYardBox.setAttribute("fill", "none");
     svg.appendChild(sixYardBox);
-    console.debug("[ShotSVG] six yard box appended");
 
     // Penalty spot
     const penaltySpot = document.createElementNS(SVG_NS, "circle");
@@ -1427,7 +1570,6 @@ function renderShotOriginSvg(svg) {
     penaltySpot.setAttribute("r", "1.5");
     penaltySpot.setAttribute("fill", "#e5e7eb");
     svg.appendChild(penaltySpot);
-    console.debug("[ShotSVG] penalty spot appended");
 
     // Penalty arc
     const arc = document.createElementNS(SVG_NS, "path");
@@ -1435,13 +1577,10 @@ function renderShotOriginSvg(svg) {
     arc.setAttribute("stroke", "#e5e7eb");
     arc.setAttribute("fill", "none");
     svg.appendChild(arc);
-    console.debug("[ShotSVG] penalty arc appended");
 }
 
 function renderShotTargetSvg(svg) {
-    console.debug("[ShotSVG] renderShotTargetSvg called", svg);
     if (!svg) {
-        console.debug("[ShotSVG] shotTargetSvg not found");
         return;
     }
     svg.innerHTML = "";
@@ -1457,7 +1596,6 @@ function renderShotTargetSvg(svg) {
     leftPost.setAttribute("stroke", "#e5e7eb");
     leftPost.setAttribute("stroke-width", "3");
     svg.appendChild(leftPost);
-    console.debug("[ShotSVG] left post appended");
 
     // Right post
     const rightPost = document.createElementNS(SVG_NS, "line");
@@ -1468,7 +1606,6 @@ function renderShotTargetSvg(svg) {
     rightPost.setAttribute("stroke", "#e5e7eb");
     rightPost.setAttribute("stroke-width", "3");
     svg.appendChild(rightPost);
-    console.debug("[ShotSVG] right post appended");
 
     // Crossbar
     const crossbar = document.createElementNS(SVG_NS, "line");
@@ -1479,7 +1616,6 @@ function renderShotTargetSvg(svg) {
     crossbar.setAttribute("stroke", "#e5e7eb");
     crossbar.setAttribute("stroke-width", "3");
     svg.appendChild(crossbar);
-    console.debug("[ShotSVG] crossbar appended");
 
     // Net grid - vertical lines
     for (let x = 30; x <= 90; x += 10) {
@@ -1492,7 +1628,6 @@ function renderShotTargetSvg(svg) {
         vLine.setAttribute("stroke-width", "1");
         svg.appendChild(vLine);
     }
-    console.debug("[ShotSVG] net grid verticals appended");
     // Net grid - horizontal lines
     for (let y = 20; y <= 50; y += 10) {
         const hLine = document.createElementNS(SVG_NS, "line");
@@ -1504,15 +1639,12 @@ function renderShotTargetSvg(svg) {
         hLine.setAttribute("stroke-width", "1");
         svg.appendChild(hLine);
     }
-    console.debug("[ShotSVG] net grid horizontals appended");
 }
 
 // Modal integration: always render SVGs after modal is visible
 window.openShotModal = function(...args) {
-    console.debug("[ShotSVG] openShotModal called", args);
     const modal = document.getElementById("shotPlayerModal");
     if (!modal) {
-        console.debug("[ShotSVG] shotPlayerModal not found");
         return;
     }
     // If already visible, render immediately

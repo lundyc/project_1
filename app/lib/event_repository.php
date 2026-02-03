@@ -224,17 +224,15 @@ function event_create(int $matchId, array $data, array $tagIds, int $userId, boo
 
                     $stmt = $pdo->prepare(
                               'INSERT INTO events
-                     (match_id, period_id, match_second, minute, minute_extra, team_side, event_type_id, importance, phase, is_penalty, match_player_id, opponent_detail, outcome, zone, notes, created_by)
+                     (match_id, period_id, match_second, team_side, event_type_id, importance, phase, is_penalty, match_player_id, opponent_detail, outcome, zone, notes, shot_origin_x, shot_origin_y, shot_target_x, shot_target_y, created_by)
                      VALUES
-                     (:match_id, :period_id, :match_second, :minute, :minute_extra, :team_side, :event_type_id, :importance, :phase, :is_penalty, :match_player_id, :opponent_detail, :outcome, :zone, :notes, :created_by)'
+                     (:match_id, :period_id, :match_second, :team_side, :event_type_id, :importance, :phase, :is_penalty, :match_player_id, :opponent_detail, :outcome, :zone, :notes, :shot_origin_x, :shot_origin_y, :shot_target_x, :shot_target_y, :created_by)'
                     );
 
                     $stmt->execute([
                               'match_id' => $matchId,
                               'period_id' => $normalized['period_id'],
                               'match_second' => $normalized['match_second'],
-                              'minute' => $normalized['minute'],
-                              'minute_extra' => $normalized['minute_extra'],
                               'team_side' => $normalized['team_side'],
                               'event_type_id' => $normalized['event_type_id'],
                               'importance' => $normalized['importance'],
@@ -245,6 +243,10 @@ function event_create(int $matchId, array $data, array $tagIds, int $userId, boo
                               'outcome' => $normalized['outcome'],
                               'zone' => $normalized['zone'],
                               'notes' => $normalized['notes'],
+                              'shot_origin_x' => $normalized['shot_origin_x'] ?? null,
+                              'shot_origin_y' => $normalized['shot_origin_y'] ?? null,
+                              'shot_target_x' => $normalized['shot_target_x'] ?? null,
+                              'shot_target_y' => $normalized['shot_target_y'] ?? null,
                               'created_by' => $userId,
                     ]);
 
@@ -277,42 +279,52 @@ function event_update(int $eventId, array $data, array $tagIds, int $userId): vo
           try {
                     $normalized = normalize_event_payload($data);
 
-                    $stmt = $pdo->prepare(
-                              'UPDATE events
-                     SET period_id = :period_id,
-                         match_second = :match_second,
-                         minute = :minute,
-                         minute_extra = :minute_extra,
-                         team_side = :team_side,
-                         event_type_id = :event_type_id,
-                         importance = :importance,
-                         phase = :phase,
-                         is_penalty = :is_penalty,
-                         match_player_id = :match_player_id,
-                         opponent_detail = :opponent_detail,
-                         outcome = :outcome,
-                         zone = :zone,
-                         notes = :notes
-                     WHERE id = :id'
-                    );
+                  $setParts = [
+                          'period_id = :period_id',
+                          'match_second = :match_second',
+                          'team_side = :team_side',
+                          'event_type_id = :event_type_id',
+                          'importance = :importance',
+                          'phase = :phase',
+                          'is_penalty = :is_penalty',
+                          'match_player_id = :match_player_id',
+                          'opponent_detail = :opponent_detail',
+                          'outcome = :outcome',
+                          'zone = :zone',
+                          'notes = :notes',
+                  ];
 
-                    $stmt->execute([
-                              'period_id' => $normalized['period_id'],
-                              'match_second' => $normalized['match_second'],
-                              'minute' => $normalized['minute'],
-                              'minute_extra' => $normalized['minute_extra'],
-                              'team_side' => $normalized['team_side'],
-                              'event_type_id' => $normalized['event_type_id'],
-                              'importance' => $normalized['importance'],
-                              'phase' => $normalized['phase'],
-                              'is_penalty' => $normalized['is_penalty'],
-                              'match_player_id' => $normalized['match_player_id'],
-                              'opponent_detail' => $normalized['opponent_detail'],
-                              'outcome' => $normalized['outcome'],
-                              'zone' => $normalized['zone'],
-                              'notes' => $normalized['notes'],
-                              'id' => $eventId,
-                    ]);
+                  $params = [
+                          'period_id' => $normalized['period_id'],
+                          'match_second' => $normalized['match_second'],
+                          'team_side' => $normalized['team_side'],
+                          'event_type_id' => $normalized['event_type_id'],
+                          'importance' => $normalized['importance'],
+                          'phase' => $normalized['phase'],
+                          'is_penalty' => $normalized['is_penalty'],
+                          'match_player_id' => $normalized['match_player_id'],
+                          'opponent_detail' => $normalized['opponent_detail'],
+                          'outcome' => $normalized['outcome'],
+                          'zone' => $normalized['zone'],
+                          'notes' => $normalized['notes'],
+                          'id' => $eventId,
+                  ];
+
+                  $shotCoordFields = ['shot_origin_x', 'shot_origin_y', 'shot_target_x', 'shot_target_y'];
+                  foreach ($shotCoordFields as $field) {
+                          if (array_key_exists($field, $normalized)) {
+                                 $setParts[] = $field . ' = :' . $field;
+                                 $params[$field] = $normalized[$field];
+                          }
+                  }
+
+                  $stmt = $pdo->prepare(
+                          'UPDATE events
+                   SET ' . implode(",\n                         ", $setParts) . '
+                   WHERE id = :id'
+                  );
+
+                  $stmt->execute($params);
 
                     $pdo->prepare('DELETE FROM event_tags WHERE event_id = :event_id')
                               ->execute(['event_id' => $eventId]);

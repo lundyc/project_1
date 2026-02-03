@@ -183,12 +183,9 @@ $(function () {
 
       const $eventId = $('#eventId');
       const $matchSecond = $('#match_second');
-      const $minute = $('#minute');
-      const $minuteExtra = $('#minute_extra');
       const $timeDisplay = $('#event_time_display');
       const $timeStepDown = $('#eventTimeStepDown');
       const $timeStepUp = $('#eventTimeStepUp');
-      const $minuteExtraDisplay = $('#minute_extra_display');
       const $teamSide = $('#team_side');
       const $periodId = $('#period_id');
       const $periodHelperText = $('#periodHelperText');
@@ -733,23 +730,17 @@ $(function () {
       }
 
       function updateTimeFromSeconds(value) {
-            // match_second is the canonical timestamp; minute follows from it and minute_extra holds stoppage metadata.
+            // match_second is the canonical source of event timing in seconds
             const normalized = Math.max(0, Math.floor(Number(value) || 0));
             lastKnownMatchSecond = normalized;
-            const derivedMinute = Math.floor(normalized / 60);
             $matchSecond.val(normalized);
-            $minute.val(derivedMinute);
             if ($timeDisplay.length) {
                   $timeDisplay.val(formatMatchSecond(normalized).text);
             }
       }
 
       function updateMinuteExtraFields(value) {
-            const parsed = Math.max(0, parseInt(value, 10) || 0);
-            $minuteExtra.val(parsed);
-            if ($minuteExtraDisplay.length) {
-                  $minuteExtraDisplay.val(parsed);
-            }
+            // No longer used - minute_extra has been removed from the system
       }
 
       function handleTimeDisplayInput() {
@@ -1207,6 +1198,17 @@ $(function () {
                   return;
             }
 
+            const formatPlayerLabel = (player) => {
+                  const name = String(player.display_name || '').trim() || 'Player';
+                  const parts = name.split(/\s+/).filter(Boolean);
+                  const firstName = parts[0] || '';
+                  const surname = parts.length > 1 ? parts.slice(1).join(' ') : '';
+                  const shirtNumber = String(player.shirt_number || '').trim();
+                  const numberPrefix = shirtNumber ? `#${shirtNumber}` : '#';
+                  const fullName = surname ? `${firstName} ${surname}` : firstName;
+                  return `${numberPrefix} ${fullName}`.trim();
+            };
+
             const teamPlayers = Array.isArray(players)
                   ? players.filter((p) => (p.team_side || 'unknown') === teamSide)
                   : [];
@@ -1215,14 +1217,20 @@ $(function () {
             const startingXI = teamPlayers.filter((p) => p.is_starting === 1 || p.is_starting === true);
             const substitutes = teamPlayers.filter((p) => p.is_starting !== 1 && p.is_starting !== true);
 
+            // Sort Starting XI by shirt number
+            startingXI.sort((a, b) => {
+                  const shirtA = parseInt(a.shirt_number) || 999;
+                  const shirtB = parseInt(b.shirt_number) || 999;
+                  return shirtA - shirtB;
+            });
+
             // Build Starting XI buttons
             let startingHtml = '';
             if (startingXI.length > 0) {
                   startingXI.forEach((player) => {
-                        const shirt = player.shirt_number ? ` #${player.shirt_number}` : '';
                         const playerId = String(player.id || '');
-                        const label = player.display_name || 'Player';
-                        startingHtml += `<button type="button" class="player-selector-btn desk-editable" data-player-id="${h(playerId)}">${h(label)}${shirt ? h(shirt) : ''}</button>`;
+                        const label = formatPlayerLabel(player);
+                        startingHtml += `<button type="button" class="player-selector-btn desk-editable" data-player-id="${h(playerId)}">${h(label)}</button>`;
                   });
             }
 
@@ -1230,10 +1238,9 @@ $(function () {
             let subsHtml = '';
             if (substitutes.length > 0) {
                   substitutes.forEach((player) => {
-                        const shirt = player.shirt_number ? ` #${player.shirt_number}` : '';
                         const playerId = String(player.id || '');
-                        const label = player.display_name || 'Player';
-                        subsHtml += `<button type="button" class="player-selector-btn desk-editable" data-player-id="${h(playerId)}">${h(label)}${shirt ? h(shirt) : ''}</button>`;
+                        const label = formatPlayerLabel(player);
+                        subsHtml += `<button type="button" class="player-selector-btn desk-editable" data-player-id="${h(playerId)}">${h(label)}</button>`;
                   });
             }
 
@@ -1245,24 +1252,27 @@ $(function () {
        */
       function updateEventEditorPlayerList(teamSide) {
             const $playerContainer = $('#playerSelectorContainer');
+            const $playerSubsContainer = $('#playerSelectorSubsContainer');
             const $playerStarting = $('#playerSelectorStarting');
             const $playerSubs = $('#playerSelectorSubs');
             const $playerInput = $('#match_player_id');
 
-            if (!$playerContainer.length || !$playerStarting.length || !$playerSubs.length) {
+            if (!$playerContainer.length || !$playerSubsContainer.length || !$playerStarting.length || !$playerSubs.length) {
                   return;
             }
 
             if (!teamSide || !['home', 'away'].includes(teamSide)) {
                   $playerContainer.hide();
+                  $playerSubsContainer.hide();
                   $playerStarting.html('');
                   $playerSubs.html('');
                   $playerInput.val('');
                   return;
             }
 
-            // Show player container
+            // Show player containers
             $playerContainer.show();
+            $playerSubsContainer.show();
 
             // Build and render player lists
             const playerLists = buildEventEditorPlayerListHtml(teamSide);
@@ -1275,13 +1285,14 @@ $(function () {
             $playerStarting.html(playerLists.startingHtml || '<div class="text-sm text-muted-alt">None</div>');
             $playerSubs.html(playerLists.subsHtml || '<div class="text-sm text-muted-alt">None</div>');
 
-            // Add event listeners to player buttons
-            $playerContainer.find('.player-selector-btn').on('click', function (e) {
+            // Add event listeners to player buttons in both containers
+            const $allButtons = $playerContainer.add($playerSubsContainer).find('.player-selector-btn');
+            $allButtons.on('click', function (e) {
                   e.preventDefault();
                   const playerId = $(this).data('player-id');
 
-                  // Remove selected class from all buttons
-                  $playerContainer.find('.player-selector-btn').removeClass('selected');
+                  // Remove selected class from all buttons in both containers
+                  $allButtons.removeClass('selected');
 
                   // Add selected class to clicked button
                   $(this).addClass('selected');
@@ -1294,7 +1305,7 @@ $(function () {
             // Set selected state if player is already selected
             const currentPlayerId = $playerInput.val();
             if (currentPlayerId) {
-                  $playerContainer.find(`.player-selector-btn[data-player-id="${currentPlayerId}"]`).addClass('selected');
+                  $allButtons.filter(`[data-player-id="${currentPlayerId}"]`).addClass('selected');
             }
       }
 
@@ -1446,7 +1457,8 @@ $(function () {
                               )}`
                         );
                         setStatus('Tagged');
-                        loadEvents();
+                        loadEvents(true); // Force reload from API so timeline updates immediately
+                        refreshSummaryPanel(); // Refresh summary stats
                         closeGoalPlayerModal();
                   })
                   .fail((xhr, status, error) => {
@@ -1544,7 +1556,8 @@ $(function () {
                               )}`
                         );
                         setStatus('Tagged');
-                        loadEvents();
+                        loadEvents(true); // Force reload from API so timeline updates immediately
+                        refreshSummaryPanel(); // Refresh summary stats
                         closeCardPlayerModal();
                   })
                   .fail((xhr, status, error) => {
@@ -1642,7 +1655,8 @@ $(function () {
                               )}`
                         );
                         setStatus('Tagged');
-                        loadEvents();
+                        loadEvents(true); // Force reload from API so timeline updates immediately
+                        refreshSummaryPanel(); // Refresh summary stats
                         closeOffsidePlayerModal();
                   })
                   .fail((xhr, status, error) => {
@@ -1707,11 +1721,65 @@ $(function () {
             setTimeout(function () {
                   var shotOriginSvg = document.getElementById('shotOriginSvg');
                   var shotTargetSvg = document.getElementById('shotTargetSvg');
+
                   if (shotOriginSvg && shotOriginSvg.childNodes.length === 0 && typeof window.renderShotOriginSvg === 'function') {
                         window.renderShotOriginSvg(shotOriginSvg);
                   }
                   if (shotTargetSvg && shotTargetSvg.childNodes.length === 0 && typeof window.renderShotTargetSvg === 'function') {
                         window.renderShotTargetSvg(shotTargetSvg);
+                  }
+
+                  if (shotOriginSvg && typeof window.attachSinglePointHandler === 'function') {
+                        window.attachSinglePointHandler(shotOriginSvg, 'origin');
+                  }
+                  if (shotTargetSvg && typeof window.attachSinglePointHandler === 'function') {
+                        window.attachSinglePointHandler(shotTargetSvg, 'target');
+                  }
+
+                  const originPoint = (payload.shot_origin_x !== null && payload.shot_origin_x !== undefined
+                        && payload.shot_origin_y !== null && payload.shot_origin_y !== undefined)
+                        ? { x: Number(payload.shot_origin_x), y: Number(payload.shot_origin_y) }
+                        : null;
+
+                  const targetPoint = (payload.shot_target_x !== null && payload.shot_target_x !== undefined
+                        && payload.shot_target_y !== null && payload.shot_target_y !== undefined)
+                        ? { x: Number(payload.shot_target_x), y: Number(payload.shot_target_y) }
+                        : null;
+
+                  if (originPoint) {
+                        if (typeof window.setShotPointState === 'function') {
+                              window.setShotPointState('origin', originPoint);
+                        } else {
+                              window.shotOriginPoint = originPoint;
+                              window.shotOriginCleared = false;
+                        }
+                        if (typeof window.renderShotPoint === 'function') {
+                              window.renderShotPoint('origin', originPoint);
+                        }
+                  } else {
+                        window.shotOriginPoint = null;
+                        window.shotOriginCleared = false;
+                        if (typeof window.renderShotPoint === 'function') {
+                              window.renderShotPoint('origin', null);
+                        }
+                  }
+
+                  if (targetPoint) {
+                        if (typeof window.setShotPointState === 'function') {
+                              window.setShotPointState('target', targetPoint);
+                        } else {
+                              window.shotTargetPoint = targetPoint;
+                              window.shotTargetCleared = false;
+                        }
+                        if (typeof window.renderShotPoint === 'function') {
+                              window.renderShotPoint('target', targetPoint);
+                        }
+                  } else {
+                        window.shotTargetPoint = null;
+                        window.shotTargetCleared = false;
+                        if (typeof window.renderShotPoint === 'function') {
+                              window.renderShotPoint('target', null);
+                        }
                   }
             }, 0);
       }
@@ -1755,12 +1823,37 @@ $(function () {
             if (playerId) {
                   payload.match_player_id = playerId;
             }
+            Object.assign(payload, buildShotLocationPayload());
             // Store shot info for use in goal modal
             window.lastShotInfo = {
                   origin: shotModalState.payload.shotOriginLabel || '',
                   target: shotModalState.payload.shotTargetLabel || ''
             };
             sendShotEventRequest(payload, shotModalState.label, outcome);
+      }
+
+      function buildShotLocationPayload() {
+            const payload = {};
+            const origin = window.shotOriginPoint;
+            const target = window.shotTargetPoint;
+
+            if (origin && typeof origin.x === 'number' && typeof origin.y === 'number') {
+                  payload.shot_origin_x = origin.x;
+                  payload.shot_origin_y = origin.y;
+            } else if (window.shotOriginCleared) {
+                  payload.shot_origin_x = null;
+                  payload.shot_origin_y = null;
+            }
+
+            if (target && typeof target.x === 'number' && typeof target.y === 'number') {
+                  payload.shot_target_x = target.x;
+                  payload.shot_target_y = target.y;
+            } else if (window.shotTargetCleared) {
+                  payload.shot_target_x = null;
+                  payload.shot_target_y = null;
+            }
+
+            return payload;
       }
 
       function handleShotOutcomeClick(event) {
@@ -1772,6 +1865,22 @@ $(function () {
                   submitShotEvent({ playerId: shotModalState.selectedPlayerId, outcome });
             }
       }
+
+      function autoSelectShotOutcomeFromTarget(point) {
+            if (!point || typeof point.x !== 'number' || typeof point.y !== 'number') return;
+            const onTarget = point.x >= (20 / 120)
+                  && point.x <= (100 / 120)
+                  && point.y >= (10 / 60)
+                  && point.y <= (50 / 60);
+            setShotOutcomeSelection(onTarget ? 'on_target' : 'off_target');
+      }
+
+      document.addEventListener('shot-point-updated', (event) => {
+            const detail = event && event.detail ? event.detail : null;
+            if (!detail || detail.type !== 'target' || detail.source !== 'click') return;
+            if (!$shotPlayerModal.length || !$shotPlayerModal.hasClass('is-active')) return;
+            autoSelectShotOutcomeFromTarget(detail.point);
+      });
 
       function handleShotUnknownClick(event) {
             event.preventDefault();
@@ -1789,6 +1898,14 @@ $(function () {
                   showError('Save failed', 'Missing event endpoint');
                   setShotModalControlsEnabled(true);
                   return;
+            }
+            if (payload.shot_origin_x !== undefined || payload.shot_target_x !== undefined) {
+                  console.debug('[ShotSVG] Shot payload', {
+                        shot_origin_x: payload.shot_origin_x,
+                        shot_origin_y: payload.shot_origin_y,
+                        shot_target_x: payload.shot_target_x,
+                        shot_target_y: payload.shot_target_y,
+                  });
             }
             $.post(url, payload)
                   .done((res) => {
@@ -1810,6 +1927,7 @@ $(function () {
                         );
                         setStatus('Tagged');
                         loadEvents(true); // Force reload from API so timeline updates immediately
+                        refreshSummaryPanel(); // Refresh summary stats
                         closeShotPlayerModal();
                   })
                   .fail((xhr, status, error) => {
@@ -2005,6 +2123,38 @@ $(function () {
                         if (selectedId) selectEvent(selectedId);
                   })
                   .fail((xhr, status, error) => showError('Events load failed', xhr.responseText || error || status));
+      }
+
+      function refreshSummaryPanel() {
+            // Reload the summary panel by fetching fresh data from the server
+            const matchId = cfg.matchId;
+            console.log('refreshSummaryPanel called for match:', matchId);
+            if (!matchId) {
+                  console.warn('refreshSummaryPanel: No matchId available');
+                  return;
+            }
+
+            const url = `${cfg.basePath}/api/stats/match/summary?match_id=${matchId}`;
+            console.log('refreshSummaryPanel: Fetching from', url);
+            $.getJSON(url)
+                  .done((res) => {
+                        console.log('refreshSummaryPanel: API response received', res);
+                        if (res && res.ok && res.html) {
+                              const $summaryContent = $('.desk-summary-content');
+                              if ($summaryContent.length) {
+                                    console.log('refreshSummaryPanel: Updating summary content with', res.html.length, 'bytes');
+                                    $summaryContent.html(res.html);
+                                    console.log('Summary panel refreshed successfully');
+                              } else {
+                                    console.warn('refreshSummaryPanel: .desk-summary-content not found in DOM');
+                              }
+                        } else {
+                              console.warn('Summary API response missing expected fields:', res);
+                        }
+                  })
+                  .fail((xhr, status, error) => {
+                        console.error('Summary refresh API call failed:', { status, error, responseText: xhr.responseText });
+                  });
       }
 
       function setTimelineMode(mode) {
@@ -2358,7 +2508,7 @@ $(function () {
                               return;
                         }
                         const labelText = displayEventLabel(ev, row.label);
-                        const matrixTimeLabel = h(formatMatchSecondWithExtra(ev.match_second, ev.minute_extra));
+                        const matrixTimeLabel = h(formatMatchSecond(ev.match_second).text);
                         const seconds = Number.isFinite(Number(ev.match_second)) ? Number(ev.match_second) : 0;
                         const position = Math.min(Math.max(0, seconds * timelineZoom.pixelsPerSecond * timelineZoom.scale), timelineWidth);
                         const rawImportance = parseInt(ev.importance, 10);
@@ -2604,8 +2754,10 @@ $(function () {
             const shouldHide = !!collapsed || !!hidePanel;
             if (shouldHide) {
                   $editorPanel.addClass('is-hidden');
+                  $editorPanel[0].setAttribute('inert', '');
             } else {
                   $editorPanel.removeClass('is-hidden');
+                  $editorPanel[0].removeAttribute('inert');
             }
             $editorPanel.attr('aria-hidden', shouldHide ? 'true' : 'false');
             editorOpen = !shouldHide;
@@ -2740,10 +2892,50 @@ $(function () {
                   updateClipUi();
                   refreshOutcomeFieldForEvent(ev);
                   updateEventEditorPlayerList(teamSide);
+
+                  const typeKey = (ev.event_type_key || '').toLowerCase();
+                  if (isShotTypeKey(typeKey)) {
+                        const originPoint = (ev.shot_origin_x !== null && ev.shot_origin_x !== undefined
+                              && ev.shot_origin_y !== null && ev.shot_origin_y !== undefined)
+                              ? { x: Number(ev.shot_origin_x), y: Number(ev.shot_origin_y) }
+                              : null;
+                        const targetPoint = (ev.shot_target_x !== null && ev.shot_target_x !== undefined
+                              && ev.shot_target_y !== null && ev.shot_target_y !== undefined)
+                              ? { x: Number(ev.shot_target_x), y: Number(ev.shot_target_y) }
+                              : null;
+
+                        if (originPoint) {
+                              window.shotOriginPoint = originPoint;
+                              window.shotOriginCleared = false;
+                              if (typeof window.renderShotPoint === 'function') {
+                                    window.renderShotPoint('origin', originPoint);
+                              }
+                        } else {
+                              window.shotOriginPoint = null;
+                              window.shotOriginCleared = false;
+                              if (typeof window.renderShotPoint === 'function') {
+                                    window.renderShotPoint('origin', null);
+                              }
+                        }
+
+                        if (targetPoint) {
+                              window.shotTargetPoint = targetPoint;
+                              window.shotTargetCleared = false;
+                              if (typeof window.renderShotPoint === 'function') {
+                                    window.renderShotPoint('target', targetPoint);
+                              }
+                        } else {
+                              window.shotTargetPoint = null;
+                              window.shotTargetCleared = false;
+                              if (typeof window.renderShotPoint === 'function') {
+                                    window.renderShotPoint('target', null);
+                              }
+                        }
+                  }
             });
             editorDirty = false;
             const labelText = displayEventLabel(ev, ev.event_type_label || 'Event');
-            const editorTimeLabel = h(formatMatchSecondWithExtra(ev.match_second, ev.minute_extra));
+            const editorTimeLabel = h(formatMatchSecond(ev.match_second).text);
             setEditorCollapsed(false, `${h(labelText)} - ${editorTimeLabel}`, false);
       }
 
@@ -2797,18 +2989,12 @@ $(function () {
                   updateTimeFromSeconds(matchSecond);
             }
             matchSecond = Math.max(0, matchSecond);
-            const minuteValue = Math.floor(matchSecond / 60);
-            $minute.val(minuteValue);
-            const minuteExtraValue = Math.max(0, parseInt($minuteExtra.val(), 10) || 0);
-            $minuteExtra.val(minuteExtraValue);
             const teamSide = ($teamSide.val() || '').trim() || currentTeam || 'home';
             $teamSide.val(teamSide);
             return {
                   match_id: cfg.matchId,
                   event_id: $eventId.val(),
                   match_second: matchSecond,
-                  minute: minuteValue,
-                  minute_extra: minuteExtraValue,
                   team_side: teamSide,
                   period_id: $periodId.val(),
                   event_type_id: $eventTypeId.val(),
@@ -2822,14 +3008,32 @@ $(function () {
             };
       }
 
+      function resolveEventTypeKeyById(typeId) {
+            if (!typeId) return '';
+            const type = eventTypeMap[String(typeId)];
+            return (type && type.type_key ? String(type.type_key) : '').toLowerCase();
+      }
+
       function saveEvent() {
             if (!lockOwned || !cfg.canEditRole) return;
             const data = collectData();
+            const typeKey = resolveEventTypeKeyById(data.event_type_id);
+            if (isShotTypeKey(typeKey)) {
+                  Object.assign(data, buildShotLocationPayload());
+            }
             const endpointKey = data.event_id ? 'eventUpdate' : 'eventCreate';
             const url = endpoint(endpointKey);
             if (!url) {
                   Toast.error('Save failed: Missing event endpoint');
                   return;
+            }
+            if (data.shot_origin_x !== undefined || data.shot_target_x !== undefined) {
+                  console.debug('[ShotSVG] Shot payload', {
+                        shot_origin_x: data.shot_origin_x,
+                        shot_origin_y: data.shot_origin_y,
+                        shot_target_x: data.shot_target_x,
+                        shot_target_y: data.shot_target_y,
+                  });
             }
             $.post(url, data)
                   .done((res) => {
@@ -2909,6 +3113,7 @@ $(function () {
                               fillForm(null);
                         }
                         loadEvents(true);
+                        refreshSummaryPanel();
                         attemptCloseEditor();
                         setStatus('Deleted');
                   })
@@ -2942,6 +3147,7 @@ $(function () {
                         selectedId = null;
                         fillForm(null);
                         loadEvents(true);
+                        refreshSummaryPanel();
                         setStatus('Deleted all visible');
                   })
                   .catch((e) => showError('Delete failed', e && e.message ? e.message : 'Unknown'));
@@ -2955,8 +3161,6 @@ $(function () {
             $eventTypeId.val(type.id);
             $teamSide.val('unknown');
             $matchSecond.val(current);
-            $minute.val(Math.floor(current / 60));
-            $minuteExtra.val('');
             $notes.val(note || '');
             $importance.val('1');
             saveEvent();
@@ -4779,6 +4983,23 @@ $(function () {
             $teamToggle.on('click', '.toggle-btn', function () {
                   const team = $(this).data('team');
                   setTeam(team);
+                  // Update toggle button color states and ghost-btn logic
+                  $teamToggle.find('.toggle-btn').each(function () {
+                        if ($(this).hasClass('is-active')) {
+                              $(this).removeClass('ghost-btn');
+                        } else {
+                              $(this).addClass('ghost-btn');
+                        }
+                  });
+            });
+
+            // On page load, ensure correct ghost-btn state for team toggles
+            $teamToggle.find('.toggle-btn').each(function () {
+                  if ($(this).hasClass('is-active')) {
+                        $(this).removeClass('ghost-btn');
+                  } else {
+                        $(this).addClass('ghost-btn');
+                  }
             });
 
             $tagBoard.on('click', '.qt-tile', function () {
@@ -4832,7 +5053,6 @@ $(function () {
             });
             $timeDisplay.on('input', handleTimeDisplayInput);
             $timeDisplay.on('blur change', handleTimeDisplayBlur);
-            $minuteExtraDisplay.on('input change', () => updateMinuteExtraFields($minuteExtraDisplay.val()));
             $periodId.on('change', refreshPeriodHelperText);
             $(document).on('keydown', (event) => updateModifierState(event.key, true));
             $(document).on('keyup', (event) => updateModifierState(event.key, false));
@@ -5056,7 +5276,9 @@ $(function () {
             $timelineMatrix.on('click', '.matrix-dot', function () {
                   const $dot = $(this);
                   const sec = $dot.data('second');
-                  goToVideoTime(sec);
+                  // Seek to 5 seconds before the event
+                  const seekTime = Math.max(0, sec - 5);
+                  goToVideoTime(seekTime);
             });
             $timelineMatrix.on('click', '.matrix-clip', function () {
                   const start = Number($(this).data('startSecond'));

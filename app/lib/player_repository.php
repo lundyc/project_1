@@ -121,32 +121,120 @@ function deactivate_player(int $playerId, int $clubId): bool
 
 function get_player_appearances(int $playerId, int $clubId): array
 {
-          $stmt = db()->prepare(
-                    'SELECT mp.id,
-                            mp.match_id,
-                            mp.team_side,
-                            mp.shirt_number,
-                            mp.is_starting,
-                            m.kickoff_at,
-                            m.season_id,
-                            s.name AS season_name,
-                            ht.name AS home_team,
-                            at.name AS away_team
-             FROM match_players mp
-             JOIN matches m ON m.id = mp.match_id AND m.club_id = :club_id
-             JOIN teams ht ON ht.id = m.home_team_id
-             JOIN teams at ON at.id = m.away_team_id
-             LEFT JOIN seasons s ON s.id = m.season_id
-             WHERE mp.player_id = :player_id
-             ORDER BY m.kickoff_at DESC, m.id DESC'
-          );
+        $stmt = db()->prepare(
+                'SELECT mp.id,
+                                mp.match_id,
+                                mp.team_side,
+                                mp.shirt_number,
+                                mp.is_starting,
+                                m.kickoff_at,
+                                m.season_id,
+                                s.name AS season_name,
+                                ht.name AS home_team,
+                                at.name AS away_team
+                 FROM match_players mp
+                 JOIN matches m ON m.id = mp.match_id AND m.club_id = :club_id
+                 JOIN teams ht ON ht.id = m.home_team_id
+                 JOIN teams at ON at.id = m.away_team_id
+                 LEFT JOIN seasons s ON s.id = m.season_id
+                 WHERE mp.player_id = :player_id
+                 ORDER BY m.kickoff_at DESC, m.id DESC'
+        );
 
-          $stmt->execute([
-                    'player_id' => $playerId,
-                    'club_id' => $clubId,
-          ]);
+        $stmt->execute([
+                'player_id' => $playerId,
+                'club_id' => $clubId,
+        ]);
 
-          return $stmt->fetchAll();
+        $appearances = $stmt->fetchAll();
+        if (!$appearances) return [];
+
+        // Get all match_player_ids and match_ids
+        $mpIds = array_column($appearances, 'id');
+        $matchIds = array_column($appearances, 'match_id');
+
+        // Get substitutions for these matches
+        $subsByMatch = [];
+        if ($matchIds) {
+                $placeholders = implode(',', array_fill(0, count($matchIds), '?'));
+                $subsStmt = db()->prepare(
+                        'SELECT match_id, player_off_match_player_id, player_on_match_player_id, minute, minute_extra
+                         FROM match_substitutions
+                         WHERE match_id IN (' . $placeholders . ')'
+                );
+                $subsStmt->execute($matchIds);
+                foreach ($subsStmt->fetchAll() as $row) {
+                        $mid = (int)$row['match_id'];
+                        $subsByMatch[$mid][] = $row;
+                }
+        }
+
+        // Compute minutes played for each appearance
+        $matchLength = 90;
+        $minutesByMpId = [];
+        foreach ($appearances as $appearance) {
+                $mpId = (int)$appearance['id'];
+                $mid = (int)$appearance['match_id'];
+                $isStarting = (int)$appearance['is_starting'] === 1;
+                $minutes = 0;
+                $onMap = [];
+                $offMap = [];
+                foreach ($subsByMatch[$mid] ?? [] as $sub) {
+                        $minute = (int)$sub['minute'] + (int)$sub['minute_extra'];
+                        if (!empty($sub['player_on_match_player_id'])) {
+                                $onMap[(int)$sub['player_on_match_player_id']] = $minute;
+                        }
+                        if (!empty($sub['player_off_match_player_id'])) {
+                                $offMap[(int)$sub['player_off_match_player_id']] = $minute;
+                        }
+                }
+                if ($isStarting) {
+                        $minutes = $matchLength;
+                        if (isset($offMap[$mpId])) {
+                                $minutes = max(0, min($matchLength, $offMap[$mpId]));
+                        }
+                } else {
+                        if (isset($onMap[$mpId])) {
+                                $minutes = max(0, $matchLength - $onMap[$mpId]);
+                        }
+                }
+                $minutesByMpId[$mpId] = $minutes;
+        }
+
+        // Get yellow/red cards for each match_player_id
+        $yellowByMpId = [];
+        $redByMpId = [];
+        if ($mpIds) {
+                $placeholders = implode(',', array_fill(0, count($mpIds), '?'));
+                $cardStmt = db()->prepare(
+                        'SELECT match_player_id, et.type_key, COUNT(*) as cnt
+                         FROM events e
+                         JOIN event_types et ON et.id = e.event_type_id
+                         WHERE match_player_id IN (' . $placeholders . ')
+                           AND (et.type_key = "yellow_card" OR et.type_key = "red_card")
+                         GROUP BY match_player_id, et.type_key'
+                );
+                $cardStmt->execute($mpIds);
+                foreach ($cardStmt->fetchAll() as $row) {
+                        $mpId = (int)$row['match_player_id'];
+                        if ($row['type_key'] === 'yellow_card') {
+                                $yellowByMpId[$mpId] = (int)$row['cnt'];
+                        } elseif ($row['type_key'] === 'red_card') {
+                                $redByMpId[$mpId] = (int)$row['cnt'];
+                        }
+                }
+        }
+
+        // Attach computed values to each appearance
+        foreach ($appearances as &$appearance) {
+                $mpId = (int)$appearance['id'];
+                $appearance['minutes_played'] = $minutesByMpId[$mpId] ?? 0;
+                $appearance['yellow_cards'] = $yellowByMpId[$mpId] ?? 0;
+                $appearance['red_cards'] = $redByMpId[$mpId] ?? 0;
+        }
+        unset($appearance);
+
+        return $appearances;
 }
 
 function get_player_event_stats(int $playerId, int $clubId): array

@@ -142,6 +142,10 @@ function build_event_payload_from_action(array $event): array
                     'outcome' => $event['outcome'] ?? null,
                     'zone' => $event['zone'] ?? null,
                     'notes' => $event['notes'] ?? null,
+                    'shot_origin_x' => $event['shot_origin_x'] ?? null,
+                    'shot_origin_y' => $event['shot_origin_y'] ?? null,
+                    'shot_target_x' => $event['shot_target_x'] ?? null,
+                    'shot_target_y' => $event['shot_target_y'] ?? null,
           ];
 }
 

@@ -97,6 +97,16 @@ try {
                                                             'before' => null,
                                                             'after' => $event,
                                         ]);
+                                        if (array_key_exists('shot_origin_x', $payload) || array_key_exists('shot_target_x', $payload)) {
+                                                            error_log(sprintf(
+                                                                                '[shot-location] create event=%d origin=(%s,%s) target=(%s,%s)',
+                                                                                (int)$event['id'],
+                                                                                $event['shot_origin_x'] ?? 'null',
+                                                                                $event['shot_origin_y'] ?? 'null',
+                                                                                $event['shot_target_x'] ?? 'null',
+                                                                                $event['shot_target_y'] ?? 'null'
+                                                            ));
+                                        }
                     }
 
                     // Auto-red on second yellow

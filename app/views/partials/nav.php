@@ -44,11 +44,13 @@ $initials = $initials ?: 'U';
  * Adding Stats here ensures the section renders alongside Dashboard/Matches.
  */
 $primaryNavLinks = [
+/*
           [
                     'label' => 'Dashboard',
                     'href' => $dashboardHref,
                     'active' => $dashboardActive,
           ],
+          */
           [
                     'label' => 'Matches',
                     'href' => $matchesHref,

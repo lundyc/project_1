@@ -93,6 +93,16 @@ try {
                               'before' => $before,
                               'after' => $after,
                     ]);
+                    if (array_key_exists('shot_origin_x', $payload) || array_key_exists('shot_target_x', $payload)) {
+                              error_log(sprintf(
+                                        '[shot-location] update event=%d origin=(%s,%s) target=(%s,%s)',
+                                        (int)$after['id'],
+                                        $after['shot_origin_x'] ?? 'null',
+                                        $after['shot_origin_y'] ?? 'null',
+                                        $after['shot_target_x'] ?? 'null',
+                                        $after['shot_target_y'] ?? 'null'
+                              ));
+                    }
           }
           $version = bump_events_version($matchId);
           audit((int)$match['club_id'], (int)$user['id'], 'event', $eventId, 'update', json_encode($before), json_encode($after));

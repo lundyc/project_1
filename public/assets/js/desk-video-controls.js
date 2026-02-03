@@ -21,6 +21,7 @@
     const timelineWrapper = document.getElementById('deskTimeline');
     const timelineHoverBall = document.querySelector('[data-video-timeline-ball]');
     const timeDisplay = document.getElementById('deskTimeDisplay');
+    // Removed deskCornerTimeDisplay reference
     const controls = document.getElementById('deskControls');
     const drawingToolbarShell = document.querySelector('[data-drawing-toolbar]');
     const videoTransformLayer = video ? video.closest('.video-transform-layer') : null;
@@ -100,6 +101,7 @@
       if (videoFrame) {
         videoFrame.classList.remove('cursor-hidden');
       }
+      // desk-time-display should always be visible, so do not hide it
     };
 
     const hideControls = () => {
@@ -112,6 +114,7 @@
       if (videoFrame) {
         videoFrame.classList.add('cursor-hidden');
       }
+      // desk-time-display should always be visible, so do not show/hide it
     };
 
     const clearHideTimeout = () => {
@@ -188,7 +191,10 @@
       return `${pad(minutes)}:${pad(seconds)}`;
     };
 
-    const getSessionState = () => session?.state ?? null;
+    const getSessionState = () => {
+      const state = session?.state ?? null;
+      return state;
+    };
 
     const updatePlayPauseIcon = () => {
       const state = getSessionState();
@@ -358,7 +364,7 @@
       popupVideo.currentTime = video.currentTime;
       popupVideo.muted = video.muted;
       popupVideo.playbackRate = video.playbackRate;
-      if (!video.paused) popupVideo.play().catch(() => {});
+      if (!video.paused) popupVideo.play().catch(() => { });
       container.appendChild(popupVideo);
       doc.body.appendChild(container);
       const bridgeScript = doc.createElement('script');
@@ -386,13 +392,12 @@
     }
 
     const updateTimeDisplay = (overrideTime) => {
-      if (!timeDisplay) {
-        return;
-      }
       const currentTime = Number.isFinite(overrideTime) ? overrideTime : video.currentTime;
       const current = formatTime(currentTime);
       const total = Number.isFinite(video.duration) && video.duration > 0 ? formatTime(video.duration) : '00:00';
-      timeDisplay.innerHTML = `${current} <span class="desk-time-total-block">/ ${total}</span>`;
+      if (timeDisplay) {
+        timeDisplay.innerHTML = `${current} <span class=\"desk-time-total-block\">/ ${total}</span>`;
+      }
     };
 
     const getTimelinePercent = (overrideTime) => {
@@ -804,6 +809,10 @@
     video.addEventListener('timeupdate', syncTimeline);
     video.addEventListener('durationchange', syncTimeline);
     video.addEventListener('loadedmetadata', syncTimeline);
+    // Also update the persistent time display
+    video.addEventListener('timeupdate', () => updateTimeDisplay());
+    video.addEventListener('durationchange', () => updateTimeDisplay());
+    video.addEventListener('loadedmetadata', () => updateTimeDisplay());
     video.addEventListener('progress', updateTimelineBuffered);
     video.addEventListener('canplay', updateTimelineBuffered);
     video.addEventListener('play', () => {

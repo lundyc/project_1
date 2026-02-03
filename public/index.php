@@ -82,7 +82,7 @@ require_once __DIR__ . '/../app/routes/admin_playlists.php';
 
 route('/', function () {
     require_auth();
-    redirect('/stats');
+    redirect('/matches');
 });
 
 route('/login', function () {
@@ -307,6 +307,11 @@ route('/api/stats/match/derived', function () {
 route('/api/stats/match/visuals', function () {
           require_auth();
           require __DIR__ . '/../app/api/stats/match/visuals.php';
+});
+
+route('/api/stats/match/summary', function () {
+          require_auth();
+          require __DIR__ . '/../app/api/stats/match/summary.php';
 });
 
 route('/api/teams/create-json', function () {

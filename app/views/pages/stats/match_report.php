@@ -247,10 +247,10 @@ header('Content-Type: text/html; charset=utf-8');
     <tr><td>
         <ul class="event-list">
             <?php foreach (($overview['events']['home_goals'] ?? []) as $goal): ?>
-                <li>Home Goal: <?= htmlspecialchars($goal['player'] ?? 'Unknown') ?> <?= htmlspecialchars($goal['minute'] ?? '') ?>'</li>
+                <li>Home Goal: <?= htmlspecialchars($goal['player'] ?? 'Unknown') ?> <?= isset($goal['match_second']) ? (int)floor((int)($goal['match_second'] ?? 0) / 60) : htmlspecialchars($goal['minute'] ?? '') ?>'</li>
             <?php endforeach; ?>
             <?php foreach (($overview['events']['away_goals'] ?? []) as $goal): ?>
-                <li>Away Goal: <?= htmlspecialchars($goal['player'] ?? 'Unknown') ?> <?= htmlspecialchars($goal['minute'] ?? '') ?>'</li>
+                <li>Away Goal: <?= htmlspecialchars($goal['player'] ?? 'Unknown') ?> <?= isset($goal['match_second']) ? (int)floor((int)($goal['match_second'] ?? 0) / 60) : htmlspecialchars($goal['minute'] ?? '') ?>'</li>
             <?php endforeach; ?>
         </ul>
     </td></tr>
@@ -286,7 +286,8 @@ $hasRedCards = ((int)($matchStats['home']['red_cards'] ?? 0) + (int)($matchStats
         $mpid = $player['match_player_id'] ?? null;
         $minutes = '—';
         if ($mpid && isset($subOffByMatchPlayerId[$mpid])) {
-            $minutes = (int)($subOffByMatchPlayerId[$mpid]['minute'] ?? 0);
+            $subData = $subOffByMatchPlayerId[$mpid];
+            $minutes = isset($subData['match_second']) ? (int)floor((int)($subData['match_second'] ?? 0) / 60) : (int)($subData['minute'] ?? 0);
         } elseif ($mpid) {
             $minutes = $matchDuration;
         }
@@ -354,7 +355,7 @@ foreach ($substitutions as $sub) {
             <td>
                 <?php if ($sub): ?>
                     <span style="color:green;font-weight:bold;">&#8594;</span>
-                    On for <?= htmlspecialchars($sub['player_off_name'] ?? '-') ?> (<?= (int)($sub['minute'] ?? 0) ?>')
+                    On for <?= htmlspecialchars($sub['player_off_name'] ?? '-') ?> (<?= isset($sub['match_second']) ? (int)floor((int)($sub['match_second'] ?? 0) / 60) : (int)($sub['minute'] ?? 0) ?>')
                 <?php else: ?>
                     <em>Unused</em>
                 <?php endif; ?>

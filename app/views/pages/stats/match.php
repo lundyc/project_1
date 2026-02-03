@@ -699,7 +699,7 @@ include __DIR__ . '/../../partials/header.php';
                                         <?php
                                         $side = $ev['team_side'] === 'away' ? 'away' : ($ev['team_side'] === 'home' ? 'home' : 'home');
                                         $eventLabel = display_event_label($ev);
-                                        $minuteVal = isset($ev['minute']) && $ev['minute'] !== '' ? (int)$ev['minute'] : floor((int)($ev['match_second'] ?? 0) / 60);
+                                        $minuteVal = isset($ev['match_second']) && $ev['match_second'] !== '' ? (int)floor((int)($ev['match_second'] ?? 0) / 60) : 0;
                                         $playerName = $ev['match_player_name'] ?? '';
                                         $kLower = strtolower((string)($ev['event_type_key'] ?? ''));
                                         $lblLower = strtolower((string)($ev['event_type_label'] ?? ''));
@@ -1550,6 +1550,8 @@ include __DIR__ . '/../../partials/header.php';
     const eventMetrics = [
         { key: 'goals', label: 'Goals' },
         { key: 'shots', label: 'Shots' },
+        { key: 'shot_on_target', label: 'On Target' },
+        { key: 'shot_off_target', label: 'Off Target' },
         { key: 'corners', label: 'Corners' },
         { key: 'free_kicks', label: 'Free kicks' },
         { key: 'penalties', label: 'Penalties' },
@@ -1880,13 +1882,13 @@ include __DIR__ . '/../../partials/header.php';
                         <title>Goal</title>
                         <path fill-rule="evenodd" class="incidents-goal-soccer" d="M17 2.93a9.96 9.96 0 1 0-14.08 14.1A9.96 9.96 0 0 0 17 2.92Zm.41 2.77a8.5 8.5 0 0 1 1.1 3.43L16.66 8.1l.75-2.4Zm-1.37-1.8.37.4-1.11 3.57-1.33.4-3.32-2.41V4.5l3.16-2.2a8.6 8.6 0 0 1 2.22 1.6ZM9.96 1.4c.78-.01 1.55.1 2.3.3l-2.3 1.6-2.3-1.6c.75-.2 1.52-.31 2.3-.3ZM3.9 3.9a8.6 8.6 0 0 1 2.22-1.6l3.16 2.2v1.36l-3.32 2.4-1.32-.4L3.52 4.3l.37-.4ZM2.52 5.7l.75 2.4-1.85 1.03a8.5 8.5 0 0 1 1.1-3.43Zm1.37 10.35-.22-.23H5.7l.65 1.95a8.6 8.6 0 0 1-2.45-1.72Zm2.01-1.6H2.63A8.5 8.5 0 0 1 1.4 10.7l2.75-1.55 1.41.43 1.28 3.91-.95.95Zm6.05 3.89c-1.3.3-2.66.3-3.97 0l-1.01-3.02 1.1-1.1h3.79l1.1 1.1-1.01 3.02Zm-.07-5.44H8.05L6.86 9.25 9.96 7l3.1 2.25-1.18 3.65Zm4.15 3.15a8.6 8.6 0 0 1-2.45 1.72l.66-1.94h2.01l-.22.22Zm-2-1.6-.95-.95 1.27-3.91 1.41-.43 2.76 1.55a8.5 8.5 0 0 1-1.22 3.74h-3.27Z"></path>
                     </svg>
-                    <span>${goal.player ?? 'Unknown'} ${goal.minute ? `${goal.minute}'` : ''}</span>
+                    <span>${goal.player ?? 'Unknown'} ${goal.display_minute ? `${goal.display_minute}'` : (goal.match_second ? `${Math.floor(goal.match_second / 60)}'` : '')}</span>
                 </div>`;
 
             const renderCard = (card, color) => `
                 <div class="text-sm d-flex align-items-center gap-1 justify-content-center">
                     <svg class="card-ico ${color === 'red' ? 'redCard-ico' : 'yellowCard-ico'}" style="width: 12px; height: 16px;"><title>${color === 'red' ? 'Red Card' : 'Yellow Card'}</title><use xlink:href="/assets/svg/incident.svg#card"></use></svg>
-                    <span>${card.player ?? 'Unknown'} ${card.minute ? `${card.minute}'` : ''}</span>
+                    <span>${card.player ?? 'Unknown'} ${card.match_second ? `${Math.floor(card.match_second / 60)}'` : ''}</span>
                 </div>`;
 
             const homeGoalsHtml = goalsHome.map((g) => renderGoal(g, false)).join('');
@@ -2549,9 +2551,7 @@ include __DIR__ . '/../../partials/header.php';
                     const rows = list
                         .map((ev) => {
                             const side = ev?.team_side === 'away' ? 'away' : ev?.team_side === 'home' ? 'home' : 'home';
-                            const minuteVal = ev?.minute !== undefined && ev?.minute !== null && ev?.minute !== ''
-                                ? Number(ev.minute)
-                                : Math.floor(Number(ev?.match_second || 0) / 60);
+                            const minuteVal = Math.floor(Number(ev?.match_second || 0) / 60);
                             const minuteLabel = `${minuteVal}'`;
                             const eventLabel = ev?.event_type_label || ev?.label || ev?.event_type_key || 'Event';
                             const playerName = ev?.match_player_name || '';

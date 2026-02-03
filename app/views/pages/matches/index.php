@@ -434,10 +434,18 @@ include __DIR__ . '/../../partials/header.php';
                                 No upcoming fixtures found.
                             </div>
                         <?php else: ?>
+                            <?php
+                            // Build set of existing match IDs to check against
+                            $existingMatchIds = [];
+                            foreach ($matches as $match) {
+                                $existingMatchIds[(int)$match['id']] = true;
+                            }
+                            ?>
                             <div class="space-y-2">
                                 <?php foreach ($liFixtures as $fixture): ?>
                                     <?php
                                     $fixtureId = (int)$fixture['match_id'];
+                                    $fixtureAlreadyAdded = isset($existingMatchIds[$fixtureId]);
                                     $homeName = trim((string)($fixture['home_team_name'] ?? ''));
                                     $awayName = trim((string)($fixture['away_team_name'] ?? ''));
                                     $kickoffTs = $fixture['kickoff_at'] ? strtotime($fixture['kickoff_at']) : null;
@@ -458,16 +466,22 @@ include __DIR__ . '/../../partials/header.php';
                                                     <div class="text-[11px] text-slate-500 truncate"><?= htmlspecialchars($competitionName) ?></div>
                                                 <?php endif; ?>
                                             </div>
-                                            <form method="post" action="<?= htmlspecialchars($base . '/api/league-intelligence/fixtures/accept') ?>" class="shrink-0 self-center">
-                                                <input type="hidden" name="li_match_id" value="<?= htmlspecialchars((string)$fixtureId) ?>">
-                                                <input type="hidden" name="redirect" value="<?= htmlspecialchars($redirectPath) ?>">
-                                                <?php if ($isPlatformAdmin): ?>
-                                                    <input type="hidden" name="club_id" value="<?= htmlspecialchars((string)$liClubId) ?>">
-                                                <?php endif; ?>
-                                                <button type="submit" class="inline-flex items-center rounded-md border border-slate-700/80 bg-slate-900/80 px-2 py-1 text-xs font-semibold text-slate-200 transition hover:bg-emerald-600 hover:border-emerald-300 hover:text-white">
-                                                    Accept
-                                                </button>
-                                            </form>
+                                            <?php if ($fixtureAlreadyAdded): ?>
+                                                <span class="inline-flex items-center rounded-md border border-emerald-700/80 bg-emerald-900/30 px-2 py-1 text-xs font-semibold text-emerald-300">
+                                                    <i class="fa-solid fa-check mr-1"></i>Added
+                                                </span>
+                                            <?php else: ?>
+                                                <form method="post" action="<?= htmlspecialchars($base . '/api/league-intelligence/fixtures/accept') ?>" class="shrink-0 self-center">
+                                                    <input type="hidden" name="li_match_id" value="<?= htmlspecialchars((string)$fixtureId) ?>">
+                                                    <input type="hidden" name="redirect" value="<?= htmlspecialchars($redirectPath) ?>">
+                                                    <?php if ($isPlatformAdmin): ?>
+                                                        <input type="hidden" name="club_id" value="<?= htmlspecialchars((string)$liClubId) ?>">
+                                                    <?php endif; ?>
+                                                    <button type="submit" class="inline-flex items-center rounded-md border border-slate-700/80 bg-slate-900/80 px-2 py-1 text-xs font-semibold text-slate-200 transition hover:bg-emerald-600 hover:border-emerald-300 hover:text-white">
+                                                        Accept
+                                                    </button>
+                                                </form>
+                                            <?php endif; ?>
                                         </div>
                                     </article>
                                 <?php endforeach; ?>

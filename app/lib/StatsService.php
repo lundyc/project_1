@@ -331,6 +331,10 @@ class StatsService
             'away' => $this->getEmptyMatchStats(trim($match['away_team'] ?? 'Away Team')),
         ];
 
+        // Track shot and goal counts separately for each side
+        $shotCounts = ['home' => 0, 'away' => 0];
+        $goalCounts = ['home' => 0, 'away' => 0];
+
         // Populate stats from events
         foreach ($events as $event) {
             $typeId = $event['event_type_id'];
@@ -350,8 +354,20 @@ class StatsService
                 }
             }
 
-            // Map to stat field
+            // Track shots and goals for later summing
+            if ($typeKey === 'shot') {
+                $shotCounts[$side] += $count;
+            } elseif ($typeKey === 'goal') {
+                $goalCounts[$side] += $count;
+            }
+
+            // Map to stat field as before
             $this->updateMatchStatByType($stats[$side], $typeKey, $count);
+        }
+
+        // Add goals to shots for each side
+        foreach (['home', 'away'] as $side) {
+            $stats[$side]['shots'] = $shotCounts[$side] + $goalCounts[$side];
         }
 
         return $stats;
@@ -366,6 +382,32 @@ class StatsService
      */
     public function getMatchEvents(int $matchId): array
     {
+        // Get match periods for time mapping
+        $periods = get_match_periods($matchId);
+
+        // Build period time map using match-clock offsets (e.g., 1H = 0, 2H = 45, ET1 = 90, ET2 = 105).
+        $periodTimeMap = [];
+        foreach ($periods as $period) {
+            $key = strtolower((string)($period['period_key'] ?? ''));
+            $label = strtolower((string)($period['label'] ?? ''));
+            $offset = null;
+
+            if (str_contains($key, 'first') && str_contains($key, 'half') || str_contains($label, 'first') && (str_contains($label, 'half') || str_contains($label, '1h') || str_contains($label, '1st'))) {
+                $offset = 0;
+            } elseif (str_contains($key, 'second') && str_contains($key, 'half') || str_contains($label, 'second') && (str_contains($label, 'half') || str_contains($label, '2h') || str_contains($label, '2nd'))) {
+                $offset = 45;
+            } elseif (str_contains($key, 'extra') && (str_contains($key, 'first') || str_contains($key, '1st') || str_contains($key, '1h')) || str_contains($label, 'extra') && (str_contains($label, 'first') || str_contains($label, '1st') || str_contains($label, '1h'))) {
+                $offset = 90;
+            } elseif (str_contains($key, 'extra') && (str_contains($key, 'second') || str_contains($key, '2nd') || str_contains($key, '2h')) || str_contains($label, 'extra') && (str_contains($label, 'second') || str_contains($label, '2nd') || str_contains($label, '2h'))) {
+                $offset = 105;
+            }
+
+            $periodTimeMap[] = [
+                'start_second' => isset($period['start_second']) ? (int)$period['start_second'] : null,
+                'end_second' => isset($period['end_second']) ? (int)$period['end_second'] : null,
+                'offset_minute' => $offset,
+            ];
+        }
         // Verify match belongs to this club
         $matchStmt = $this->pdo->prepare('
             SELECT id, club_id
@@ -388,7 +430,7 @@ class StatsService
             SELECT 
                 e.team_side,
                 e.event_type_id,
-                e.minute,
+                e.match_second,
                 e.match_player_id,
                 e.player_id,
                 p.first_name,
@@ -397,7 +439,7 @@ class StatsService
             LEFT JOIN match_players mp ON mp.id = e.match_player_id
             LEFT JOIN players p ON p.id = COALESCE(e.player_id, mp.player_id)
             WHERE e.match_id = :match_id
-            ORDER BY e.minute ASC, e.id ASC
+            ORDER BY e.match_second ASC, e.id ASC
         ');
         $stmt->execute(['match_id' => $matchId]);
         $rows = $stmt->fetchAll();
@@ -417,18 +459,71 @@ class StatsService
             'away_red' => [],
         ];
 
+        // Deduplicate by (side, player, minute) for goals, yellow, and red cards
+        $seen = [
+            'home_goals' => [],
+            'away_goals' => [],
+            'home_yellow' => [],
+            'away_yellow' => [],
+            'home_red' => [],
+            'away_red' => [],
+        ];
         foreach ($rows as $row) {
             $side = $row['team_side'] === 'away' ? 'away' : 'home';
             $typeId = (int)($row['event_type_id'] ?? 0);
-            $minute = (int)($row['minute'] ?? 0);
+            $matchSecond = (int)($row['match_second'] ?? 0);
+            $minute = (int)floor($matchSecond / 60);
             $player = $row['player_name'] ?? 'Unknown';
 
+            // Calculate display_minute using match-clock offsets per period.
+            $display_minute = null;
+            foreach ($periodTimeMap as $period) {
+                $periodStartSecond = $period['start_second'];
+                $periodEndSecond = $period['end_second'];
+                $offset = $period['offset_minute'];
+
+                if ($periodStartSecond === null || $offset === null) {
+                    continue;
+                }
+
+                if ($periodEndSecond === null) {
+                    if ($matchSecond >= $periodStartSecond) {
+                        $display_minute = (int)floor(($matchSecond - $periodStartSecond) / 60) + $offset;
+                        break;
+                    }
+                } else {
+                    if ($matchSecond >= $periodStartSecond && $matchSecond <= $periodEndSecond) {
+                        $display_minute = (int)floor(($matchSecond - $periodStartSecond) / 60) + $offset;
+                        break;
+                    }
+                }
+            }
+
+            if ($display_minute === null) {
+                $display_minute = $minute;
+            }
+
+            $minute = $display_minute;
+            $key = $player . '|' . $minute;
+
             if ($goalTypeId && $typeId === $goalTypeId) {
-                $events["{$side}_goals"][] = ['player' => $player, 'minute' => $minute];
+                $arrKey = "{$side}_goals";
+                if (!isset($seen[$arrKey][$key])) {
+                    $events[$arrKey][] = ['player' => $player, 'minute' => $minute, 'display_minute' => $display_minute];
+                    $seen[$arrKey][$key] = true;
+                }
             } elseif ($yellowTypeId && $typeId === $yellowTypeId) {
-                $events["{$side}_yellow"][] = ['player' => $player, 'minute' => $minute];
+                $arrKey = "{$side}_yellow";
+                if (!isset($seen[$arrKey][$key])) {
+                    $events[$arrKey][] = ['player' => $player, 'minute' => $minute, 'display_minute' => $display_minute];
+                    $seen[$arrKey][$key] = true;
+                }
             } elseif ($redTypeId && $typeId === $redTypeId) {
-                $events["{$side}_red"][] = ['player' => $player, 'minute' => $minute];
+                $arrKey = "{$side}_red";
+                if (!isset($seen[$arrKey][$key])) {
+                    $events[$arrKey][] = ['player' => $player, 'minute' => $minute, 'display_minute' => $display_minute];
+                    $seen[$arrKey][$key] = true;
+                }
             }
         }
 
