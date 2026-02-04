@@ -4,8 +4,44 @@ function auth_boot()
 {
           if (session_status() === PHP_SESSION_NONE) {
                     $config = require __DIR__ . '/../../config/config.php';
+                    
+                    // Set secure session cookie parameters
+                    $lifetime = (int)($config['session']['lifetime'] ?? 0);
+                    $isSecure = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+                    
+                    session_set_cookie_params([
+                              'lifetime' => $lifetime,
+                              'path' => '/',
+                              'domain' => '',
+                              'secure' => $isSecure,  // Only transmit over HTTPS
+                              'httponly' => true,     // Prevent JavaScript access
+                              'samesite' => 'Strict'  // CSRF protection
+                    ]);
+                    
                     session_name($config['session']['name']);
                     session_start();
+          }
+          
+          // Session timeout validation (1 hour of inactivity)
+          $timeout = 3600; // 1 hour
+          if (isset($_SESSION['last_activity'])) {
+                    if (time() - $_SESSION['last_activity'] > $timeout) {
+                              session_unset();
+                              session_destroy();
+                              if (isset($_SERVER['HTTP_ACCEPT']) && str_contains($_SERVER['HTTP_ACCEPT'], 'application/json')) {
+                                        http_response_code(401);
+                                        echo json_encode(['ok' => false, 'error' => 'session_expired']);
+                                        exit;
+                              }
+                              return; // Will be caught by require_auth()
+                    }
+          }
+          $_SESSION['last_activity'] = time();
+          
+          // Regenerate session on privilege escalation
+          if (isset($_SESSION['pending_role_change'])) {
+                    session_regenerate_id(true);
+                    unset($_SESSION['pending_role_change']);
           }
 
           // Set default club ID for platform admins if not set
@@ -62,6 +98,11 @@ function require_role(string $roleKey)
           $roles = $_SESSION['roles'] ?? [];
 
           if (!in_array($roleKey, $roles, true)) {
+                    // Log unauthorized access attempt
+                    if (function_exists('log_unauthorized_access')) {
+                              $resource = $_SERVER['REQUEST_URI'] ?? 'unknown';
+                              log_unauthorized_access($_SESSION['user_id'] ?? null, $resource, $roleKey);
+                    }
                     http_response_code(403);
                     echo '403 Forbidden';
                     exit;

@@ -1,13 +1,39 @@
 <?php
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
+
+// Load configuration first to determine environment
+$config = require __DIR__ . '/../config/config.php';
+$isProduction = ($config['app']['env'] ?? 'local') === 'production';
+
+// Configure error reporting based on environment
+if ($isProduction) {
+    ini_set('display_errors', 0);
+    ini_set('log_errors', 1);
+    error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT);
+} else {
+    ini_set('display_errors', 1);
+    error_reporting(E_ALL);
+}
+
+// Set custom error handler for production
+if ($isProduction) {
+    set_error_handler(function($errno, $errstr, $errfile, $errline) {
+        error_log("Error [$errno]: $errstr in $errfile:$errline");
+        http_response_code(500);
+        echo '<!DOCTYPE html><html><head><title>Error</title></head><body><h1>An error occurred</h1><p>Please try again later.</p></body></html>';
+        exit;
+    });
+}
 
 require_once __DIR__ . '/../app/lib/auth.php';
 require_once __DIR__ . '/../app/lib/router.php';
 require_once __DIR__ . '/../app/lib/phase3.php';
+require_once __DIR__ . '/../app/lib/security_headers.php';
 require_once __DIR__ . '/../app/middleware/require_admin.php';
 
 auth_boot();
+
+// Set security headers for all responses
+set_all_security_headers();
 require_once __DIR__ . '/../app/routes/admin_players.php';
 require_once __DIR__ . '/../app/routes/admin_playlists.php';
 
@@ -86,6 +112,7 @@ route('/', function () {
 });
 
 route('/login', function () {
+          require_once __DIR__ . '/../app/lib/csrf.php';
           require __DIR__ . '/../app/views/pages/login.php';
 });
 

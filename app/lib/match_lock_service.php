@@ -2,7 +2,11 @@
 
 require_once __DIR__ . '/db.php';
 
-function isLockFresh(string $heartbeatAt, int $threshold = 20): bool
+// Lock timeout constants
+const LOCK_HEARTBEAT_THRESHOLD = 60;  // 1 minute - lock expires after this
+const LOCK_WARNING_THRESHOLD = 45;     // 45 seconds - UI should warn user
+
+function isLockFresh(string $heartbeatAt, int $threshold = LOCK_HEARTBEAT_THRESHOLD): bool
 {
           return (time() - strtotime($heartbeatAt)) <= $threshold;
 }

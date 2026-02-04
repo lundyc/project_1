@@ -1,17 +1,21 @@
 <?php
 require_once __DIR__ . '/../../lib/db.php';
 require_once __DIR__ . '/../../lib/auth.php';
+require_once __DIR__ . '/../../lib/csrf.php';
 require_once __DIR__ . '/../../lib/match_permissions.php';
 require_once __DIR__ . '/../../lib/match_substitution_repository.php';
 require_once __DIR__ . '/../../lib/api_response.php';
 require_once __DIR__ . '/../../lib/player_name_helper.php';
 
-header('Content-Type: application/json');
+auth_boot();
+require_auth();
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['success' => false, 'error' => 'Method not allowed']);
-    exit;
+// Validate CSRF token for state-changing operation
+try {
+    require_csrf_token();
+} catch (CsrfException $e) {
+    http_response_code(403);
+    die('Invalid CSRF token');
 }
 
 require_auth();

@@ -396,7 +396,19 @@
       const current = formatTime(currentTime);
       const total = Number.isFinite(video.duration) && video.duration > 0 ? formatTime(video.duration) : '00:00';
       if (timeDisplay) {
-        timeDisplay.innerHTML = `${current} <span class=\"desk-time-total-block\">/ ${total}</span>`;
+        // Clear and rebuild safely using textContent
+        timeDisplay.innerHTML = '';
+        const currentSpan = document.createElement('span');
+        currentSpan.textContent = current;
+        timeDisplay.appendChild(currentSpan);
+
+        const separatorText = document.createTextNode(' ');
+        timeDisplay.appendChild(separatorText);
+
+        const dividerSpan = document.createElement('span');
+        dividerSpan.className = 'desk-time-total-block';
+        dividerSpan.textContent = `/ ${total}`;
+        timeDisplay.appendChild(dividerSpan);
       }
     };
 

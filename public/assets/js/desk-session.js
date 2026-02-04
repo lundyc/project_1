@@ -8,7 +8,6 @@
   }
 
   const roleHint = (bootstrap.role || 'analyst').toLowerCase() === 'viewer' ? 'viewer' : 'analyst';
-  const sessionEndpoint = bootstrap.sessionEndpoint || (window.DeskConfig?.endpoints?.session ?? null);
   const videoElementId = bootstrap.videoElementId || 'deskVideoPlayer';
 
   const video = document.getElementById(videoElementId);

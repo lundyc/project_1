@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/../../lib/auth.php';
+require_once __DIR__ . '/../../lib/csrf.php';
 require_once __DIR__ . '/../../lib/api_helpers.php';
 require_once __DIR__ . '/../../lib/match_repository.php';
 require_once __DIR__ . '/../../lib/match_permissions.php';
@@ -13,6 +14,14 @@ require_once __DIR__ . '/../../lib/match_version_service.php';
 
 auth_boot();
 require_auth();
+
+// Validate CSRF token for state-changing operation
+try {
+    require_csrf_token();
+} catch (CsrfException $e) {
+    http_response_code(403);
+    die('Invalid CSRF token');
+}
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
           api_respond_with_json(405, ['ok' => false, 'error' => 'method_not_allowed']);

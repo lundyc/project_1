@@ -86,8 +86,21 @@ function resolveDbConfig() {
 
 const PORT = toInt(process.env.MATCH_SESSION_PORT || process.env.PORT, 4001);
 const HOST = process.env.MATCH_SESSION_HOST || '0.0.0.0';
-const ORIGIN = process.env.MATCH_SESSION_ORIGIN || true;
-const SECRET = process.env.MATCH_SESSION_SECRET || 'dev-session-secret-change-me';
+
+// SECURITY: Enforce origin validation - do not set to 'true' in production
+const ORIGIN = process.env.MATCH_SESSION_ORIGIN || false;
+if (ORIGIN === true || ORIGIN === 'true') {
+  console.warn('[match-session] WARNING: CORS origin set to allow all. This is insecure for production!');
+}
+
+// SECURITY: Require strong secret - fail fast if using default
+const SECRET = process.env.MATCH_SESSION_SECRET;
+if (!SECRET || SECRET === 'dev-session-secret-change-me') {
+  console.error('[match-session] FATAL: MATCH_SESSION_SECRET environment variable must be set to a strong secret (32+ characters)');
+  console.error('[match-session] Generate one with: openssl rand -base64 32');
+  process.exit(1);
+}
+
 const PUBLIC_WS_URL = process.env.MATCH_SESSION_WS_URL || '';
 const STATE_TICK_MS = toInt(process.env.MATCH_SESSION_STATE_TICK_MS, 1_000);
 const PERSIST_DEBOUNCE_MS = toInt(process.env.MATCH_SESSION_PERSIST_DEBOUNCE_MS, 750);

@@ -1,6 +1,8 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
+// Only display errors in development environment
+$isDevelopment = (getenv('APP_ENV') ?: 'production') === 'local';
+ini_set('display_errors', $isDevelopment ? '1' : '0');
+ini_set('display_startup_errors', $isDevelopment ? '1' : '0');
 error_reporting(E_ALL);
 
 require_once __DIR__ . '/../../lib/auth.php';
@@ -18,9 +20,13 @@ require_once __DIR__ . '/../../lib/event_action_stack.php';
 require_once __DIR__ . '/../../lib/match_period_repository.php';
 require_once __DIR__ . '/../../lib/clip_generation_service.php';
 require_once __DIR__ . '/../../lib/clip_job_service.php';
+require_once __DIR__ . '/../../lib/rate_limit.php';
 
 auth_boot();
 require_auth();
+
+// Rate limit event creation to prevent spam
+require_rate_limit('event_create', 100, 60); // 100 events per minute
 
 header('Content-Type: application/json');
 

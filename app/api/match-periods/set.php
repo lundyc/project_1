@@ -2,11 +2,20 @@
 
 require_once __DIR__ . '/../../lib/event_repository.php';
 require_once __DIR__ . '/../../lib/auth.php';
+require_once __DIR__ . '/../../lib/csrf.php';
 require_once __DIR__ . '/../../lib/match_repository.php';
 require_once __DIR__ . '/../../lib/match_permissions.php';
 require_once __DIR__ . '/../../lib/match_period_repository.php';
 
-// --- Auto-repair: ensure every ended period has a period_end event ---
+auth_boot();
+
+// Validate CSRF token for state-changing operation
+try {
+    require_csrf_token();
+} catch (CsrfException $e) {
+    http_response_code(403);
+    die('Invalid CSRF token');
+}
 function ensure_period_end_event($matchId, $periodKey, $label, $endSecond, $userId, $clubId) {
     if ($endSecond === null) {
         return;

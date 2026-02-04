@@ -83,13 +83,13 @@ class StatsService
             LEFT JOIN matches m ON (m.home_team_id = t.id OR m.away_team_id = t.id) 
                 AND m.club_id = :club_id 
                 AND m.status = "ready"
-            WHERE t.club_id = :club_id 
+            WHERE t.club_id = :club_id2 
             AND t.team_type = "club"
             GROUP BY t.id, t.name
             ORDER BY match_count DESC
             LIMIT 1
         ');
-        $stmt->execute(['club_id' => $this->clubId]);
+        $stmt->execute(['club_id' => $this->clubId, 'club_id2' => $this->clubId]);
         $result = $stmt->fetch();
         
         if ($result && !empty($result['id'])) {
@@ -223,7 +223,6 @@ class StatsService
             SELECT 
                 m.id,
                 m.kickoff_at,
-                m.status,
                 COALESCE(ht.name, "Home") AS home_team,
                 COALESCE(at.name, "Away") AS away_team,
                 COALESCE(c.name, "") AS competition,
@@ -237,7 +236,7 @@ class StatsService
                     SELECT COUNT(*) FROM events e
                     WHERE e.match_id = m.id
                       AND e.team_side = "away"
-                      AND e.event_type_id = :goal_type_id
+                      AND e.event_type_id = :goal_type_id2
                 ), 0) AS away_goals
             FROM matches m
             LEFT JOIN teams ht ON ht.id = m.home_team_id
@@ -250,6 +249,7 @@ class StatsService
         $stmt = $this->pdo->prepare($sql);
         $stmt->bindValue(':club_id', $this->clubId, \PDO::PARAM_INT);
         $stmt->bindValue(':goal_type_id', $goalTypeId, \PDO::PARAM_INT);
+        $stmt->bindValue(':goal_type_id2', $goalTypeId, \PDO::PARAM_INT);
         $stmt->bindValue(':limit', $limit, \PDO::PARAM_INT);
         $stmt->execute();
         $matches = $stmt->fetchAll(\PDO::FETCH_ASSOC);
@@ -1113,7 +1113,11 @@ class StatsService
         }
         
         $where = ['m.club_id = :club_id', 'm.status = "ready"'];
-        $params = ['club_id' => $this->clubId, 'team_id' => $this->primaryTeamId];
+        $params = [
+            'club_id' => $this->clubId,
+            'team_id' => $this->primaryTeamId,
+        ];
+        $goalTypeId = $this->getGoalEventTypeId();
         
         if ($seasonId !== null) {
             $where[] = 'm.season_id = :season_id';
@@ -1137,12 +1141,9 @@ class StatsService
             END
             WHERE ' . $whereClause . '
             AND scoring_team.id = :team_id
-            AND e.event_type_id = (
-                SELECT id FROM event_types 
-                WHERE type_key = "goal" 
-                LIMIT 1
-            )
+            AND e.event_type_id = :goal_type_id
         ');
+        $params['goal_type_id'] = $goalTypeId;
         $stmt->execute($params);
         $result = $stmt->fetch();
         return (int)($result['goals'] ?? 0);
@@ -1163,7 +1164,11 @@ class StatsService
         }
         
         $where = ['m.club_id = :club_id', "m.status = 'ready'"];
-        $params = ['club_id' => $this->clubId, 'team_id' => $this->primaryTeamId];
+        $params = [
+            'club_id' => $this->clubId,
+            'team_id' => $this->primaryTeamId,
+        ];
+        $goalTypeId = $this->getGoalEventTypeId();
         
         if ($seasonId !== null) {
             $where[] = 'm.season_id = :season_id';
@@ -1176,7 +1181,7 @@ class StatsService
         
         $whereClause = implode(' AND ', $where);
         
-        $stmt = $this->pdo->prepare('
+        $sql = '
             SELECT COUNT(*) as goals
             FROM events e
             JOIN matches m ON m.id = e.match_id
@@ -1187,12 +1192,11 @@ class StatsService
             END
             WHERE ' . $whereClause . '
             AND scoring_team.id != :team_id
-            AND e.event_type_id = (
-                SELECT id FROM event_types 
-                WHERE type_key = "goal" 
-                LIMIT 1
-            )
-        ');
+            AND e.event_type_id = :goal_type_id
+        ';
+
+        $params['goal_type_id'] = $goalTypeId;
+        $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
         $result = $stmt->fetch();
         return (int)($result['goals'] ?? 0);
@@ -1227,7 +1231,8 @@ class StatsService
         $whereClause = implode(' AND ', $where);
         
         // Get all matches for this club with filters
-        $stmt = $this->pdo->prepare('
+        $goalTypeId = $this->getGoalEventTypeId();
+        $sql = '
             SELECT 
                 m.id,
                 m.home_team_id,
@@ -1236,18 +1241,21 @@ class StatsService
                  FROM events e 
                  WHERE e.match_id = m.id 
                  AND e.team_side = "home"
-                 AND e.event_type_id = (SELECT id FROM event_types WHERE type_key = "goal" LIMIT 1)
+                 AND e.event_type_id = :goal_type_id_home
                 ) as home_goals,
                 (SELECT COALESCE(COUNT(*), 0)
                  FROM events e 
                  WHERE e.match_id = m.id 
                  AND e.team_side = "away"
-                 AND e.event_type_id = (SELECT id FROM event_types WHERE type_key = "goal" LIMIT 1)
+                 AND e.event_type_id = :goal_type_id_away
                 ) as away_goals
             FROM matches m
             LEFT JOIN competitions c ON c.id = m.competition_id
-            WHERE ' . $whereClause
-        );
+            WHERE ' . $whereClause;
+
+        $params['goal_type_id_home'] = $goalTypeId;
+        $params['goal_type_id_away'] = $goalTypeId;
+        $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
         $matches = $stmt->fetchAll();
         
@@ -1295,7 +1303,11 @@ class StatsService
         }
         
         $where = ['m.club_id = :club_id', 'm.status = "ready"'];
-        $params = ['club_id' => $this->clubId, 'team_id' => $this->primaryTeamId];
+        $params = [
+            'club_id' => $this->clubId,
+            'team_id_home' => $this->primaryTeamId,
+            'team_id_away' => $this->primaryTeamId,
+        ];
         
         if ($seasonId !== null) {
             $where[] = 'm.season_id = :season_id';
@@ -1316,27 +1328,29 @@ class StatsService
             LEFT JOIN competitions c ON c.id = m.competition_id
             WHERE ' . $whereClause . '
             AND (
-                (m.home_team_id = :team_id AND (
+                (m.home_team_id = :team_id_home AND (
                     SELECT COUNT(*) 
                     FROM events e 
                     WHERE e.match_id = m.id 
                     AND e.team_side = "away"
-                    AND e.event_type_id = :goal_type_id
+                    AND e.event_type_id = :goal_type_id_home
                 ) = 0)
                 OR
-                (m.away_team_id = :team_id AND (
+                (m.away_team_id = :team_id_away AND (
                     SELECT COUNT(*) 
                     FROM events e 
                     WHERE e.match_id = m.id 
                     AND e.team_side = "home"
-                    AND e.event_type_id = :goal_type_id
+                    AND e.event_type_id = :goal_type_id_away
                 ) = 0)
             )
         ');
         foreach ($params as $key => $val) {
-            $stmt->bindValue(':' . $key, $val, is_int($val) ? \PDO::PARAM_INT : \PDO::PARAM_STR);
+            $paramType = is_int($val) ? \PDO::PARAM_INT : \PDO::PARAM_STR;
+            $stmt->bindValue(':' . $key, $val, $paramType);
         }
-        $stmt->bindValue(':goal_type_id', $goalTypeId, \PDO::PARAM_INT);
+        $stmt->bindValue(':goal_type_id_home', $goalTypeId, \PDO::PARAM_INT);
+        $stmt->bindValue(':goal_type_id_away', $goalTypeId, \PDO::PARAM_INT);
         $stmt->execute();
         $result = $stmt->fetch();
         return (int)($result['clean_sheets'] ?? 0);

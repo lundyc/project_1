@@ -276,7 +276,7 @@ LEFT JOIN teams ht ON ht.id = m.home_team_id
 LEFT JOIN teams at ON at.id = m.away_team_id
 LEFT JOIN seasons s ON s.id = m.season_id
 LEFT JOIN event_types et ON et.id = e.event_type_id
-WHERE (e.player_id = :player_id OR mp.player_id = :player_id)
+WHERE (e.player_id = :player_id OR mp.player_id = :player_id2)
 GROUP BY m.id
 ORDER BY m.kickoff_at DESC, m.id DESC
 ";
@@ -284,6 +284,7 @@ ORDER BY m.kickoff_at DESC, m.id DESC
           $stmt = db()->prepare($sql);
           $stmt->execute([
                     'player_id' => $playerId,
+                    'player_id2' => $playerId,
                     'club_id' => $clubId,
           ]);
 

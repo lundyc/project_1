@@ -4,12 +4,21 @@
  * Delegates to main update.php endpoint
  */
 require_once __DIR__ . '/../../lib/auth.php';
+require_once __DIR__ . '/../../lib/csrf.php';
 require_once __DIR__ . '/../../lib/match_repository.php';
 require_once __DIR__ . '/../../lib/match_permissions.php';
 require_once __DIR__ . '/../../lib/db.php';
 
 auth_boot();
 require_auth();
+
+// Validate CSRF token for state-changing operation
+try {
+    require_csrf_token();
+} catch (CsrfException $e) {
+    http_response_code(403);
+    die('Invalid CSRF token');
+}
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);

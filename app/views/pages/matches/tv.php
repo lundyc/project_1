@@ -1,4 +1,7 @@
 <?php
+echo "disabled";
+exit;
+
 require_once __DIR__ . '/../../../lib/db.php';
 require_once __DIR__ . '/../../../lib/phase3.php';
 require_once __DIR__ . '/../../../lib/asset_helper.php';
@@ -6,6 +9,9 @@ require_once __DIR__ . '/../../../lib/asset_helper.php';
 $base = base_path();
 $matchId = (int)$match['id'];
 $db = db();
+$cspNonce = function_exists('get_csp_nonce') ? get_csp_nonce() : '';
+$nonceAttr = $cspNonce ? ' nonce="' . htmlspecialchars($cspNonce) . '"' : '';
+$jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 
 $videoLabEnabled = phase3_is_enabled();
 $projectRoot = realpath(__DIR__ . '/../../../../');
@@ -54,7 +60,6 @@ $headExtras .= '<link href="' . htmlspecialchars($base) . '/assets/css/desk.css'
 $sessionBootstrap = [
           'matchId' => $matchId,
           'role' => 'viewer',
-          'sessionEndpoint' => $base . '/api/matches/' . $matchId . '/session',
           'videoElementId' => 'deskVideoPlayer',
           'durationSeconds' => isset($match['video_duration_seconds']) ? (float)$match['video_duration_seconds'] : null,
           'ui' => [
@@ -63,7 +68,7 @@ $sessionBootstrap = [
           ],
 ];
 
-$footerScripts = '<script>window.DeskSessionBootstrap = ' . json_encode($sessionBootstrap) . ';</script>';
+$footerScripts = '<script' . $nonceAttr . '>window.DeskSessionBootstrap = ' . json_encode($sessionBootstrap, $jsonFlags) . ';</script>';
 // WebSocket disabled: $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/vendor/socket.io.min.js' . asset_version('/assets/js/vendor/socket.io.min.js') . '"></script>';
 $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-session.js' . asset_version('/assets/js/desk-session.js') . '"></script>';
 $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-tv.js' . asset_version('/assets/js/desk-tv.js') . '"></script>';

@@ -1,11 +1,21 @@
 <?php
 
 require_once __DIR__ . '/../../../lib/auth.php';
+require_once __DIR__ . '/../../../lib/csrf.php';
 require_once __DIR__ . '/../../../lib/audit_service.php';
 require_once __DIR__ . '/../../../lib/player_repository.php';
 require_once __DIR__ . '/../../../lib/player_input.php';
 
 auth_boot();
+require_role('platform_admin');
+
+// Validate CSRF token for state-changing operation
+try {
+    require_csrf_token();
+} catch (CsrfException $e) {
+    http_response_code(403);
+    die('Invalid CSRF token');
+}
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
           http_response_code(405);

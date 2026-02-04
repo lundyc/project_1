@@ -55,6 +55,8 @@ ob_start();
                               <?php endif; ?>
 
                               <form method="post" action="<?= base_path() ?>/api/login" class="space-y-4">
+                                        <input type="hidden" name="csrf_token" value="<?= get_csrf_token() ?>">
+                                        
                                         <div>
                                                   <label class="block text-sm font-medium text-blue-900 mb-1" for="login-email">Email</label>
                                                   <input id="login-email" name="email" type="email" class="w-full rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-blue-900 placeholder-blue-400 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-sky-400 transition" required autofocus>
@@ -65,7 +67,7 @@ ob_start();
                                                   <input id="login-password" name="password" type="password" class="w-full rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-blue-900 placeholder-blue-400 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-sky-400 transition" required>
                                         </div>
 
-                                        <button class="w-full mt-2 inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-sky-500 via-indigo-500 to-blue-600 px-4 py-3 text-sm font-semibold uppercase tracking-wide text-white shadow-lg shadow-blue-200/40 hover:shadow-xl hover:shadow-blue-300/50 transition">
+                                        <button type="submit" class="w-full mt-2 inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-sky-500 via-indigo-500 to-blue-600 px-4 py-3 text-sm font-semibold uppercase tracking-wide text-white shadow-lg shadow-blue-200/40 hover:shadow-xl hover:shadow-blue-300/50 transition">
                                                   <span>Sign in</span>
                                                   <i class="fa-solid fa-arrow-right"></i>
                                         </button>

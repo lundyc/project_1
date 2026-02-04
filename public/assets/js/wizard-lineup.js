@@ -1691,8 +1691,12 @@ if (document.readyState !== 'loading') {
       indicator.textContent = number;
       indicator.classList.add('has-number');
     } else {
-      indicator.innerHTML = '<i class="fa-solid fa-plus"></i>';
+      // Set icon safely using className instead of innerHTML
+      indicator.innerHTML = '';
       indicator.classList.remove('has-number');
+      const icon = document.createElement('i');
+      icon.className = 'fa-solid fa-plus';
+      indicator.appendChild(icon);
     }
   }
 
@@ -2210,14 +2214,18 @@ if (document.readyState !== 'loading') {
       actions.className = 'lineup-substitute-actions';
       const editButton = document.createElement('button');
       editButton.type = 'button';
-      editButton.innerHTML = '<i class="fa-solid fa-pen"></i>';
+      const editIcon = document.createElement('i');
+      editIcon.className = 'fa-solid fa-pen';
+      editButton.appendChild(editIcon);
       editButton.addEventListener('click', () => {
         openSubstituteModal(side, entry);
       });
       const deleteButton = document.createElement('button');
       deleteButton.type = 'button';
       deleteButton.dataset.lineupSubDelete = '1';
-      deleteButton.innerHTML = '<i class="fa-solid fa-trash"></i>';
+      const deleteIcon = document.createElement('i');
+      deleteIcon.className = 'fa-solid fa-trash';
+      deleteButton.appendChild(deleteIcon);
       deleteButton.addEventListener('click', () => {
         if (row.classList.contains(LOCKED_CLASS)) {
           showWarningFlash(SUBSTITUTION_DELETE_UI_MESSAGE);

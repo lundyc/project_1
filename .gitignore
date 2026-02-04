@@ -1,3 +1,7 @@
+# Environment & Configuration
+.env
+config/config.php
+
 # Media
 videos/
 public/videos/
@@ -14,6 +18,7 @@ __pycache__/
 logs/
 cache/
 tmp/
+storage/logs/*.log
 
 # IDE / OS
 .vscode/

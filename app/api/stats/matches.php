@@ -60,18 +60,18 @@ try {
             COALESCE(ht.name, "Home") AS home_team,
             COALESCE(at.name, "Away") AS away_team,
             COALESCE(c.name, "") AS competition,
-            COALESCE((
-                SELECT COUNT(*) FROM events e
-                WHERE e.match_id = m.id
-                  AND e.team_side = "home"
-                  AND e.event_type_id = :goal_type_id
-            ), 0) AS home_goals,
-            COALESCE((
-                SELECT COUNT(*) FROM events e
-                WHERE e.match_id = m.id
-                  AND e.team_side = "away"
-                  AND e.event_type_id = :goal_type_id
-            ), 0) AS away_goals
+                        COALESCE((
+                                SELECT COUNT(*) FROM events e
+                                WHERE e.match_id = m.id
+                                    AND e.team_side = "home"
+                                    AND e.event_type_id = :goal_type_id_home
+                        ), 0) AS home_goals,
+                        COALESCE((
+                                SELECT COUNT(*) FROM events e
+                                WHERE e.match_id = m.id
+                                    AND e.team_side = "away"
+                                    AND e.event_type_id = :goal_type_id_away
+                        ), 0) AS away_goals
         FROM matches m
         LEFT JOIN teams ht ON ht.id = m.home_team_id
         LEFT JOIN teams at ON at.id = m.away_team_id
@@ -81,7 +81,8 @@ try {
         LIMIT 100
     ';
     
-    $params['goal_type_id'] = $goalTypeId;
+    $params['goal_type_id_home'] = $goalTypeId;
+    $params['goal_type_id_away'] = $goalTypeId;
     
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);

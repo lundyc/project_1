@@ -4,6 +4,7 @@ require_once __DIR__ . '/../../lib/auth.php';
 require_once __DIR__ . '/../../lib/match_repository.php';
 require_once __DIR__ . '/../../lib/match_permissions.php';
 require_once __DIR__ . '/../../lib/db.php';
+require_once __DIR__ . '/../../lib/csrf.php';
 
 function match_wizard_log_path(): ?string
 {
@@ -66,6 +67,22 @@ function log_stage_entry(?int $matchId, string $stage, string $message, array $c
 
 auth_boot();
 require_auth();
+
+// Rate limit match creation to prevent abuse
+require_once __DIR__ . '/../../lib/rate_limit.php';
+require_rate_limit('match_create', 10, 300); // 10 matches per 5 minutes
+
+// Validate CSRF token for state-changing operation
+try {
+          require_csrf_token();
+} catch (CsrfException $e) {
+          log_match_wizard_event(null, 'match_creation_csrf', 'CSRF token validation failed', [
+                    'user_id' => (int)($_SESSION['user_id'] ?? 0),
+                    'error' => $e->getMessage()
+          ]);
+          http_response_code(403);
+          die('Invalid CSRF token');
+}
 
 $wantsJson = str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json');
 $input = $_POST;

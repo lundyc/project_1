@@ -187,8 +187,9 @@ function get_li_scheduled_fixtures_for_club(int $clubId, int $limit = 10): array
 
           $limit = max(1, min($limit, 50));
           $now = date('Y-m-d H:i:s');
+          $maxDate = '9999-12-31 23:59:59';
 
-          $sql = '
+          $sql = "
           SELECT
                     lim.match_id,
                     lim.kickoff_at,
@@ -207,16 +208,19 @@ function get_li_scheduled_fixtures_for_club(int $clubId, int $limit = 10): array
           JOIN teams at ON at.id = lim.away_team_id
           LEFT JOIN competitions comp ON comp.id = lim.competition_id
           LEFT JOIN matches m ON m.id = lim.match_id
-          WHERE lim.status = \'scheduled\'
-            AND (ht.club_id = :club_id OR at.club_id = :club_id)
+          WHERE lim.status = :status
+            AND (ht.club_id = :club_id OR at.club_id = :club_id2)
             AND (lim.kickoff_at IS NULL OR lim.kickoff_at >= :now)
-          ORDER BY COALESCE(lim.kickoff_at, \'9999-12-31 23:59:59\') ASC, lim.match_id ASC
-          LIMIT ' . (int)$limit;
+          ORDER BY COALESCE(lim.kickoff_at, :max_date) ASC, lim.match_id ASC
+          LIMIT " . (int)$limit;
 
           $stmt = db()->prepare($sql);
           $stmt->execute([
+                    'status' => 'scheduled',
                     'club_id' => $clubId,
+                    'club_id2' => $clubId,
                     'now' => $now,
+                    'max_date' => $maxDate,
           ]);
 
           return $stmt->fetchAll();

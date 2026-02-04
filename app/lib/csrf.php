@@ -30,7 +30,11 @@ function require_csrf_token(): void
 {
           auth_boot();
           $expected = $_SESSION['csrf_token'] ?? '';
-          $provided = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+          
+          // Accept token from header or POST body only (not GET to prevent logging)
+          $provided = $_SERVER['HTTP_X_CSRF_TOKEN'] 
+                    ?? $_POST['csrf_token'] 
+                    ?? '';
 
           if ($expected === '' || $provided === '' || !hash_equals($expected, $provided)) {
                     throw new CsrfException('invalid_csrf');

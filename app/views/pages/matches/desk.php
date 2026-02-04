@@ -25,6 +25,9 @@ if (!isset($match)) {
 }
 
 $base = base_path();
+$cspNonce = function_exists('get_csp_nonce') ? get_csp_nonce() : '';
+$nonceAttr = $cspNonce ? ' nonce="' . htmlspecialchars($cspNonce) . '"' : '';
+$jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 $canView = can_view_match($user, $roles, (int)$match['club_id']);
 $canEditRoles = in_array('platform_admin', $roles, true) || in_array('club_admin', $roles, true) || in_array('analyst', $roles, true);
 $canManage = $canEditRoles && can_manage_match_for_club($user, $roles, (int)$match['club_id']);
@@ -99,9 +102,9 @@ $title = 'Analysis Desk';
 // Filemtime-based versions keep URLs stable until the asset changes.
 $headExtras = '<link href="' . htmlspecialchars($base) . '/assets/css/desk.css' . asset_version('/assets/css/desk.css') . '" rel="stylesheet">';
 $headExtras .= '<link href="' . htmlspecialchars($base) . '/assets/css/toast.css' . asset_version('/assets/css/toast.css') . '" rel="stylesheet">';
-$headExtras .= '<script>window.ANNOTATIONS_ENABLED = true;</script>';
+$headExtras .= '<script' . $nonceAttr . '>window.ANNOTATIONS_ENABLED = true;</script>';
 $videoLabEnabled = phase3_is_enabled();
-$headExtras .= '<script>window.VIDEO_LAB_ENABLED = ' . ($videoLabEnabled ? 'true' : 'false') . ';</script>';
+$headExtras .= '<script' . $nonceAttr . '>window.VIDEO_LAB_ENABLED = ' . ($videoLabEnabled ? 'true' : 'false') . ';</script>';
 $projectRoot = realpath(__DIR__ . '/../../../../');
 $isVeo = (($match['video_source_type'] ?? '') === 'veo');
 $showVideoProgressPanel = $videoLabEnabled && !empty($matchVideoRow);
@@ -198,7 +201,6 @@ $deskConfig = [
         'lockAcquire' => $base . '/api/matches/' . (int)$match['id'] . '/lock/acquire',
         'lockHeartbeat' => $base . '/api/matches/' . (int)$match['id'] . '/lock/heartbeat',
         'lockRelease' => $base . '/api/matches/' . (int)$match['id'] . '/lock/release',
-        'session' => $base . '/api/matches/' . (int)$match['id'] . '/session',
         'events' => $base . '/api/matches/' . (int)$match['id'] . '/events', // For deferred/interactive fetches only
         'eventCreate' => $base . '/api/matches/' . (int)$match['id'] . '/events/create',
         'eventUpdate' => $base . '/api/matches/' . (int)$match['id'] . '/events/update',
@@ -230,7 +232,6 @@ $deskConfig = [
 $sessionBootstrap = [
     'matchId' => $matchId,
     'role' => 'analyst',
-    'sessionEndpoint' => $base . '/api/matches/' . $matchId . '/session',
     'videoElementId' => 'deskVideoPlayer',
     'userId' => (int)$user['id'],
     'userName' => (string)$user['display_name'],
@@ -242,8 +243,8 @@ $sessionBootstrap = [
     ],
 ];
 
-$footerScripts = '<script>window.DeskConfig = ' . json_encode($deskConfig) . ';</script>';
-$footerScripts .= '<script>window.DeskSessionBootstrap = ' . json_encode($sessionBootstrap) . ';</script>';
+$footerScripts = '<script' . $nonceAttr . '>window.DeskConfig = ' . json_encode($deskConfig, $jsonFlags) . ';</script>';
+$footerScripts .= '<script' . $nonceAttr . '>window.DeskSessionBootstrap = ' . json_encode($sessionBootstrap, $jsonFlags) . ';</script>';
 // WebSocket disabled: $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/vendor/socket.io.min.js' . asset_version('/assets/js/vendor/socket.io.min.js') . '"></script>';
 $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-session.js' . asset_version('/assets/js/desk-session.js') . '"></script>';
 $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/toast.js' . asset_version('/assets/js/toast.js') . '"></script>';
@@ -261,7 +262,7 @@ if ($videoLabEnabled) {
             'videoFormats' => $videoFormats,
             'csrfToken' => $csrfToken,
         ];
-        $footerScripts .= '<script>window.MatchVideoDeskConfig = ' . json_encode($videoProgressConfig) . ';</script>';
+        $footerScripts .= '<script' . $nonceAttr . '>window.MatchVideoDeskConfig = ' . json_encode($videoProgressConfig, $jsonFlags) . ';</script>';
     }
     $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-video-controls.js' . asset_version('/assets/js/desk-video-controls.js') . '"></script>';
     $footerScripts .= '<script src="' . htmlspecialchars($base) . '/assets/js/desk-video-interactive.js' . asset_version('/assets/js/desk-video-interactive.js') . '"></script>';
@@ -336,7 +337,7 @@ ob_start();
         </div>
     </div>
 </div>
-<script>
+<script nonce="<?= htmlspecialchars($cspNonce) ?>">
     document.addEventListener('DOMContentLoaded', function() {
         var skeleton = document.getElementById('deskLoadingSkeleton');
         var deskShell = document.querySelector('.desk-shell');
@@ -1316,7 +1317,7 @@ ob_start();
     </div>
 
 
-<script>
+<script nonce="<?= htmlspecialchars($cspNonce) ?>">
     (function () {
         const modeRoot = document.querySelector('[data-desk-side-modes]');
         const panelRoot = document.querySelector('[data-mode-panels]');
@@ -1360,7 +1361,7 @@ ob_start();
         });
     })();
 </script>
-<script>
+<script nonce="<?= htmlspecialchars($cspNonce) ?>">
     (function () {
         const toggleBtn = document.querySelector('[data-desk-lineup-button]');
         const deskRoot = document.getElementById('deskRoot');
@@ -1381,7 +1382,7 @@ ob_start();
     })();
 </script>
 
-<script>
+<script nonce="<?= htmlspecialchars($cspNonce) ?>">
 // --- Shot Recorder SVG rendering (debug version, forced) ---
 const SVG_NS = "http://www.w3.org/2000/svg";
 
