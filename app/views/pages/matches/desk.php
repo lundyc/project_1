@@ -985,14 +985,14 @@ ob_start();
                                                     <div class="shot-modal-right" style="flex:1 1 400px;min-width:320px;max-width:520px;">
                                                         <div class="shot-pitch-area" style="padding:1.2em 1em 1.5em 1em;border-radius:1em;box-shadow:0 2px 12px #0002;">
                                                             <div class="text-xs text-muted-alt mb-1" style="text-align:center;">Shot taken from</div>
-                                                            <svg id="shotOriginSvg" style="width:100%;height:180px;display:block;border-radius:0.2em;"></svg>
-                                                            <div id="shotOriginClearWrap" style="text-align:center;margin-top:0.3em;display:none;">
-                                                                <button type="button" class="ghost-btn ghost-btn-xs" id="shotOriginClearBtn">Clear origin</button>
+                                                            <svg id="shotOriginSvg" data-shot-svg="origin" style="width:100%;height:180px;display:block;border-radius:0.2em;"></svg>
+                                                            <div id="shotOriginClearWrap" data-shot-clear-wrap="origin" style="text-align:center;margin-top:0.3em;display:none;">
+                                                                <button type="button" class="ghost-btn ghost-btn-xs" data-shot-clear="origin" id="shotOriginClearBtn">Clear origin</button>
                                                             </div>
                                                             <div class="text-xs text-muted-alt mt-3 mb-1" style="text-align:center;">Shot target</div>
-                                                            <svg id="shotTargetSvg" style="width:100%;height:140px;display:block;border-radius:0.7em;"></svg>
-                                                            <div id="shotTargetClearWrap" style="text-align:center;margin-top:0.3em;display:none;">
-                                                                <button type="button" class="ghost-btn ghost-btn-xs" id="shotTargetClearBtn">Clear target</button>
+                                                            <svg id="shotTargetSvg" data-shot-svg="target" style="width:100%;height:140px;display:block;border-radius:0.7em;"></svg>
+                                                            <div id="shotTargetClearWrap" data-shot-clear-wrap="target" style="text-align:center;margin-top:0.3em;display:none;">
+                                                                <button type="button" class="ghost-btn ghost-btn-xs" data-shot-clear="target" id="shotTargetClearBtn">Clear target</button>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -1162,21 +1162,24 @@ ob_start();
 
                 <div class="editor-tab-panels">
                     <div id="editorTabpanelDetails" class="editor-tab-panel is-active" data-panel="details" role="tabpanel" aria-labelledby="editorTabDetails">
-                        <div class="editor-modal-content">
+                            <div class="editor-modal-content">
                             <div class="editor-content-left">
-                                <label class="field-label">Event type</label>
-                                <select class="input-dark desk-editable" id="event_type_id">
-                                    <?php foreach ($eventTypes as $type): ?>
-                                        <option value="<?= (int)$type['id'] ?>"><?= htmlspecialchars($type['label']) ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-
-                                <div>
-                                    <label class="field-label">Match time (MM:SS)</label>
-                                    <div class="d-flex gap-sm align-items-center">
-                                        <button class="ghost-btn ghost-btn-sm desk-editable time-stepper" id="eventTimeStepDown" type="button" aria-label="Decrease time">−</button>
-                                        <input type="text" class="input-dark desk-editable text-center" id="event_time_display" value="00:00" aria-label="Match time" placeholder="MM:SS">
-                                        <button class="ghost-btn ghost-btn-sm desk-editable time-stepper" id="eventTimeStepUp" type="button" aria-label="Increase time">+</button>
+                                <div class="editor-field-row">
+                                    <div>
+                                        <label class="field-label">Event type</label>
+                                        <select class="input-dark desk-editable" id="event_type_id">
+                                            <?php foreach ($eventTypes as $type): ?>
+                                                <option value="<?= (int)$type['id'] ?>"><?= htmlspecialchars($type['label']) ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="field-label">Match time (MM:SS)</label>
+                                        <div class="d-flex gap-sm align-items-center">
+                                            <button class="ghost-btn ghost-btn-sm desk-editable time-stepper" id="eventTimeStepDown" type="button" aria-label="Decrease time">−</button>
+                                            <input type="text" class="input-dark desk-editable text-center" id="event_time_display" value="00:00" aria-label="Match time" placeholder="MM:SS">
+                                            <button class="ghost-btn ghost-btn-sm desk-editable time-stepper" id="eventTimeStepUp" type="button" aria-label="Increase time">+</button>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -1207,27 +1210,60 @@ ob_start();
                                     </div>
                                     <input type="hidden" class="input-dark desk-editable" id="outcome" value="">
                                 </div>
-                                <div>
-                                    <label class="field-label">Zone</label>
-                                    <input type="text" class="input-dark desk-editable" id="zone">
+
+                                <div class="editor-field-row">
+                                    <div>
+                                        <label class="field-label">Zone</label>
+                                        <input type="text" class="input-dark desk-editable" id="zone">
+                                    </div>
+                                    <div>
+                                        <label class="field-label">Tags</label>
+                                        <select multiple class="input-dark desk-editable" id="tag_ids">
+                                            <?php foreach ($tags as $tag): ?>
+                                                <option value="<?= (int)$tag['id'] ?>"><?= htmlspecialchars($tag['label']) ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
                                 </div>
-                                <label class="field-label">Tags</label>
-                                <select multiple class="input-dark desk-editable" id="tag_ids">
-                                    <?php foreach ($tags as $tag): ?>
-                                        <option value="<?= (int)$tag['id'] ?>"><?= htmlspecialchars($tag['label']) ?></option>
-                                    <?php endforeach; ?>
-                                </select>
                             </div>
 
                             <div class="editor-content-middle" id="playerSelectorContainer" style="display:none;">
                                 <label class="field-label">Starting XI</label>
                                 <div id="playerSelectorStarting" class="player-selector-buttons"></div>
+                                <div id="playerSelectorSubsContainer" style="display:none;">
+                                    <label class="field-label">Subs</label>
+                                    <div id="playerSelectorSubs" class="player-selector-buttons"></div>
+                                    <input type="hidden" class="input-dark desk-editable" id="match_player_id" value="">
+                                </div>
                             </div>
 
-                            <div class="editor-content-right" id="playerSelectorSubsContainer" style="display:none;">
-                                <label class="field-label">Subs</label>
-                                <div id="playerSelectorSubs" class="player-selector-buttons"></div>
-                                <input type="hidden" class="input-dark desk-editable" id="match_player_id" value="">
+                            <div class="editor-content-right">
+                                <div id="editorShotMap" class="editor-shotmap-card" hidden>
+                                    <div class="editor-shotmap-grid">
+                                        <div class="editor-shotmap-block">
+                                            <div class="shot-pitch-area">
+                                                <div class="editor-shotmap-label-row">
+                                                    <div class="text-xs text-muted-alt">Shot taken from</div>
+                                                    <div class="editor-shotmap-clear" data-shot-clear-wrap="origin" style="display:none;">
+                                                        <button type="button" class="ghost-btn ghost-btn-xs" data-shot-clear="origin">Clear origin</button>
+                                                    </div>
+                                                </div>
+                                                <svg id="editorShotOriginSvg" class="editor-shotmap-svg" data-shot-svg="origin"></svg>
+                                            </div>
+                                        </div>
+                                        <div class="editor-shotmap-block">
+                                            <div class="shot-pitch-area">
+                                                <div class="editor-shotmap-label-row">
+                                                    <div class="text-xs text-muted-alt">Shot target</div>
+                                                    <div class="editor-shotmap-clear" data-shot-clear-wrap="target" style="display:none;">
+                                                        <button type="button" class="ghost-btn ghost-btn-xs" data-shot-clear="target">Clear target</button>
+                                                    </div>
+                                                </div>
+                                                <svg id="editorShotTargetSvg" class="editor-shotmap-svg" data-shot-svg="target"></svg>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
                             <!-- Hidden fields for Importance and Phase - not user-editable but retained for API -->
@@ -1375,18 +1411,20 @@ window.shotTargetPoint = null;
 window.shotOriginCleared = false;
 window.shotTargetCleared = false;
 
-function getShotSvg(type) {
-    return document.getElementById(type === 'origin' ? 'shotOriginSvg' : 'shotTargetSvg');
+function getShotSvgs(type) {
+    return Array.from(document.querySelectorAll(`[data-shot-svg="${type}"]`));
 }
 
-function getShotClearWrap(type) {
-    return document.getElementById(type === 'origin' ? 'shotOriginClearWrap' : 'shotTargetClearWrap');
+function getShotClearWraps(type) {
+    return Array.from(document.querySelectorAll(`[data-shot-clear-wrap="${type}"]`));
 }
 
 function setShotClearVisible(type, visible) {
-    const wrap = getShotClearWrap(type);
-    if (!wrap) return;
-    wrap.style.display = visible ? 'block' : 'none';
+    const wraps = getShotClearWraps(type);
+    if (!wraps.length) return;
+    wraps.forEach((wrap) => {
+        wrap.style.display = visible ? 'block' : 'none';
+    });
 }
 
 function setShotPointState(type, point) {
@@ -1410,59 +1448,56 @@ function clearShotPointState(type) {
 }
 
 function renderShotPoint(type, point) {
-    const svg = getShotSvg(type);
-    if (!svg) return;
+    const svgs = getShotSvgs(type);
+    if (!svgs.length) return;
 
-    const existing = svg.querySelector(`[data-shot-point="${type}"]`);
-    if (!point) {
-        if (existing) {
-            existing.remove();
+    svgs.forEach((svg) => {
+        const existing = svg.querySelector(`[data-shot-point="${type}"]`);
+        if (!point) {
+            if (existing) {
+                existing.remove();
+            }
+            return;
         }
-        setShotClearVisible(type, false);
-        return;
-    }
 
-    const viewBox = svg.getAttribute('viewBox');
-    if (!viewBox) return;
-    const [vbX, vbY, vbWidth, vbHeight] = viewBox.split(' ').map(Number);
-    const svgX = vbX + (point.x * vbWidth);
-    const svgY = vbY + (point.y * vbHeight);
+        const viewBox = svg.getAttribute('viewBox');
+        if (!viewBox) return;
+        const [vbX, vbY, vbWidth, vbHeight] = viewBox.split(' ').map(Number);
+        const svgX = vbX + (point.x * vbWidth);
+        const svgY = vbY + (point.y * vbHeight);
 
-    let pointCircle = existing;
-    if (!pointCircle) {
-        pointCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        pointCircle.setAttribute('data-shot-point', type);
-        pointCircle.setAttribute('r', '2.5');
-        pointCircle.setAttribute('fill', '#ef4444');
-        pointCircle.setAttribute('stroke', '#ffffff');
-        pointCircle.setAttribute('stroke-width', '1');
-        svg.appendChild(pointCircle);
-    }
+        let pointCircle = existing;
+        if (!pointCircle) {
+            pointCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            pointCircle.setAttribute('data-shot-point', type);
+            pointCircle.setAttribute('r', '2.5');
+            pointCircle.setAttribute('fill', '#ef4444');
+            pointCircle.setAttribute('stroke', '#ffffff');
+            pointCircle.setAttribute('stroke-width', '1');
+            svg.appendChild(pointCircle);
+        }
 
-    pointCircle.setAttribute('cx', svgX);
-    pointCircle.setAttribute('cy', svgY);
-    setShotClearVisible(type, true);
+        pointCircle.setAttribute('cx', svgX);
+        pointCircle.setAttribute('cy', svgY);
+    });
+
+    setShotClearVisible(type, Boolean(point));
 }
 
 window.renderShotPoint = renderShotPoint;
 window.setShotPointState = setShotPointState;
 window.clearShotPointState = clearShotPointState;
 
-const shotOriginClearBtn = document.getElementById('shotOriginClearBtn');
-if (shotOriginClearBtn) {
-    shotOriginClearBtn.addEventListener('click', () => {
-        clearShotPointState('origin');
-        renderShotPoint('origin', null);
+document.querySelectorAll('[data-shot-clear]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+        const type = btn.getAttribute('data-shot-clear');
+        if (type !== 'origin' && type !== 'target') {
+            return;
+        }
+        clearShotPointState(type);
+        renderShotPoint(type, null);
     });
-}
-
-const shotTargetClearBtn = document.getElementById('shotTargetClearBtn');
-if (shotTargetClearBtn) {
-    shotTargetClearBtn.addEventListener('click', () => {
-        clearShotPointState('target');
-        renderShotPoint('target', null);
-    });
-}
+});
 
 /**
  * Attaches a single-point click handler to an SVG element

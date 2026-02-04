@@ -775,13 +775,81 @@ include __DIR__ . '/../../partials/header.php';
                 <p class="text-sm text-slate-400 mb-4">Event distribution, momentum analysis and match timeline.</p>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-                    <div class="rounded-lg border border-white/10 bg-slate-800/40 p-4 text-center min-h-[180px]">
-                        <p class="text-sm text-slate-400 mb-2">Shot Map</p>
-                        <span class="text-xs text-slate-500">Placeholder</span>
+                    <div class="rounded-lg border border-white/10 bg-slate-800/40 p-4 min-h-[400px] flex flex-col">
+                        <p class="text-sm text-slate-400 mb-3 text-center">Home Team Shot Map</p>
+                        <div class="flex-1 flex flex-col gap-3">
+                            <div class="flex-1">
+                                <p class="text-xs text-slate-500 mb-1 text-center">Shot origins</p>
+                                <svg id="home-shot-origins" viewBox="0 0 100 100" class="w-full h-full" style="max-height: 180px;">
+                                    <!-- Half pitch with penalty box -->
+                                    <rect x="5" y="5" width="90" height="70" stroke="#e5e7eb" stroke-width="1" fill="none"/>
+                                    <rect x="20" y="5" width="60" height="30" stroke="#e5e7eb" stroke-width="1" fill="none"/>
+                                    <rect x="35" y="5" width="30" height="15" stroke="#e5e7eb" stroke-width="1" fill="none"/>
+                                    <circle cx="50" cy="28" r="1.5" fill="#e5e7eb"/>
+                                    <path d="M35 35 A15 15 0 0 0 65 35" stroke="#e5e7eb" fill="none"/>
+                                    <g id="home-origin-markers"></g>
+                                </svg>
+                            </div>
+                            <div class="flex-1">
+                                <p class="text-xs text-slate-500 mb-1 text-center">Shot targets</p>
+                                <svg id="home-shot-targets" viewBox="0 0 120 60" class="w-full h-full" style="max-height: 200px;">
+                                    <!-- Goal face with grid -->
+                                    <line x1="20" y1="10" x2="20" y2="50" stroke="#e5e7eb" stroke-width="3"/>
+                                    <line x1="100" y1="10" x2="100" y2="50" stroke="#e5e7eb" stroke-width="3"/>
+                                    <line x1="20" y1="10" x2="100" y2="10" stroke="#e5e7eb" stroke-width="3"/>
+                                    <line x1="30" y1="20" x2="30" y2="50" stroke="#9ca3af" stroke-width="1"/>
+                                    <line x1="40" y1="20" x2="40" y2="50" stroke="#9ca3af" stroke-width="1"/>
+                                    <line x1="50" y1="20" x2="50" y2="50" stroke="#9ca3af" stroke-width="1"/>
+                                    <line x1="60" y1="20" x2="60" y2="50" stroke="#9ca3af" stroke-width="1"/>
+                                    <line x1="70" y1="20" x2="70" y2="50" stroke="#9ca3af" stroke-width="1"/>
+                                    <line x1="80" y1="20" x2="80" y2="50" stroke="#9ca3af" stroke-width="1"/>
+                                    <line x1="90" y1="20" x2="90" y2="50" stroke="#9ca3af" stroke-width="1"/>
+                                    <line x1="30" y1="20" x2="90" y2="20" stroke="#9ca3af" stroke-width="1"/>
+                                    <line x1="30" y1="30" x2="90" y2="30" stroke="#9ca3af" stroke-width="1"/>
+                                    <line x1="30" y1="40" x2="90" y2="40" stroke="#9ca3af" stroke-width="1"/>
+                                    <line x1="30" y1="50" x2="90" y2="50" stroke="#9ca3af" stroke-width="1"/>
+                                    <g id="home-target-markers"></g>
+                                </svg>
+                            </div>
+                        </div>
                     </div>
-                    <div class="rounded-lg border border-white/10 bg-slate-800/40 p-4 text-center min-h-[180px]">
-                        <p class="text-sm text-slate-400 mb-2">Heat Map</p>
-                        <span class="text-xs text-slate-500">Placeholder</span>
+                    <div class="rounded-lg border border-white/10 bg-slate-800/40 p-4 min-h-[400px] flex flex-col">
+                        <p class="text-sm text-slate-400 mb-3 text-center">Away Team Shot Map</p>
+                        <div class="flex-1 flex flex-col gap-3">
+                            <div class="flex-1">
+                                <p class="text-xs text-slate-500 mb-1 text-center">Shot origins</p>
+                                <svg id="away-shot-origins" viewBox="0 0 100 100" class="w-full h-full" style="max-height: 180px;">
+                                    <!-- Half pitch with penalty box -->
+                                    <rect x="5" y="5" width="90" height="70" stroke="#e5e7eb" stroke-width="1" fill="none"/>
+                                    <rect x="20" y="5" width="60" height="30" stroke="#e5e7eb" stroke-width="1" fill="none"/>
+                                    <rect x="35" y="5" width="30" height="15" stroke="#e5e7eb" stroke-width="1" fill="none"/>
+                                    <circle cx="50" cy="28" r="1.5" fill="#e5e7eb"/>
+                                    <path d="M35 35 A15 15 0 0 0 65 35" stroke="#e5e7eb" fill="none"/>
+                                    <g id="away-origin-markers"></g>
+                                </svg>
+                            </div>
+                            <div class="flex-1">
+                                <p class="text-xs text-slate-500 mb-1 text-center">Shot targets</p>
+                                <svg id="away-shot-targets" viewBox="0 0 120 60" class="w-full h-full" style="max-height: 200px;">
+                                    <!-- Goal face with grid -->
+                                    <line x1="20" y1="10" x2="20" y2="50" stroke="#e5e7eb" stroke-width="3"/>
+                                    <line x1="100" y1="10" x2="100" y2="50" stroke="#e5e7eb" stroke-width="3"/>
+                                    <line x1="20" y1="10" x2="100" y2="10" stroke="#e5e7eb" stroke-width="3"/>
+                                    <line x1="30" y1="20" x2="30" y2="50" stroke="#9ca3af" stroke-width="1"/>
+                                    <line x1="40" y1="20" x2="40" y2="50" stroke="#9ca3af" stroke-width="1"/>
+                                    <line x1="50" y1="20" x2="50" y2="50" stroke="#9ca3af" stroke-width="1"/>
+                                    <line x1="60" y1="20" x2="60" y2="50" stroke="#9ca3af" stroke-width="1"/>
+                                    <line x1="70" y1="20" x2="70" y2="50" stroke="#9ca3af" stroke-width="1"/>
+                                    <line x1="80" y1="20" x2="80" y2="50" stroke="#9ca3af" stroke-width="1"/>
+                                    <line x1="90" y1="20" x2="90" y2="50" stroke="#9ca3af" stroke-width="1"/>
+                                    <line x1="30" y1="20" x2="90" y2="20" stroke="#9ca3af" stroke-width="1"/>
+                                    <line x1="30" y1="30" x2="90" y2="30" stroke="#9ca3af" stroke-width="1"/>
+                                    <line x1="30" y1="40" x2="90" y2="40" stroke="#9ca3af" stroke-width="1"/>
+                                    <line x1="30" y1="50" x2="90" y2="50" stroke="#9ca3af" stroke-width="1"/>
+                                    <g id="away-target-markers"></g>
+                                </svg>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
@@ -2334,6 +2402,10 @@ include __DIR__ . '/../../partials/header.php';
         const distributionEl = document.getElementById('match-visual-distribution');
         const momentumEl = document.getElementById('match-visual-momentum');
         const timelineEl = document.getElementById('match-visual-timeline');
+        const homeOriginMarkersEl = document.getElementById('home-origin-markers');
+        const homeTargetMarkersEl = document.getElementById('home-target-markers');
+        const awayOriginMarkersEl = document.getElementById('away-origin-markers');
+        const awayTargetMarkersEl = document.getElementById('away-target-markers');
         const momentumTypeWeights = {
             goal: 5,
             shot: 3,
@@ -2381,6 +2453,85 @@ include __DIR__ . '/../../partials/header.php';
             if (lower.includes('turnover')) return 'turnover';
             if (lower.includes('good')) return 'good_play';
             return 'other';
+        }
+
+        function renderShotMap(data) {
+            const shots = Array.isArray(data?.shots) ? data.shots : [];
+            
+            // Clear existing markers
+            if (homeOriginMarkersEl) homeOriginMarkersEl.innerHTML = '';
+            if (homeTargetMarkersEl) homeTargetMarkersEl.innerHTML = '';
+            if (awayOriginMarkersEl) awayOriginMarkersEl.innerHTML = '';
+            if (awayTargetMarkersEl) awayTargetMarkersEl.innerHTML = '';
+
+            // Ensure marker layers are on top of SVG elements
+            [homeOriginMarkersEl, homeTargetMarkersEl, awayOriginMarkersEl, awayTargetMarkersEl].forEach((markersEl) => {
+                if (!markersEl || !markersEl.parentNode) return;
+                markersEl.parentNode.appendChild(markersEl);
+            });
+
+            if (shots.length === 0) {
+                return;
+            }
+
+            shots.forEach((shot) => {
+                const hasOrigin = shot.shot_origin_x !== null && shot.shot_origin_x !== undefined
+                    && shot.shot_origin_y !== null && shot.shot_origin_y !== undefined;
+                const hasTarget = shot.shot_target_x !== null && shot.shot_target_x !== undefined
+                    && shot.shot_target_y !== null && shot.shot_target_y !== undefined;
+                const originX = Number(shot.shot_origin_x);
+                const originY = Number(shot.shot_origin_y);
+                const targetX = Number(shot.shot_target_x);
+                const targetY = Number(shot.shot_target_y);
+                const teamSide = shot.team_side === 'away' ? 'away' : 'home';
+
+                // Select appropriate marker containers
+                const originMarkersEl = teamSide === 'home' ? homeOriginMarkersEl : awayOriginMarkersEl;
+                const targetMarkersEl = teamSide === 'home' ? homeTargetMarkersEl : awayTargetMarkersEl;
+
+                // Color based on team
+                const color = teamSide === 'home' ? '#3b82f6' : '#ef4444';
+
+                // Render origin marker if coordinates exist (pitch view: 100x100)
+                if (hasOrigin && Number.isFinite(originX) && Number.isFinite(originY)) {
+                    const svgOriginX = originX * 100;
+                    const svgOriginY = originY * 100;
+                    
+                    const originCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    originCircle.setAttribute('cx', svgOriginX);
+                    originCircle.setAttribute('cy', svgOriginY);
+                    originCircle.setAttribute('r', '2');
+                    originCircle.setAttribute('fill', color);
+                    originCircle.setAttribute('opacity', '0.7');
+                    
+                    const originTitle = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+                    originTitle.textContent = `${teamSide === 'home' ? 'Home' : 'Away'} shot origin`;
+                    originCircle.appendChild(originTitle);
+                    
+                    if (originMarkersEl) originMarkersEl.appendChild(originCircle);
+                }
+
+                // Render target marker if coordinates exist (goal view: 120x60)
+                if (hasTarget && Number.isFinite(targetX) && Number.isFinite(targetY)) {
+                    const svgTargetX = targetX * 120;
+                    const svgTargetY = targetY * 60;
+                    
+                    const targetCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    targetCircle.setAttribute('cx', svgTargetX);
+                    targetCircle.setAttribute('cy', svgTargetY);
+                    targetCircle.setAttribute('r', '3');
+                    targetCircle.setAttribute('fill', color);
+                    targetCircle.setAttribute('opacity', '0.8');
+                    targetCircle.setAttribute('stroke', 'white');
+                    targetCircle.setAttribute('stroke-width', '0.5');
+                    
+                    const targetTitle = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+                    targetTitle.textContent = `${teamSide === 'home' ? 'Home' : 'Away'} shot target`;
+                    targetCircle.appendChild(targetTitle);
+                    
+                    if (targetMarkersEl) targetMarkersEl.appendChild(targetCircle);
+                }
+            });
         }
 
         function renderDistribution(data) {
@@ -2625,6 +2776,7 @@ include __DIR__ . '/../../partials/header.php';
             renderDistribution(payload);
             renderMomentum(payload);
             renderTimeline(payload);
+            renderShotMap(payload);
             if (statusEl) {
                 statusEl.textContent = 'Visual analytics populated from derived data.';
             }
@@ -2643,8 +2795,18 @@ include __DIR__ . '/../../partials/header.php';
                     return;
                 }
                 initialized = true;
-                loadDerivedData()
-                    .then(renderVisuals)
+                // Load derived data and shots data in parallel
+                Promise.all([
+                    loadDerivedData(),
+                    fetch(`${apiBase}/shots?match_id=${encodeURIComponent(matchId)}`).then(r => r.json())
+                ])
+                    .then(([derived, shotsData]) => {
+                        const combined = {
+                            ...derived,
+                            shots: Array.isArray(shotsData?.data?.shots) ? shotsData.data.shots : []
+                        };
+                        renderVisuals(combined);
+                    })
                     .catch(handleError);
             },
         };

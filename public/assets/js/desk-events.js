@@ -242,6 +242,9 @@ $(function () {
       const $zone = $('#zone');
       const $notes = $('#notes');
       const $tagIds = $('#tag_ids');
+      const $editorShotMap = $('#editorShotMap');
+      const $editorShotOriginSvg = $('#editorShotOriginSvg');
+      const $editorShotTargetSvg = $('#editorShotTargetSvg');
       const $undoBtn = $('#eventUndoBtn');
       const $redoBtn = $('#eventRedoBtn');
       const undoRedoState = { canUndo: false, canRedo: false };
@@ -1342,6 +1345,43 @@ $(function () {
             return SHOT_EVENT_KEYS.has(String(key).toLowerCase());
       }
 
+      function shouldShowEditorShotMap(typeKey) {
+            return isShotTypeKey(typeKey) || isGoalTypeKey(typeKey);
+      }
+
+      function setEditorShotMapVisibility(visible) {
+            if (!$editorShotMap.length) return;
+            $editorShotMap.prop('hidden', !visible);
+            $editorShotMap.toggleClass('is-hidden', !visible);
+      }
+
+      function initEditorShotMap() {
+            if (!$editorShotMap.length) return;
+            const originSvg = $editorShotOriginSvg.length ? $editorShotOriginSvg[0] : null;
+            const targetSvg = $editorShotTargetSvg.length ? $editorShotTargetSvg[0] : null;
+
+            if (originSvg && originSvg.childNodes.length === 0 && typeof window.renderShotOriginSvg === 'function') {
+                  window.renderShotOriginSvg(originSvg);
+            }
+            if (targetSvg && targetSvg.childNodes.length === 0 && typeof window.renderShotTargetSvg === 'function') {
+                  window.renderShotTargetSvg(targetSvg);
+            }
+            if (originSvg && typeof window.attachSinglePointHandler === 'function') {
+                  window.attachSinglePointHandler(originSvg, 'origin');
+            }
+            if (targetSvg && typeof window.attachSinglePointHandler === 'function') {
+                  window.attachSinglePointHandler(targetSvg, 'target');
+            }
+      }
+
+      function updateEditorShotMapForType(typeKey) {
+            const show = shouldShowEditorShotMap(typeKey);
+            setEditorShotMapVisibility(show);
+            if (show) {
+                  initEditorShotMap();
+            }
+      }
+
       function isCardTypeKey(key) {
             if (!key) return false;
             return CARD_EVENT_KEYS.has(String(key).toLowerCase());
@@ -1689,6 +1729,16 @@ $(function () {
             hideError();
       }
 
+      function setEditorOutcomeSelection(outcome) {
+            const normalized = outcome ? String(outcome) : '';
+            if (!$editorPanel.length || !$outcome.length) return;
+            $outcome.val(normalized);
+            $editorPanel.find('.outcome-selector-btn').removeClass('selected');
+            if (normalized) {
+                  $editorPanel.find(`.outcome-selector-btn[data-outcome="${normalized}"]`).addClass('selected');
+            }
+      }
+
       function renderShotPlayerList() {
             if (!$shotPlayerList.length) return;
             $shotPlayerList.html(buildPlayerOptionsHtml('goal-player-option', 'shot-player-option', currentTeam));
@@ -1872,14 +1922,22 @@ $(function () {
                   && point.x <= (100 / 120)
                   && point.y >= (10 / 60)
                   && point.y <= (50 / 60);
-            setShotOutcomeSelection(onTarget ? 'on_target' : 'off_target');
+            const outcome = onTarget ? 'on_target' : 'off_target';
+            setShotOutcomeSelection(outcome);
+            return outcome;
       }
 
       document.addEventListener('shot-point-updated', (event) => {
             const detail = event && event.detail ? event.detail : null;
             if (!detail || detail.type !== 'target' || detail.source !== 'click') return;
-            if (!$shotPlayerModal.length || !$shotPlayerModal.hasClass('is-active')) return;
-            autoSelectShotOutcomeFromTarget(detail.point);
+            const outcome = autoSelectShotOutcomeFromTarget(detail.point);
+            if (!outcome) return;
+            if ($shotPlayerModal.length && $shotPlayerModal.hasClass('is-active')) {
+                  return;
+            }
+            if ($editorPanel.length && !$editorPanel.hasClass('is-hidden') && $editorShotMap.length && !$editorShotMap.prop('hidden')) {
+                  setEditorOutcomeSelection(outcome);
+            }
       });
 
       function handleShotUnknownClick(event) {
@@ -2823,8 +2881,8 @@ $(function () {
             editorDirty = true;
       }
 
-      function attemptCloseEditor() {
-            if (editorDirty) return;
+      function attemptCloseEditor(forceClose = false) {
+            if (editorDirty && !forceClose) return;
             setEditorCollapsed(true, 'Click a timeline item to edit details', true);
       }
 
@@ -2851,6 +2909,15 @@ $(function () {
                         updateClipUi();
                         refreshOutcomeFieldForEvent(null);
                         updateEventEditorPlayerList(teamSide);
+                        updateEditorShotMapForType('');
+                        window.shotOriginPoint = null;
+                        window.shotTargetPoint = null;
+                        window.shotOriginCleared = false;
+                        window.shotTargetCleared = false;
+                        if (typeof window.renderShotPoint === 'function') {
+                              window.renderShotPoint('origin', null);
+                              window.renderShotPoint('target', null);
+                        }
                   });
                   editorDirty = false;
                   setEditorCollapsed(true, 'Click a timeline item to edit details', true);
@@ -2893,8 +2960,9 @@ $(function () {
                   refreshOutcomeFieldForEvent(ev);
                   updateEventEditorPlayerList(teamSide);
 
-                  const typeKey = (ev.event_type_key || '').toLowerCase();
-                  if (isShotTypeKey(typeKey)) {
+                  const typeKey = ((ev.event_type_key || '').toLowerCase() || resolveEventTypeKeyById(ev.event_type_id));
+                  updateEditorShotMapForType(typeKey);
+                  if (isShotTypeKey(typeKey) || isGoalTypeKey(typeKey)) {
                         const originPoint = (ev.shot_origin_x !== null && ev.shot_origin_x !== undefined
                               && ev.shot_origin_y !== null && ev.shot_origin_y !== undefined)
                               ? { x: Number(ev.shot_origin_x), y: Number(ev.shot_origin_y) }
@@ -3018,7 +3086,7 @@ $(function () {
             if (!lockOwned || !cfg.canEditRole) return;
             const data = collectData();
             const typeKey = resolveEventTypeKeyById(data.event_type_id);
-            if (isShotTypeKey(typeKey)) {
+            if (isShotTypeKey(typeKey) || isGoalTypeKey(typeKey)) {
                   Object.assign(data, buildShotLocationPayload());
             }
             const endpointKey = data.event_id ? 'eventUpdate' : 'eventCreate';
@@ -5104,12 +5172,21 @@ $(function () {
             });
             $editorPanel.on('click', '[data-editor-close]', function (e) {
                   e.preventDefault();
-                  attemptCloseEditor();
+                  attemptCloseEditor(true);
+            });
+            $(document).on('keydown', (event) => {
+                  if (event.key !== 'Escape') return;
+                  if (!$editorPanel.length || $editorPanel.hasClass('is-hidden')) return;
+                  event.preventDefault();
+                  attemptCloseEditor(true);
             });
             $editorPanel.on('input change', '.desk-editable', () => markEditorDirty());
             $undoBtn.on('click', () => performActionStackRequest('undoEvent', 'Undo'));
             $redoBtn.on('click', () => performActionStackRequest('redoEvent', 'Redo'));
-            $eventTypeId.on('change', () => refreshOutcomeField($eventTypeId.val(), $outcome.val()));
+            $eventTypeId.on('change', () => {
+                  refreshOutcomeField($eventTypeId.val(), $outcome.val());
+                  updateEditorShotMapForType(resolveEventTypeKeyById($eventTypeId.val()));
+            });
             // Handle team selector button clicks for contextual player list
             $editorPanel.on('click', '.team-selector-btn', function (e) {
                   e.preventDefault();

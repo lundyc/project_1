@@ -351,8 +351,7 @@
   const seek = (timeSeconds) => emitPlaybackCommand('seek', { time: Number(timeSeconds) });
   const setRate = (rate) => emitPlaybackCommand('rate', { rate: Number(rate) });
   const skip = (deltaSeconds) => {
-    const state = getCurrentState();
-    const baseTime = state ? state.time : Number(video.currentTime || 0);
+    const baseTime = Number(video.currentTime || 0);
     const duration = getDurationSeconds();
     const target = duration ? clamp(baseTime + deltaSeconds, 0, duration) : Math.max(0, baseTime + deltaSeconds);
     return seek(target);

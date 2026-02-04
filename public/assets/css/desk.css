@@ -2918,11 +2918,11 @@ body {
 .editor-modal-card {
   position: relative;
   width: 90vw;
-  height: 85vh;
+  height: 90vh;
   max-width: 1100px;
-  max-height: 92vh;
-  min-width: 900px;
-  min-height: 600px;
+  max-height: 99vh;
+  min-width: 860px;
+  min-height: 572px;
   border-radius: 18px;
   padding: 0;
   background: var(--bg-secondary);
@@ -3003,7 +3003,9 @@ body {
 }
 
 .editor-tab-panel.is-active {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .editor-tab-panels {
@@ -3011,16 +3013,43 @@ body {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  flex: 1;
+  min-height: 0;
 }
 
 .editor-modal-content {
   display: grid;
-  grid-template-columns: 1.2fr 1fr 1fr;
-  gap: 32px 24px;
-  padding: 10px 36px 0 36px;
+  grid-template-columns: 0.9fr 1fr 1fr;
+  gap: 24px 18px;
+  padding: 10px 36px 12px 36px;
   margin-bottom: 0;
   height: 100%;
   box-sizing: border-box;
+  overflow-y: auto;
+}
+
+.editor-modal-content {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.7) rgba(15, 23, 42, 0.3);
+}
+
+.editor-modal-content::-webkit-scrollbar {
+  width: 10px;
+}
+
+.editor-modal-content::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.3);
+  border-radius: 999px;
+}
+
+.editor-modal-content::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.7);
+  border-radius: 999px;
+  border: 2px solid rgba(15, 23, 42, 0.3);
+}
+
+.editor-modal-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.9);
 }
 
 .editor-content-left {
@@ -3029,6 +3058,13 @@ body {
   gap: 16px;
   min-width: 0;
   min-height: 0;
+}
+
+.editor-field-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
 }
 
 .editor-content-middle {
@@ -3047,6 +3083,79 @@ body {
   min-height: 0;
 }
 
+.editor-shotmap-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.editor-shotmap-card[hidden],
+.editor-shotmap-card.is-hidden {
+  display: none;
+}
+
+.editor-shotmap-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.editor-shotmap-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.editor-shotmap-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.editor-shotmap-block .shot-pitch-area {
+  border-radius: 1em;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.008);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.editor-shotmap-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.editor-shotmap-svg {
+  width: 100%;
+  display: block;
+}
+
+#editorShotOriginSvg {
+  height: 160px;
+  border-radius: 0.2em;
+}
+
+#editorShotTargetSvg {
+  height: 200px;
+  border-radius: 0.7em;
+}
+
+.editor-shotmap-clear {
+  text-align: center;
+}
+
+.editor-shotmap-clear .ghost-btn-xs {
+  padding: 4px 6px;
+  font-size: 11px;
+}
+
 .editor-modal-footer {
   display: flex;
   justify-content: space-between;
@@ -3058,37 +3167,7 @@ body {
   background: var(--bg-secondary);
 }
 
-/* Responsive: Stack columns on smaller screens */
-@media (max-width: 1300px) {
-  .editor-modal-card {
-    width: 98vw;
-    min-width: 0;
-    height: 96vh;
-    min-height: 0;
-  }
 
-  .editor-modal-content {
-    grid-template-columns: 1fr 1fr;
-    gap: 18px 12px;
-    padding: 18px 10px 0 10px;
-  }
-}
-
-@media (max-width: 900px) {
-  .editor-modal-card {
-    width: 100vw;
-    min-width: 0;
-    height: 100vh;
-    min-height: 0;
-    border-radius: 0;
-  }
-
-  .editor-modal-content {
-    grid-template-columns: 1fr;
-    gap: 10px;
-    padding: 8px 2vw 0 2vw;
-  }
-}
 
 body.editor-modal-open {
   overflow: hidden;
@@ -4443,9 +4522,10 @@ select.input-dark {
 }
 
 .player-selector-buttons {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-flow: row;
+  gap: 0.35rem 0.5rem;
 }
 
 .player-selector-btn {

@@ -309,6 +309,11 @@ route('/api/stats/match/visuals', function () {
           require __DIR__ . '/../app/api/stats/match/visuals.php';
 });
 
+route('/api/stats/match/shots', function () {
+          require_auth();
+          require __DIR__ . '/../app/api/stats/match/shots.php';
+});
+
 route('/api/stats/match/summary', function () {
           require_auth();
           require __DIR__ . '/../app/api/stats/match/summary.php';
