@@ -2463,13 +2463,10 @@ $(function () {
                   { label: '45-60', start: 2700, end: 3600 },
                   { label: '60-75', start: 3600, end: 4500 },
                   { label: '75-90', start: 4500, end: 5400 },
-                  { label: '90+', start: 5400, end: 6000 },
-                  { label: 'ET 1', start: 6000, end: 6900 },
-                  { label: 'ET 2', start: 6900, end: 7800 }
-
+                  { label: '90+', start: 5400, end: null }
             ];
             const axisPad = axisOffset();
-            const baseDuration = buckets[buckets.length - 1].end;
+            const baseDuration = 6000;
 
             if (!filtered.length) {
                   timelineMetrics.duration = baseDuration;
@@ -2502,6 +2499,34 @@ $(function () {
                         edge: ev.event_type_key === 'period_start' ? 'start' : 'end',
                   }))
                   .sort((a, b) => a.second - b.second);
+            const breaks = [];
+            const breakGapSeconds = 60;
+            for (let i = 0; i < periodMarkers.length - 1; i += 1) {
+                  const current = periodMarkers[i];
+                  const next = periodMarkers[i + 1];
+                  if (current.edge === 'end' && next.edge === 'start') {
+                        const gap = Math.max(0, next.second - current.second);
+                        if (gap > breakGapSeconds) {
+                              breaks.push({ start: current.second, end: next.second, gap: breakGapSeconds });
+                        }
+                  }
+            }
+            const mapSecond = (seconds) => {
+                  const normalized = Number(seconds) || 0;
+                  let mapped = normalized;
+                  breaks.forEach((br) => {
+                        if (normalized <= br.start) {
+                              return;
+                        }
+                        const windowEnd = Math.min(normalized, br.end);
+                        const over = windowEnd - br.start;
+                        if (over > br.gap) {
+                              mapped -= over - br.gap;
+                        }
+                  });
+                  return mapped;
+            };
+            timelineMetrics.mapSecond = mapSecond;
             const clipRanges = buildClipRanges(filtered);
             const maxClipSecond = clipRanges.reduce((max, clip) => Math.max(max, clip.end || 0), 0);
             const maxAnnotationSecond = timelineAnnotations.reduce((max, annotation) => {
@@ -2510,7 +2535,9 @@ $(function () {
             }, 0);
             const maxEventSecond = filtered.reduce((max, ev) => Math.max(max, ev.match_second || 0), 0);
             const maxMarkerSecond = Math.max(maxEventSecond, maxClipSecond, maxAnnotationSecond);
-            timelineMetrics.duration = Math.max(baseDuration, maxMarkerSecond);
+            const rawDuration = Math.max(baseDuration, maxMarkerSecond);
+            const mappedBase = mapSecond(baseDuration);
+            timelineMetrics.duration = Math.max(mappedBase, mapSecond(rawDuration));
             const containerWidth = $timelineMatrix.closest('.timeline-scroll').width() || $timelineMatrix.width() || 0;
             const availableWidth = Math.max(0, containerWidth - axisPad);
             const baseWidth = timelineMetrics.duration * timelineZoom.pixelsPerSecond;
@@ -2519,8 +2546,10 @@ $(function () {
             timelineZoom.scale = Math.min(timelineZoom.max, safeFit);
             const timelineWidth = timelineMetrics.duration * timelineZoom.pixelsPerSecond * timelineZoom.scale;
             const bucketWidths = buckets.map((bucket) => {
-                  const bucketEnd = Math.min(bucket.end, timelineMetrics.duration);
-                  const span = Math.max(0, bucketEnd - bucket.start);
+                  const bucketEnd = bucket.end === null ? rawDuration : bucket.end;
+                  const startDisplay = mapSecond(bucket.start);
+                  const endDisplay = Math.min(mapSecond(bucketEnd), timelineMetrics.duration);
+                  const span = Math.max(0, endDisplay - startDisplay);
                   return span * timelineZoom.pixelsPerSecond * timelineZoom.scale;
             });
             const bucketColumns = bucketWidths.map((w) => `${Math.max(24, w)}px`).join(' ');
@@ -2531,7 +2560,8 @@ $(function () {
             if (periodMarkers.length) {
                   html += `<div class="matrix-period-markers" style="left:${markerOffset}px; width:${timelineWidth}px">`;
                   periodMarkers.forEach((marker) => {
-                        const position = Math.min(Math.max(0, marker.second * timelineZoom.pixelsPerSecond * timelineZoom.scale), timelineWidth);
+                        const displaySecond = timelineMetrics.mapSecond ? timelineMetrics.mapSecond(marker.second) : marker.second;
+                        const position = Math.min(Math.max(0, displaySecond * timelineZoom.pixelsPerSecond * timelineZoom.scale), timelineWidth);
                         html += `<button type="button" class="matrix-period-marker" data-period-id="${marker.id}" data-period-edge="${marker.edge}" data-second="${marker.second}" data-tooltip="${h(
                               marker.label
                         )}" style="left:${position}px">`;
@@ -2561,14 +2591,44 @@ $(function () {
                   });
                   html += '</div>';
                   html += `<div class="matrix-row-events" style="width:${timelineWidth}px">`;
-                  row.events.forEach((ev) => {
+                  const stackBuckets = new Map();
+                  const stackIndexMap = new Map();
+                  const sortedEvents = [...row.events].sort((a, b) => {
+                        const aSecond = Number(a.match_second) || 0;
+                        const bSecond = Number(b.match_second) || 0;
+                        if (aSecond !== bSecond) return aSecond - bSecond;
+                        return (Number(a.id) || 0) - (Number(b.id) || 0);
+                  });
+                  const getStackKey = (seconds) => {
+                        const mapped = timelineMetrics.mapSecond ? timelineMetrics.mapSecond(seconds) : seconds;
+                        return Math.round(mapped / 6);
+                  };
+                  sortedEvents.forEach((ev) => {
+                        if (isPeriodEvent(ev)) {
+                              return;
+                        }
+                        const seconds = Number.isFinite(Number(ev.match_second)) ? Number(ev.match_second) : 0;
+                        const stackKey = getStackKey(seconds);
+                        const count = stackBuckets.has(stackKey) ? stackBuckets.get(stackKey) : 0;
+                        stackBuckets.set(stackKey, count + 1);
+                  });
+                  sortedEvents.forEach((ev) => {
                         if (isPeriodEvent(ev)) {
                               return;
                         }
                         const labelText = displayEventLabel(ev, row.label);
                         const matrixTimeLabel = h(formatMatchSecond(ev.match_second).text);
                         const seconds = Number.isFinite(Number(ev.match_second)) ? Number(ev.match_second) : 0;
-                        const position = Math.min(Math.max(0, seconds * timelineZoom.pixelsPerSecond * timelineZoom.scale), timelineWidth);
+                        const displaySecond = timelineMetrics.mapSecond ? timelineMetrics.mapSecond(seconds) : seconds;
+                        const position = Math.min(Math.max(0, displaySecond * timelineZoom.pixelsPerSecond * timelineZoom.scale), timelineWidth);
+                        const stackKey = getStackKey(seconds);
+                        const stackIndex = stackIndexMap.has(stackKey) ? stackIndexMap.get(stackKey) : 0;
+                        stackIndexMap.set(stackKey, stackIndex + 1);
+                        const stackCount = stackBuckets.has(stackKey) ? stackBuckets.get(stackKey) : 1;
+                        const spacingX = 14;
+                        const stackX = (stackIndex - (stackCount - 1) / 2) * spacingX;
+                        const stackY = 0;
+                        const stackZ = 5 + Math.min(stackIndex, 12);
                         const rawImportance = parseInt(ev.importance, 10);
                         const importance = Number.isNaN(rawImportance) ? 1 : rawImportance;
                         const baseAccent = eventTypeAccents[String(row.id)] || EVENT_NEUTRAL;
@@ -2576,7 +2636,7 @@ $(function () {
                               ev.team_side === 'home' ? '#3b82f6' : ev.team_side === 'away' ? '#f97316' : baseAccent;
                         const emphasisHighlight =
                               importance >= 4 ? 'border: 1px solid var(--event-color-strong, rgba(148, 163, 184, 0.55));' : '';
-                        const dotStyle = `${buildColorStyle(teamColor)}left:${position}px; ${emphasisHighlight}`;
+                        const dotStyle = `${buildColorStyle(teamColor)}left:${position}px; --stack-x:${stackX}px; --stack-y:${stackY}px; z-index:${stackZ}; ${emphasisHighlight}`;
                         const clipNumeric = getEventOrClipId(ev);
                         const eventClipId = Number.isFinite(clipNumeric) && clipNumeric > 0 ? String(clipNumeric) : null;
                         const clipAttributes = ` draggable="true"${eventClipId ? ` data-clip-id="${eventClipId}"` : ''}`;
@@ -3033,10 +3093,11 @@ $(function () {
             if (!Number.isFinite(normalized)) {
                   return;
             }
+            const displaySeconds = timelineMetrics.mapSecond ? timelineMetrics.mapSecond(normalized) : normalized;
             const offset = axisOffset();
             const center = viewportEl.clientWidth / 2;
             const target =
-                  Math.max(0, normalized * timelineZoom.pixelsPerSecond * timelineZoom.scale + offset - center);
+                  Math.max(0, displaySeconds * timelineZoom.pixelsPerSecond * timelineZoom.scale + offset - center);
             viewportEl.scrollLeft = clampScrollValue(target, viewportEl);
       }
 

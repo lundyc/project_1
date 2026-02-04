@@ -3720,7 +3720,7 @@ select.input-dark {
   border-radius: 25%;
   background: var(--accent-primary);
   opacity: 0.95;
-  transform: translateX(-50%);
+  transform: translateX(calc(-50% + var(--stack-x, 0px))) translateY(var(--stack-y, 0px));
   cursor: grab;
   touch-action: none;
 }
