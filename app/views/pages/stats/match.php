@@ -29,7 +29,6 @@ foreach ($pairs as [$homeKey, $awayKey]) {
         $awayValue = $match[$awayKey];
         if ($homeValue !== null && $awayValue !== null && $homeValue !== '' && $awayValue !== '') {
             $matchScore = sprintf('%s - %s', $homeValue, $awayValue);
-            break;
         }
     }
 }
@@ -794,20 +793,31 @@ include __DIR__ . '/../../partials/header.php';
                                 <p class="text-xs text-slate-500 mb-1 text-center">Shot targets</p>
                                 <svg id="home-shot-targets" viewBox="0 0 120 60" class="w-full h-full" style="max-height: 200px;">
                                     <!-- Goal face with grid -->
-                                    <line x1="20" y1="10" x2="20" y2="50" stroke="#e5e7eb" stroke-width="3"/>
-                                    <line x1="100" y1="10" x2="100" y2="50" stroke="#e5e7eb" stroke-width="3"/>
-                                    <line x1="20" y1="10" x2="100" y2="10" stroke="#e5e7eb" stroke-width="3"/>
-                                    <line x1="30" y1="20" x2="30" y2="50" stroke="#9ca3af" stroke-width="1"/>
-                                    <line x1="40" y1="20" x2="40" y2="50" stroke="#9ca3af" stroke-width="1"/>
-                                    <line x1="50" y1="20" x2="50" y2="50" stroke="#9ca3af" stroke-width="1"/>
-                                    <line x1="60" y1="20" x2="60" y2="50" stroke="#9ca3af" stroke-width="1"/>
-                                    <line x1="70" y1="20" x2="70" y2="50" stroke="#9ca3af" stroke-width="1"/>
-                                    <line x1="80" y1="20" x2="80" y2="50" stroke="#9ca3af" stroke-width="1"/>
-                                    <line x1="90" y1="20" x2="90" y2="50" stroke="#9ca3af" stroke-width="1"/>
-                                    <line x1="30" y1="20" x2="90" y2="20" stroke="#9ca3af" stroke-width="1"/>
-                                    <line x1="30" y1="30" x2="90" y2="30" stroke="#9ca3af" stroke-width="1"/>
-                                    <line x1="30" y1="40" x2="90" y2="40" stroke="#9ca3af" stroke-width="1"/>
-                                    <line x1="30" y1="50" x2="90" y2="50" stroke="#9ca3af" stroke-width="1"/>
+                                    <line x1="18" y1="8" x2="18" y2="54" stroke="#e5e7eb" stroke-width="3"/>
+                                    <line x1="102" y1="8" x2="102" y2="54" stroke="#e5e7eb" stroke-width="3"/>
+                                    <line x1="18" y1="8" x2="102" y2="8" stroke="#e5e7eb" stroke-width="3"/>
+
+                                    <line x1="28" y1="12" x2="28" y2="54" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="34" y1="12" x2="34" y2="54" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="40" y1="12" x2="40" y2="54" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="46" y1="12" x2="46" y2="54" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="52" y1="12" x2="52" y2="54" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="58" y1="12" x2="58" y2="54" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="64" y1="12" x2="64" y2="54" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="70" y1="12" x2="70" y2="54" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="76" y1="12" x2="76" y2="54" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="82" y1="12" x2="82" y2="54" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="88" y1="12" x2="88" y2="54" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="94" y1="12" x2="94" y2="54" stroke="#72777f" stroke-width="0.2"/>
+
+                                    <line x1="22" y1="12" x2="98" y2="12" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="22" y1="18" x2="98" y2="18" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="22" y1="24" x2="98" y2="24" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="22" y1="30" x2="98" y2="30" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="22" y1="36" x2="98" y2="36" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="22" y1="42" x2="98" y2="42" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="22" y1="48" x2="98" y2="48" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="22" y1="54" x2="98" y2="54" stroke="#72777f" stroke-width="0.2"/>
                                     <g id="home-target-markers"></g>
                                 </svg>
                             </div>
@@ -832,20 +842,30 @@ include __DIR__ . '/../../partials/header.php';
                                 <p class="text-xs text-slate-500 mb-1 text-center">Shot targets</p>
                                 <svg id="away-shot-targets" viewBox="0 0 120 60" class="w-full h-full" style="max-height: 200px;">
                                     <!-- Goal face with grid -->
-                                    <line x1="20" y1="10" x2="20" y2="50" stroke="#e5e7eb" stroke-width="3"/>
-                                    <line x1="100" y1="10" x2="100" y2="50" stroke="#e5e7eb" stroke-width="3"/>
-                                    <line x1="20" y1="10" x2="100" y2="10" stroke="#e5e7eb" stroke-width="3"/>
-                                    <line x1="30" y1="20" x2="30" y2="50" stroke="#9ca3af" stroke-width="1"/>
-                                    <line x1="40" y1="20" x2="40" y2="50" stroke="#9ca3af" stroke-width="1"/>
-                                    <line x1="50" y1="20" x2="50" y2="50" stroke="#9ca3af" stroke-width="1"/>
-                                    <line x1="60" y1="20" x2="60" y2="50" stroke="#9ca3af" stroke-width="1"/>
-                                    <line x1="70" y1="20" x2="70" y2="50" stroke="#9ca3af" stroke-width="1"/>
-                                    <line x1="80" y1="20" x2="80" y2="50" stroke="#9ca3af" stroke-width="1"/>
-                                    <line x1="90" y1="20" x2="90" y2="50" stroke="#9ca3af" stroke-width="1"/>
-                                    <line x1="30" y1="20" x2="90" y2="20" stroke="#9ca3af" stroke-width="1"/>
-                                    <line x1="30" y1="30" x2="90" y2="30" stroke="#9ca3af" stroke-width="1"/>
-                                    <line x1="30" y1="40" x2="90" y2="40" stroke="#9ca3af" stroke-width="1"/>
-                                    <line x1="30" y1="50" x2="90" y2="50" stroke="#9ca3af" stroke-width="1"/>
+                                    <line x1="18" y1="8" x2="18" y2="54" stroke="#e5e7eb" stroke-width="3"/>
+                                    <line x1="102" y1="8" x2="102" y2="54" stroke="#e5e7eb" stroke-width="3"/>
+                                    <line x1="18" y1="8" x2="102" y2="8" stroke="#e5e7eb" stroke-width="3"/>
+
+                                    <line x1="28" y1="12" x2="28" y2="54" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="34" y1="12" x2="34" y2="54" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="40" y1="12" x2="40" y2="54" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="46" y1="12" x2="46" y2="54" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="52" y1="12" x2="52" y2="54" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="58" y1="12" x2="58" y2="54" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="64" y1="12" x2="64" y2="54" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="70" y1="12" x2="70" y2="54" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="76" y1="12" x2="76" y2="54" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="82" y1="12" x2="82" y2="54" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="88" y1="12" x2="88" y2="54" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="94" y1="12" x2="94" y2="54" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="22" y1="12" x2="98" y2="12" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="22" y1="18" x2="98" y2="18" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="22" y1="24" x2="98" y2="24" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="22" y1="30" x2="98" y2="30" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="22" y1="36" x2="98" y2="36" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="22" y1="42" x2="98" y2="42" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="22" y1="48" x2="98" y2="48" stroke="#72777f" stroke-width="0.2"/>
+                                    <line x1="22" y1="54" x2="98" y2="54" stroke="#72777f" stroke-width="0.2"/>
                                     <g id="away-target-markers"></g>
                                 </svg>
                             </div>
@@ -2484,13 +2504,16 @@ include __DIR__ . '/../../partials/header.php';
                 const targetX = Number(shot.shot_target_x);
                 const targetY = Number(shot.shot_target_y);
                 const teamSide = shot.team_side === 'away' ? 'away' : 'home';
+                const isGoal = (shot.event_type_key && String(shot.event_type_key).toLowerCase().includes('goal')) ||
+                    (shot.event_type_label && String(shot.event_type_label).toLowerCase().includes('goal'));
 
                 // Select appropriate marker containers
                 const originMarkersEl = teamSide === 'home' ? homeOriginMarkersEl : awayOriginMarkersEl;
                 const targetMarkersEl = teamSide === 'home' ? homeTargetMarkersEl : awayTargetMarkersEl;
 
                 // Color based on team
-                const color = teamSide === 'home' ? '#3b82f6' : '#ef4444';
+                const color = teamSide === 'home' ? '#ef4444' : '#ef4444';
+                const goalColor = '#22c55e';
 
                 // Render origin marker if coordinates exist (pitch view: 100x100)
                 if (hasOrigin && Number.isFinite(originX) && Number.isFinite(originY)) {
@@ -2501,7 +2524,7 @@ include __DIR__ . '/../../partials/header.php';
                     originCircle.setAttribute('cx', svgOriginX);
                     originCircle.setAttribute('cy', svgOriginY);
                     originCircle.setAttribute('r', '2');
-                    originCircle.setAttribute('fill', color);
+                    originCircle.setAttribute('fill', isGoal ? goalColor : color);
                     originCircle.setAttribute('opacity', '0.7');
                     
                     const originTitle = document.createElementNS('http://www.w3.org/2000/svg', 'title');
@@ -2516,20 +2539,33 @@ include __DIR__ . '/../../partials/header.php';
                     const svgTargetX = targetX * 120;
                     const svgTargetY = targetY * 60;
                     
-                    const targetCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                    targetCircle.setAttribute('cx', svgTargetX);
-                    targetCircle.setAttribute('cy', svgTargetY);
-                    targetCircle.setAttribute('r', '3');
-                    targetCircle.setAttribute('fill', color);
-                    targetCircle.setAttribute('opacity', '0.8');
-                    targetCircle.setAttribute('stroke', 'white');
-                    targetCircle.setAttribute('stroke-width', '0.5');
-                    
-                    const targetTitle = document.createElementNS('http://www.w3.org/2000/svg', 'title');
-                    targetTitle.textContent = `${teamSide === 'home' ? 'Home' : 'Away'} shot target`;
-                    targetCircle.appendChild(targetTitle);
-                    
-                    if (targetMarkersEl) targetMarkersEl.appendChild(targetCircle);
+                    if (isGoal) {
+                        const football = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                        football.setAttribute('cx', svgTargetX);
+                        football.setAttribute('cy', svgTargetY);
+                        football.setAttribute('r', '2');
+                        football.setAttribute('fill', goalColor);
+                        football.setAttribute('stroke', '#ffffff');
+                        football.setAttribute('stroke-width', '0.3');
+                        football.setAttribute('opacity', '1');
+                        const footballTitle = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+                        footballTitle.textContent = `${teamSide === 'home' ? 'Home' : 'Away'} goal`;
+                        football.appendChild(footballTitle);
+                        if (targetMarkersEl) targetMarkersEl.appendChild(football);
+                    } else {
+                        const targetCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                        targetCircle.setAttribute('cx', svgTargetX);
+                        targetCircle.setAttribute('cy', svgTargetY);
+                        targetCircle.setAttribute('r', '2');
+                        targetCircle.setAttribute('fill', color);
+                        targetCircle.setAttribute('opacity', '0.8');
+                        targetCircle.setAttribute('stroke', 'white');
+                        targetCircle.setAttribute('stroke-width', '0.5');
+                        const targetTitle = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+                        targetTitle.textContent = `${teamSide === 'home' ? 'Home' : 'Away'} shot target`;
+                        targetCircle.appendChild(targetTitle);
+                        if (targetMarkersEl) targetMarkersEl.appendChild(targetCircle);
+                    }
                 }
             });
         }

@@ -43,25 +43,41 @@ try {
     }
 
     $pdo = db();
-    $typeStmt = $pdo->query("SELECT id FROM event_types WHERE type_key = 'shot' LIMIT 1");
-    $shotTypeId = (int)$typeStmt->fetchColumn();
+    $typeStmt = $pdo->query("SELECT id, type_key, label FROM event_types WHERE type_key IN ('shot', 'goal')");
+    $typeRows = $typeStmt->fetchAll(PDO::FETCH_ASSOC);
+    $typeIds = array_values(array_filter(array_map(static function ($row) {
+        return isset($row['id']) ? (int)$row['id'] : null;
+    }, $typeRows)));
+    if (!$typeIds) {
+        echo json_encode([
+            'success' => true,
+            'data' => [
+                'shots' => [],
+            ],
+        ]);
+        exit;
+    }
+    $placeholders = implode(',', array_fill(0, count($typeIds), '?'));
 
-    $stmt = $pdo->prepare('
-        SELECT 
-            id,
-            team_side,
-            match_second,
-            shot_origin_x,
-            shot_origin_y,
-            shot_target_x,
-            shot_target_y
-        FROM events
-        WHERE match_id = :match_id
-            AND event_type_id = :shot_type_id
-            AND (shot_origin_x IS NOT NULL OR shot_target_x IS NOT NULL)
-        ORDER BY match_second ASC
-    ');
-    $stmt->execute(['match_id' => $matchId, 'shot_type_id' => $shotTypeId]);
+    $stmt = $pdo->prepare(
+        "SELECT 
+            e.id,
+            e.team_side,
+            e.match_second,
+            e.shot_origin_x,
+            e.shot_origin_y,
+            e.shot_target_x,
+            e.shot_target_y,
+            et.type_key AS event_type_key,
+            et.label AS event_type_label
+        FROM events e
+        JOIN event_types et ON et.id = e.event_type_id
+        WHERE e.match_id = ?
+            AND e.event_type_id IN ($placeholders)
+            AND (e.shot_origin_x IS NOT NULL OR e.shot_target_x IS NOT NULL)
+        ORDER BY e.match_second ASC"
+    );
+    $stmt->execute(array_merge([$matchId], $typeIds));
     $shots = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     echo json_encode([

@@ -24,7 +24,7 @@ function log_security_event(string $eventType, array $context = []): void
           $logEntry = [
                     'timestamp' => date('c'),
                     'event_type' => $eventType,
-                    'ip_address' => get_client_ip(),
+                    // 'ip_address' => get_client_ip(), // get_client_ip() is defined in rate_limit.php; do not redeclare here.
                     'user_id' => $_SESSION['user_id'] ?? null,
                     'session_id' => session_id(),
                     'user_agent' => substr($_SERVER['HTTP_USER_AGENT'] ?? 'unknown', 0, 255),
@@ -170,31 +170,6 @@ function log_privilege_escalation_attempt(int $userId, string $attemptedRole): v
                     'user_id' => $userId,
                     'attempted_role' => $attemptedRole,
           ]);
-}
-
-/**
- * Get client IP address with fallback
- * 
- * @return string Client IP address or 'unknown'
- */
-function get_client_ip(): string
-{
-          // Check for shared internet
-          if (!empty($_SERVER['HTTP_CLIENT_IP'])) {
-                    return trim(explode(',', $_SERVER['HTTP_CLIENT_IP'])[0]);
-          }
-          
-          // Check for proxy
-          if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-                    return trim(explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'])[0]);
-          }
-          
-          // Direct connection
-          if (!empty($_SERVER['REMOTE_ADDR'])) {
-                    return $_SERVER['REMOTE_ADDR'];
-          }
-          
-          return 'unknown';
 }
 
 /**

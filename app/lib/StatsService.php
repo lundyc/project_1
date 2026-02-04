@@ -1538,7 +1538,11 @@ class StatsService
         $desiredFormLimit = $formLimit !== null ? max(1, min(10, $formLimit)) : 5;
         
         $where = ['m.club_id = :club_id', 'm.status = "ready"'];
-        $params = ['club_id' => $this->clubId, 'goal_type_id' => $goalTypeId];
+        $params = [
+            'club_id' => $this->clubId,
+            'goal_type_id_home' => $goalTypeId,
+            'goal_type_id_away' => $goalTypeId,
+        ];
         
         if ($seasonId !== null) {
             $where[] = 'm.season_id = :season_id';
@@ -1565,13 +1569,13 @@ class StatsService
                     SELECT COUNT(*) FROM events e
                     WHERE e.match_id = m.id
                       AND e.team_side = "home"
-                      AND e.event_type_id = :goal_type_id
+                      AND e.event_type_id = :goal_type_id_home
                 ), 0) AS home_goals,
                 COALESCE((
                     SELECT COUNT(*) FROM events e
                     WHERE e.match_id = m.id
                       AND e.team_side = "away"
-                      AND e.event_type_id = :goal_type_id
+                      AND e.event_type_id = :goal_type_id_away
                 ), 0) AS away_goals
             FROM matches m
             LEFT JOIN competitions c ON c.id = m.competition_id
@@ -1714,8 +1718,16 @@ class StatsService
         $where = ['m.club_id = :club_id', 'm.status = "ready"'];
         $params = [
             'club_id' => $this->clubId,
-            'team_id' => $this->primaryTeamId,
-            'goal_type_id' => $goalTypeId,
+            'team_id_home_gk' => $this->primaryTeamId,
+            'team_id_away_gk' => $this->primaryTeamId,
+            'team_id_home_gk2' => $this->primaryTeamId,
+            'team_id_away_gk2' => $this->primaryTeamId,
+            'team_id_home_clean' => $this->primaryTeamId,
+            'team_id_away_clean' => $this->primaryTeamId,
+            'goal_type_id_home' => $goalTypeId,
+            'goal_type_id_away' => $goalTypeId,
+            'goal_type_id_opponent' => $goalTypeId,
+            'goal_type_id_opponent_home' => $goalTypeId,
         ];
 
         if ($seasonId !== null) {
@@ -1740,13 +1752,13 @@ class StatsService
                     SELECT COUNT(*) FROM events e
                     WHERE e.match_id = m.id
                       AND e.team_side = "home"
-                      AND e.event_type_id = :goal_type_id
+                      AND e.event_type_id = :goal_type_id_home
                 ), 0) AS home_goals,
                 COALESCE((
                     SELECT COUNT(*) FROM events e
                     WHERE e.match_id = m.id
                       AND e.team_side = "away"
-                      AND e.event_type_id = :goal_type_id
+                      AND e.event_type_id = :goal_type_id_away
                                 ), 0) AS away_goals,
                                 COALESCE(
                                         (
@@ -1757,8 +1769,8 @@ class StatsService
                                                     AND mp.is_starting = 1
                                                     AND mp.position_label = "GK"
                                                     AND (
-                                                        (m.home_team_id = :team_id AND mp.team_side = "home") OR
-                                                        (m.away_team_id = :team_id AND mp.team_side = "away")
+                                                        (m.home_team_id = :team_id_home_gk AND mp.team_side = "home") OR
+                                                        (m.away_team_id = :team_id_away_gk AND mp.team_side = "away")
                                                     )
                                                 LIMIT 1
                                         ),
@@ -1770,8 +1782,8 @@ class StatsService
                                                     AND mp2.is_starting = 1
                                                     AND COALESCE(mp2.shirt_number, 0) = 1
                                                     AND (
-                                                        (m.home_team_id = :team_id AND mp2.team_side = "home") OR
-                                                        (m.away_team_id = :team_id AND mp2.team_side = "away")
+                                                        (m.home_team_id = :team_id_home_gk2 AND mp2.team_side = "home") OR
+                                                        (m.away_team_id = :team_id_away_gk2 AND mp2.team_side = "away")
                                                     )
                                                 LIMIT 1
                                         )
@@ -1782,14 +1794,14 @@ class StatsService
             LEFT JOIN teams at ON at.id = m.away_team_id
             WHERE ' . $whereClause . '
               AND (
-                (m.home_team_id = :team_id AND (
+                (m.home_team_id = :team_id_home_clean AND (
                     SELECT COUNT(*) FROM events e
-                    WHERE e.match_id = m.id AND e.team_side = "away" AND e.event_type_id = :goal_type_id
+                    WHERE e.match_id = m.id AND e.team_side = "away" AND e.event_type_id = :goal_type_id_opponent
                 ) = 0)
                 OR
-                (m.away_team_id = :team_id AND (
+                (m.away_team_id = :team_id_away_clean AND (
                     SELECT COUNT(*) FROM events e
-                    WHERE e.match_id = m.id AND e.team_side = "home" AND e.event_type_id = :goal_type_id
+                    WHERE e.match_id = m.id AND e.team_side = "home" AND e.event_type_id = :goal_type_id_opponent_home
                 ) = 0)
               )
             ORDER BY m.kickoff_at DESC, m.id DESC
