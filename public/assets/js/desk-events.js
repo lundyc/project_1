@@ -1435,6 +1435,80 @@ $(function () {
                   }
             }
             $goalPlayerModal.removeAttr('hidden').attr('aria-hidden', 'false').addClass('is-active');
+
+            // --- Goal SVG rendering integration (mirrors shot recorder) ---
+            setTimeout(function () {
+                  const goalOriginSvg = document.getElementById('goalOriginSvg');
+                  const goalTargetSvg = document.getElementById('goalTargetSvg');
+
+                  if (goalOriginSvg && goalOriginSvg.childNodes.length === 0 && typeof window.renderShotOriginSvg === 'function') {
+                        window.renderShotOriginSvg(goalOriginSvg);
+                  }
+                  if (goalTargetSvg && goalTargetSvg.childNodes.length === 0 && typeof window.renderShotTargetSvg === 'function') {
+                        window.renderShotTargetSvg(goalTargetSvg);
+                  }
+
+                  if (goalOriginSvg && typeof window.attachSinglePointHandler === 'function') {
+                        window.attachSinglePointHandler(goalOriginSvg, 'origin');
+                  }
+                  if (goalTargetSvg && typeof window.attachSinglePointHandler === 'function') {
+                        window.attachSinglePointHandler(goalTargetSvg, 'target');
+                  }
+
+                  const originPoint = (payload.shot_origin_x !== null && payload.shot_origin_x !== undefined
+                        && payload.shot_origin_y !== null && payload.shot_origin_y !== undefined)
+                        ? { x: Number(payload.shot_origin_x), y: Number(payload.shot_origin_y) }
+                        : null;
+
+                  const targetPoint = (payload.shot_target_x !== null && payload.shot_target_x !== undefined
+                        && payload.shot_target_y !== null && payload.shot_target_y !== undefined)
+                        ? { x: Number(payload.shot_target_x), y: Number(payload.shot_target_y) }
+                        : null;
+
+                  if (originPoint) {
+                        if (typeof window.setShotPointState === 'function') {
+                              window.setShotPointState('origin', originPoint);
+                        } else {
+                              window.shotOriginPoint = originPoint;
+                              window.shotOriginCleared = false;
+                        }
+                        if (typeof window.renderShotPoint === 'function') {
+                              window.renderShotPoint('origin', originPoint);
+                        }
+                  } else {
+                        if (typeof window.clearShotPointState === 'function') {
+                              window.clearShotPointState('origin');
+                        } else {
+                              window.shotOriginPoint = null;
+                              window.shotOriginCleared = false;
+                        }
+                        if (typeof window.renderShotPoint === 'function') {
+                              window.renderShotPoint('origin', null);
+                        }
+                  }
+
+                  if (targetPoint) {
+                        if (typeof window.setShotPointState === 'function') {
+                              window.setShotPointState('target', targetPoint);
+                        } else {
+                              window.shotTargetPoint = targetPoint;
+                              window.shotTargetCleared = false;
+                        }
+                        if (typeof window.renderShotPoint === 'function') {
+                              window.renderShotPoint('target', targetPoint);
+                        }
+                  } else {
+                        if (typeof window.clearShotPointState === 'function') {
+                              window.clearShotPointState('target');
+                        } else {
+                              window.shotTargetPoint = null;
+                              window.shotTargetCleared = false;
+                        }
+                        if (typeof window.renderShotPoint === 'function') {
+                              window.renderShotPoint('target', null);
+                        }
+                  }
+            }, 0);
       }
 
       function closeGoalPlayerModal() {
@@ -1479,7 +1553,9 @@ $(function () {
                   setGoalPlayerOptionsEnabled(true);
                   return;
             }
-            $.post(url, payload)
+            const payloadToSend = { ...payload };
+            Object.assign(payloadToSend, buildShotLocationPayload());
+            $.post(url, payloadToSend)
                   .done((res) => {
                         if (!res.ok) {
                               showError('Save failed', res.error || 'Unknown');
@@ -1492,8 +1568,8 @@ $(function () {
                         setEditorCollapsed(true, 'Click a timeline item to edit details', true);
                         showToast(
                               `${label || 'Goal'} tagged at ${formatMatchSecondWithExtra(
-                                    payload.match_second,
-                                    payload.minute_extra || 0
+                                    payloadToSend.match_second,
+                                    payloadToSend.minute_extra || 0
                               )}`
                         );
                         setStatus('Tagged');
@@ -2477,19 +2553,66 @@ $(function () {
                   return;
             }
 
+            const staticTypeOrder = [
+                  'goal',
+                  'shot',
+                  'chance',
+                  'penalty',
+                  'corner',
+                  'free_kick',
+                  'offside',
+                  'foul',
+                  'yellow_card',
+                  'red_card',
+                  'mistake',
+                  'turnover',
+                  'good_play',
+                  'highlight',
+                  'other',
+            ];
+            const normalizeKey = (value) => (value || '').toLowerCase().replace(/[_\s]/g, '');
+            const orderIndex = new Map(staticTypeOrder.map((key, idx) => [normalizeKey(key), idx]));
+
             const rowMap = new Map();
+            (cfg.eventTypes || []).forEach((type) => {
+                  if (!type || !type.id) return;
+                  const label = type.label || type.type_key || 'Event';
+                  rowMap.set(String(type.id), {
+                        id: type.id,
+                        label,
+                        events: [],
+                        typeKey: type.type_key || '',
+                  });
+            });
+
             (filtered || []).forEach((ev) => {
                   if (isPeriodEvent(ev)) {
                         return;
                   }
-                  const label = displayEventLabel(ev, ev.event_type_label || 'Event');
-                  const key = `${ev.event_type_id || 'unknown'}::${label}`;
-                  if (!rowMap.has(key)) {
-                        rowMap.set(key, { id: ev.event_type_id, label, events: [] });
+                  const typeId = ev.event_type_id ? String(ev.event_type_id) : '';
+                  let row = typeId ? rowMap.get(typeId) : null;
+                  if (!row) {
+                        const fallbackKey = normalizeKey(ev.event_type_key || ev.event_type_label || '');
+                        const mapped = eventTypeKeyMap[fallbackKey] || eventTypeKeyMap[normalizeKey(ev.event_type_key || '')] || null;
+                        if (mapped && mapped.id) {
+                              row = rowMap.get(String(mapped.id)) || null;
+                        }
                   }
-                  rowMap.get(key).events.push(ev);
+                  if (!row) {
+                        // If we still can't resolve, skip to avoid introducing a new type row.
+                        return;
+                  }
+                  row.events.push(ev);
             });
-            const typeRows = Array.from(rowMap.values());
+
+            const typeRows = Array.from(rowMap.values()).sort((a, b) => {
+                  const aKey = normalizeKey(a.typeKey || a.label);
+                  const bKey = normalizeKey(b.typeKey || b.label);
+                  const aIdx = orderIndex.has(aKey) ? orderIndex.get(aKey) : Number.MAX_SAFE_INTEGER;
+                  const bIdx = orderIndex.has(bKey) ? orderIndex.get(bKey) : Number.MAX_SAFE_INTEGER;
+                  if (aIdx !== bIdx) return aIdx - bIdx;
+                  return String(a.label).localeCompare(String(b.label));
+            }).filter((row) => (row.events || []).length > 0);
             const periodMarkers = (filtered || [])
                   .filter((ev) => (ev.event_type_key === 'period_start' || ev.event_type_key === 'period_end') && ev.match_second !== null && ev.match_second !== undefined)
                   .map((ev) => ({
@@ -2499,6 +2622,57 @@ $(function () {
                         edge: ev.event_type_key === 'period_start' ? 'start' : 'end',
                   }))
                   .sort((a, b) => a.second - b.second);
+
+            const markerPeriodKey = (label) => {
+                  const normalized = normalizePeriodLabel(label)
+                        .replace(/\b(start|end)\b/g, '')
+                        .replace(/\s+/g, ' ')
+                        .trim();
+                  if (!normalized) return null;
+                  return periodLabelToKey.get(normalized) || normalized.replace(/[^a-z0-9]+/g, '_');
+            };
+
+            let firstHalfEndSecond = null;
+            if (typeof periodState !== 'undefined' && periodState && periodState.first_half) {
+                  const endSecond = Number(periodState.first_half.endMatchSecond);
+                  if (Number.isFinite(endSecond)) {
+                        firstHalfEndSecond = endSecond;
+                  }
+            }
+
+            if (!Number.isFinite(firstHalfEndSecond)) {
+                  (filtered || []).forEach((ev) => {
+                        const key = canonicalizePeriodKey(ev.period_key, ev.period_label);
+                        if (key !== 'first_half') return;
+                        const seconds = Number(ev.match_second);
+                        if (!Number.isFinite(seconds)) return;
+                        if (!Number.isFinite(firstHalfEndSecond) || seconds > firstHalfEndSecond) {
+                              firstHalfEndSecond = seconds;
+                        }
+                  });
+            }
+
+            if (Number.isFinite(firstHalfEndSecond)) {
+                  const halfLabel = (periodState && periodState.first_half && periodState.first_half.label)
+                        ? periodState.first_half.label
+                        : 'First Half';
+                  const halfMarkerLabel = `${halfLabel} End`;
+                  const existingIndex = periodMarkers.findIndex(
+                        (marker) => marker.edge === 'end' && markerPeriodKey(marker.label) === 'first_half'
+                  );
+                  if (existingIndex >= 0) {
+                        periodMarkers[existingIndex].second = firstHalfEndSecond;
+                        periodMarkers[existingIndex].label = halfMarkerLabel;
+                  } else {
+                        periodMarkers.push({
+                              id: 'half_time_divider',
+                              label: halfMarkerLabel,
+                              second: firstHalfEndSecond,
+                              edge: 'end',
+                        });
+                  }
+                  periodMarkers.sort((a, b) => a.second - b.second);
+            }
             const breaks = [];
             const breakGapSeconds = 60;
             for (let i = 0; i < periodMarkers.length - 1; i += 1) {
@@ -2562,9 +2736,10 @@ $(function () {
                   periodMarkers.forEach((marker) => {
                         const displaySecond = timelineMetrics.mapSecond ? timelineMetrics.mapSecond(marker.second) : marker.second;
                         const position = Math.min(Math.max(0, displaySecond * timelineZoom.pixelsPerSecond * timelineZoom.scale), timelineWidth);
-                        html += `<button type="button" class="matrix-period-marker" data-period-id="${marker.id}" data-period-edge="${marker.edge}" data-second="${marker.second}" data-tooltip="${h(
-                              marker.label
-                        )}" style="left:${position}px">`;
+                        const periodLabel = typeof marker.label === 'string' ? marker.label.toLowerCase() : '';
+                        html += `<button type="button" class="matrix-period-marker" data-period-id="${marker.id}" data-period-edge="${marker.edge}" data-period-label="${h(
+                              periodLabel
+                        )}" data-second="${marker.second}" data-tooltip="${h(marker.label)}" style="left:${position}px">`;
                         html += `<span class="matrix-period-marker-line"></span>`;
                         html += '</button>';
                   });
@@ -2582,7 +2757,8 @@ $(function () {
             typeRows.forEach((row) => {
                   const accentColor = eventTypeAccents[String(row.id)] || EVENT_NEUTRAL;
                   const accentStyle = buildColorStyle(accentColor);
-                  html += `<div class="matrix-grid" style="${gridColumnsStyle}">`;
+                  const rowTypeKey = (row.typeKey || '').toLowerCase();
+                  html += `<div class="matrix-grid" data-event-type-key="${h(rowTypeKey)}" style="${gridColumnsStyle}">`;
                   html += `<div class="matrix-type" style="${accentStyle}">${h(row.label)}</div>`;
                   html += `<div class="matrix-track" style="width:${timelineWidth}px">`;
                   html += `<div class="matrix-row-buckets" style="grid-template-columns:${bucketColumns}; width:${timelineWidth}px">`;
@@ -2625,9 +2801,9 @@ $(function () {
                         const stackIndex = stackIndexMap.has(stackKey) ? stackIndexMap.get(stackKey) : 0;
                         stackIndexMap.set(stackKey, stackIndex + 1);
                         const stackCount = stackBuckets.has(stackKey) ? stackBuckets.get(stackKey) : 1;
-                        const spacingX = 14;
-                        const stackX = (stackIndex - (stackCount - 1) / 2) * spacingX;
-                        const stackY = 0;
+                        const spacingX = 10;
+                        const stackX = stackCount > 1 ? (stackIndex - (stackCount - 1) / 2) * spacingX : 0;
+                        const stackY = stackCount > 1 ? Math.floor(stackIndex / 3) * 5 : 0;
                         const stackZ = 5 + Math.min(stackIndex, 12);
                         const rawImportance = parseInt(ev.importance, 10);
                         const importance = Number.isNaN(rawImportance) ? 1 : rawImportance;
@@ -2640,7 +2816,8 @@ $(function () {
                         const clipNumeric = getEventOrClipId(ev);
                         const eventClipId = Number.isFinite(clipNumeric) && clipNumeric > 0 ? String(clipNumeric) : null;
                         const clipAttributes = ` draggable="true"${eventClipId ? ` data-clip-id="${eventClipId}"` : ''}`;
-                        html += `<span class="matrix-dot"${clipAttributes} data-second="${ev.match_second}" data-event-id="${ev.id}" title="${matrixTimeLabel} - ${h(
+                        const evTypeKey = typeof ev.event_type_key === 'string' ? ev.event_type_key.toLowerCase() : '';
+                        html += `<span class="matrix-dot"${clipAttributes} data-event-type-key="${h(evTypeKey)}" data-second="${ev.match_second}" data-event-id="${ev.id}" title="${matrixTimeLabel} - ${h(
                               labelText
                         )} (${h(ev.team_side || 'team')})" style="${dotStyle}"></span>`;
                   });
@@ -5073,6 +5250,9 @@ $(function () {
             $(document).on('click', '.desk-mode-button', function () {
                   const $btn = $(this);
                   const mode = $btn.data('mode');
+                  if (!mode) {
+                        return;
+                  }
 
                   // Update button states
                   $btn.closest('.desk-mode-bar').find('.desk-mode-button').each(function () {

@@ -353,7 +353,7 @@ ob_start();
         }
     });
 </script>
-<div class="desk-shell<?= $videoLabEnabled ? '' : ' desk-shell--video-disabled' ?>" style="">
+<div class="desk-shell<?= $videoLabEnabled ? '' : ' desk-shell--video-disabled' ?>">
     <?php if (!$videoLabEnabled): ?>
         <style>
             .desk-shell--video-disabled .video-header,
@@ -390,8 +390,7 @@ ob_start();
                         </div>
                         <div class="video-actions">
                                 <div class="video-actions-left">
-                                    <a class="ghost-btn ghost-btn-sm stats-btn" href="<?= htmlspecialchars($base) ?>/stats/match/<?= $matchId ?>">Stats</a>
-                                    <button type="button" class="ghost-btn ghost-btn-sm lineup-toggle-btn" data-desk-lineup-button data-match-id="<?= $matchId ?>" aria-pressed="false">Lineup</button>
+                                           
                                     <?php if (!empty($videoFormats) && count($videoFormats) > 1): ?>
                                     <div class="video-format-toggle" data-video-format-toggle>
                                         <?php foreach ($videoFormats as $format): ?>
@@ -666,7 +665,7 @@ ob_start();
                                   </div>
                               </div>
                               <!-- Move desk-time-display outside controls for persistent visibility -->
-                              <div class="desk-time-display" id="deskTimeDisplay" style="position:absolute;bottom:18px;left:18px;z-index:100;pointer-events:none;background:rgba(0,0,0,0.55);color:#fff;padding:2px 10px;border-radius:6px;font-size:1.1em;user-select:none;box-shadow:0 2px 8px rgba(0,0,0,0.15);">
+                              <div class="desk-time-display" id="deskTimeDisplay">
                                   <span class="desk-time-current">00:00</span>
                                   <span class="desk-time-total-block"> / 00:00</span>
                               </div>
@@ -680,10 +679,10 @@ ob_start();
                                       <div class="desk-timeline-playhead" data-video-timeline-playhead></div>
                                   </div>
                               </div>
-                              <div class="desk-control-group" style="display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; width: 100%; gap: 12px;">
-                                    <div style="justify-self: center; display: flex; gap: 12px;"></div>
+                            <div class="desk-control-group desk-control-group--video">
+                                <div class="desk-control-spacer"></div>
 
-                                     <div style="justify-self: center; display: flex; gap: 12px;">
+                                 <div class="desk-control-center">
                                         <span class="control-btn-shell">
                                             <button id="deskRewind" class="control-btn" aria-label="Back 5 seconds" aria-describedby="tooltip-deskRewind">
                                                 <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>
@@ -703,7 +702,7 @@ ob_start();
                                             <div id="tooltip-deskForward" role="tooltip" class="video-control-tooltip">Forward 5s</div>
                                         </span>
                                     </div>
-                                    <div style="justify-self: end; display: flex; gap: 12px;">
+                                    <div class="desk-control-end">
                                         <span class="control-btn-shell" style="display:none;">
                                             <button id="drawingToolbarToggleBtn" class="control-btn" aria-label="Show/hide drawing toolbar" aria-pressed="false" type="button" aria-describedby="tooltip-drawingToolbarToggle">
                                                 <i class="fa-solid fa-pen-ruler" aria-hidden="true"></i>
@@ -783,73 +782,14 @@ ob_start();
                     <!-- timeline-panel moved below desk-video section -->
                 </div>
                     </section>
-                    <div class="panel-dark timeline-panel timeline-panel-full p-2">
-                        <div class="panel-row">
-                            <div class="text-sm text-subtle">Timeline</div>
-                            <div class="timeline-actions">
-                                <span class="control-btn-shell">
-                                    <button id="timelineDeleteAll" class="ghost-btn ghost-btn-sm desk-editable" type="button" aria-label="Delete all events" aria-describedby="tooltip-timelineDeleteAll">
-                                        <i class="fa-solid fa-trash" aria-hidden="true"></i>
-                                    </button>
-                                    <div id="tooltip-timelineDeleteAll" role="tooltip" class="video-control-tooltip">Delete all events</div>
-                                </span>
-                                <div class="timeline-undo-redo">
-                                    <span class="control-btn-shell">
-                                        <button class="ghost-btn ghost-btn-sm desk-editable" id="eventUndoBtn" type="button" disabled aria-label="Undo" aria-describedby="tooltip-eventUndoBtn">
-                                            <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>
-                                        </button>
-                                        <div id="tooltip-eventUndoBtn" role="tooltip" class="video-control-tooltip">Undo</div>
-                                    </span>
-                                    <span class="control-btn-shell">
-                                        <button class="ghost-btn ghost-btn-sm desk-editable" id="eventRedoBtn" type="button" disabled aria-label="Redo" aria-describedby="tooltip-eventRedoBtn">
-                                            <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
-                                        </button>
-                                        <div id="tooltip-eventRedoBtn" role="tooltip" class="video-control-tooltip">Redo</div>
-                                    </span>
-                                </div>
-                                <div class="timeline-mode">
-                                    <button type="button" class="ghost-btn ghost-btn-sm timeline-mode-btn is-active" data-mode="list">List</button>
-                                    <button type="button" class="ghost-btn ghost-btn-sm timeline-mode-btn" data-mode="matrix">Matrix</button>
-                                </div>
-                                <div class="timeline-filters">
-                                    <select id="filterTeam" class="input-pill input-pill-sm">
-                                        <option value="">All teams</option>
-                                        <option value="home">Home</option>
-                                        <option value="away">Away</option>
-                                        <option value="unknown">Unknown</option>
-                                    </select>
-                                    <select id="filterType" class="input-pill input-pill-sm">
-                                        <option value="">All types</option>
-                                        <?php foreach ($eventTypes as $type): ?>
-                                            <option value="<?= (int)$type['id'] ?>"><?= htmlspecialchars($type['label']) ?></option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                    <select id="filterPlayer" class="input-pill input-pill-sm">
-                                        <option value="">All players</option>
-                                        <?php foreach (array_merge($homePlayers, $awayPlayers) as $p): ?>
-                                            <option value="<?= (int)$p['id'] ?>"><?= htmlspecialchars($p['display_name']) ?></option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="timeline-scroll">
-                            <div class="timeline-view" id="timelineList"></div>
-                            <div class="timeline-view is-active" id="timelineMatrix"></div>
-                        </div>
-                    </div>
                 </div>
             <aside class="desk-side is-mode-active">
                 <div class="desk-side-shell">
-                    <div class="desk-mode-bar" data-desk-side-modes data-default-mode="tag-live" role="tablist">
-                        <button type="button" class="desk-mode-button" data-mode="summary" aria-pressed="false" role="tab">Summary</button>
-                        <button type="button" class="desk-mode-button is-active" data-mode="tag-live" aria-pressed="true" role="tab">Tag Live</button>
-                        <?php if ($ANNOTATIONS_ENABLED): ?>
-                            <button type="button" class="desk-mode-button" data-mode="drawings" aria-pressed="false" role="tab">Drawings</button>
-                        <?php endif; ?>
-                    </div>
-                    <div class="desk-side-scroll">
-                        <div class="desk-live-tagging" data-desk-live-tagging aria-hidden="false">
+                   
+                        <button type="button" class="desk-mode-button" data-stats-modal-open aria-haspopup="dialog" aria-expanded="false" >Stats</button>
+                  
+                
+                    <div class="desk-live-tagging" data-desk-live-tagging aria-hidden="false">
                             <section class="desk-section desk-quick-tags-section" aria-label="Quick tags">
                                 <div class="desk-quick-tags">
                                     <div class="panel-dark tagging-panel">
@@ -860,15 +800,20 @@ ob_start();
                                             </div>
                                         </div>
                                         <div class="period-controls period-controls-collapsed">
-                                            <button
-                                                class="ghost-btn ghost-btn-sm desk-editable period-modal-toggle"
-                                                type="button"
-                                                aria-haspopup="dialog"
-                                                aria-expanded="false"
-                                                aria-controls="periodsModal"
-                                                aria-label="Open period controls">
-                                                Periods
-                                            </button>
+                                            <div style="display:flex;flex-direction:column;gap:6px; width:100%;">
+                                                <button type="button" 
+                                                    class="ghost-btn ghost-btn-sm lineup-toggle-btn" 
+                                                    data-desk-lineup-button data-match-id="<?= $matchId ?>" aria-pressed="false" style="width:100%;">Lineup</button>
+                                                <button
+                                                    class="ghost-btn ghost-btn-sm lineup-toggle-btn desk-editable period-modal-toggle"
+                                                    type="button"
+                                                    aria-haspopup="dialog"
+                                                    aria-expanded="false"
+                                                    aria-controls="periodsModal"
+                                                    aria-label="Open period controls" style="width:100%;">
+                                                    Periods
+                                                </button>
+                                            </div>
                                         </div>
 
                                         <div class="desk-event-groups">
@@ -941,21 +886,64 @@ ob_start();
                                                 </div>
                                             </div>
                                         </div>
-                                        <div id="goalPlayerModal" class="goal-player-modal" role="dialog" aria-modal="true" aria-hidden="true" hidden>
-                                            <div class="goal-player-modal-backdrop" data-goal-modal-close></div>
-                                            <div class="panel-dark goal-player-modal-card">
-                                                <div class="goal-player-modal-header">
+                                        <div id="statsModal" class="periods-modal stats-modal" role="dialog" aria-modal="true" aria-hidden="true" hidden>
+                                            <div class="periods-modal-backdrop" data-stats-modal-close></div>
+                                            <div class="panel-dark periods-modal-card stats-modal-card" role="document" style="max-width:900px;width:90vw;">
+                                                <div class="periods-modal-header">
                                                     <div>
-                                                        <div class="text-sm text-subtle">Goal scorer</div>
-                                                        <div class="text-xs text-muted-alt">Pick a player to log the goal</div>
+                                                        <div class="text-sm text-subtle">Match stats</div>
+                                                        <div class="text-xs text-muted-alt">Live analytics context</div>
                                                     </div>
-                                                    <div class="goal-player-modal-header-actions">
-                                                        <button type="button" class="ghost-btn ghost-btn-sm" data-goal-unknown>Unknown player</button>
-                                                        <button type="button" class="editor-modal-close" data-goal-modal-close aria-label="Close goal scorer modal">✕</button>
+                                                    <button type="button" class="editor-modal-close" data-stats-modal-close aria-label="Close match stats">✕</button>
+                                                </div>
+                                                <div class="periods-modal-body">
+                                                    <div class="stats-tabs" role="tablist" aria-label="Stats views">
+                                                        <button type="button" class="editor-tab is-active" data-stats-tab="overview" aria-pressed="true">Overview</button>
+                                                        <button type="button" class="editor-tab" data-stats-tab="comparison" aria-pressed="false">Comparisons</button>
+                                                    </div>
+                                                    <div class="desk-summary-content">
+                                                        <?php require __DIR__ . '/../../partials/match-summary-stats.php'; ?>
                                                     </div>
                                                 </div>
-                                                <div id="goalShotInfo" class="goal-shot-info" style="margin:0.5em 0 1em 0;display:none;"></div>
-                                                <div id="goalPlayerList" class="goal-player-modal-list"></div>
+                                            </div>
+                                        </div>
+                                        <div id="goalPlayerModal" class="goal-player-modal" role="dialog" aria-modal="true" aria-hidden="true" hidden>
+                                            <div class="goal-player-modal-backdrop" data-goal-modal-close></div>
+                                            <div class="panel-dark goal-player-modal-card shot-modal-advanced" style="max-width:90vw;width:90vw;min-width:600px;">
+                                                <div class="shot-modal-columns" style="display:flex;gap:2.5rem;align-items:flex-start;">
+                                                    <!-- Left: Goal scorer selection -->
+                                                    <div class="shot-modal-left" style="flex:1 1 320px;min-width:260px;">
+                                                        <div style="display: flex; justify-content: flex-end; align-items: flex-start;">
+                                                            <button type="button" class="editor-modal-close" data-goal-modal-close aria-label="Close goal scorer modal" style="font-size:1.5em;line-height:1;position:absolute;top:18px;right:30px;z-index:10;background:none;border:none;">✕</button>
+                                                        </div>
+                                                        <div class="goal-player-modal-header" style="margin-top:2.5em;">
+                                                            <div>
+                                                                <div class="text-sm text-subtle">Goal recorder</div>
+                                                                <div class="text-xs text-muted-alt">Pick a player to log the goal</div>
+                                                            </div>
+                                                            <div class="goal-player-modal-header-actions">
+                                                                <button type="button" class="ghost-btn ghost-btn-sm" data-goal-unknown>Unknown player</button>
+                                                            </div>
+                                                        </div>
+                                                        <div id="goalPlayerList" class="goal-player-modal-list"></div>
+                                                    </div>
+                                                    <!-- Right: Goal context panel -->
+                                                    <div class="shot-modal-right" style="flex:1 1 400px;min-width:320px;max-width:520px;">
+                                                        <div class="shot-pitch-area" style="padding:1.2em 1em 1.5em 1em;border-radius:1em;box-shadow:0 2px 12px #0002;">
+                                                            <div class="text-xs text-muted-alt mb-1" style="text-align:center;">Shot taken from</div>
+                                                            <svg id="goalOriginSvg" data-shot-svg="origin" style="width:100%;height:180px;display:block;border-radius:0.2em;"></svg>
+                                                            <div id="goalOriginClearWrap" data-shot-clear-wrap="origin" style="text-align:center;margin-top:0.3em;display:none;">
+                                                                <button type="button" class="ghost-btn ghost-btn-xs" data-shot-clear="origin" id="goalOriginClearBtn">Clear origin</button>
+                                                            </div>
+                                                            <div class="text-xs text-muted-alt mt-3 mb-1" style="text-align:center;">Shot target</div>
+                                                            <svg id="goalTargetSvg" data-shot-svg="target" style="width:100%;height:140px;display:block;border-radius:0.7em;"></svg>
+                                                            <div id="goalTargetClearWrap" data-shot-clear-wrap="target" style="text-align:center;margin-top:0.3em;display:none;">
+                                                                <button type="button" class="ghost-btn ghost-btn-xs" data-shot-clear="target" id="goalTargetClearBtn">Clear target</button>
+                                                            </div>
+                                                            <div id="goalShotInfo" class="goal-shot-info" style="margin:0.5em 0 0 0;display:none;"></div>
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                         <div id="shotPlayerModal" class="goal-player-modal shot-player-modal" role="dialog" aria-modal="true" aria-hidden="true" hidden>
@@ -1036,102 +1024,134 @@ ob_start();
                                     </div>
                                 </div>
                             </section>
-                            <section class="desk-section desk-playlists-section" aria-label="Playlists">
-                                <div id="playlistsPanel" class="panel-dark playlists-panel p-3">
-                                    <div class="playlist-panel-header">
-                                        <div class="playlist-panel-heading">
-                                            <div>
-                                                <div class="text-sm text-subtle">Playlists</div>
-                                                <div class="text-xs text-muted-alt">Curate clips for replay</div>
-                                            </div>
-                                        </div>
-                                        <div class="playlist-panel-controls">
-                                            <div class="playlist-control-buttons">
-                                                <button id="playlistFilterBtn" type="button" class="ghost-btn ghost-btn-sm playlist-filter-btn" aria-label="Filter playlists" aria-expanded="false" style="display: none">
-                                                    <i class="fa-solid fa-filter" aria-hidden="true"></i>
-                                                </button>
-                                                <button id="playlistSearchToggle" type="button" class="ghost-btn ghost-btn-sm playlist-toggle-btn" aria-label="Search playlists">
-                                                    <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-                                                </button>
-                                                <button id="playlistCreateToggle" type="button" class="ghost-btn ghost-btn-sm playlist-toggle-btn" aria-label="Create playlist">
-                                                    <i class="fa-solid fa-plus" aria-hidden="true"></i>
-                                                </button>
-                                            </div>
-                                            <div id="playlistSearchRow" class="playlist-input-row">
-                                                <div class="playlist-search-wrapper">
-                                                    <input id="playlistSearchInput" class="input-dark playlist-search-input" type="text" placeholder="Search playlists…" autocomplete="off">
-                                                    <span class="playlist-search-icon" aria-hidden="true"><i class="fa-solid fa-magnifying-glass"></i></span>
-                                                </div>
-                                            </div>
-                                            <div id="playlistCreateRow" class="playlist-input-row">
-                                                <form id="playlistCreateForm" class="playlist-create-form" autocomplete="off">
-                                                    <input id="playlistTitleInput" class="input-dark playlist-title-input" type="text" name="title" placeholder="New playlist title" autocomplete="off" aria-label="New playlist title">
-                                                    <button type="submit" class="ghost-btn ghost-btn-sm playlist-create-btn" aria-label="Create playlist">
-                                                        <i class="fa-solid fa-plus" aria-hidden="true"></i>
-                                                    </button>
-                                                </form>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div id="playlistFilterPopover" class="playlist-filter-popover" hidden style="display: none">
-                                        <button type="button" class="playlist-filter-option" data-team="">All teams</button>
-                                        <button type="button" class="playlist-filter-option" data-team="home">Home - <?= htmlspecialchars($match['home_team'] ?? 'Home') ?></button>
-                                        <button type="button" class="playlist-filter-option" data-team="away">Away - <?= htmlspecialchars($match['away_team'] ?? 'Away') ?></button>
-                                    </div>
-                                    <div id="playlistList" class="playlist-list text-sm text-muted-alt">Loading playlists…</div>
-                                    <div class="playlist-mode">
-                                        <div class="playlist-mode-header">
-                                            <div>
-                                                <div class="text-sm text-subtle">Clips</div>
-                                                <div id="playlistActiveTitle" class="text-xs text-muted-alt">click on playlist to show clips</div>
-                                            </div>
-                                                 
-                                            <button id="playlistAddClipBtn" type="button" class="ghost-btn ghost-btn-sm" disabled aria-label="Add clip">
-                                                <i class="fa-solid fa-plus" aria-hidden="true"></i>
-                                            </button>
-                                        </div>
-                                        <div class="playlist-controls">
-                                            <button id="playlistPrevBtn" type="button" class="ghost-btn ghost-btn-sm" disabled>Previous clip</button>
-                                            <button id="playlistNextBtn" type="button" class="ghost-btn ghost-btn-sm" disabled>Next clip</button>
-                                        </div>
-                                        <div id="playlistClips" class="playlist-clips text-sm text-muted-alt">No playlist selected.</div>
-                                    </div>
-                                </div>
-                            </section>
                         </div>
-                        <div class="desk-mode-panels" data-mode-panels>
-                            <div class="desk-mode-panel" data-panel="summary">
-                                <div class="panel-dark desk-summary-panel p-3">
-                                    <div class="panel-row">
-                                        <div>
-                                            <div class="text-sm text-subtle">Match summary</div>
-                                            <div class="text-xs text-muted-alt">Live analytics context</div>
-                                        </div>
-                                    </div>
-                                    <div class="desk-summary-content">
-                                        <?php require __DIR__ . '/../../partials/match-summary-stats.php'; ?>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <?php if ($ANNOTATIONS_ENABLED): ?>
-                                <div class="desk-mode-panel" data-panel="drawings">
-                                    <div class="drawings-playlist">
-                                        <div class="drawings-playlist-header">
-                                            <div>
-                                                <div class="text-sm text-subtle">Drawings</div>
-                                                <div class="text-xs text-muted-alt">Auto-collected sketches</div>
-                                            </div>
-                                            <span class="chip chip-muted">Auto</span>
-                                        </div>
-                                        <div id="drawingsPlaylistList" class="drawings-playlist-list text-sm text-muted-alt">No drawings yet.</div>
-                                    </div>
-                                </div>
-                            <?php endif; ?>
-                        </div>
-                    </div>
+                        <div class="desk-mode-panels"></div>
                 </div>
             </aside>
+        </div>
+            <div class="desk-timeline-row">
+                <div class="panel-dark timeline-panel timeline-panel-full p-2">
+                    <div class="panel-row">
+                        <div class="text-sm text-subtle">Timeline</div>
+                        <div class="timeline-actions">
+                            <span class="control-btn-shell">
+                                <button id="timelineDeleteAll" class="ghost-btn ghost-btn-sm desk-editable" type="button" aria-label="Delete all events" aria-describedby="tooltip-timelineDeleteAll">
+                                    <i class="fa-solid fa-trash" aria-hidden="true"></i>
+                                </button>
+                                <div id="tooltip-timelineDeleteAll" role="tooltip" class="video-control-tooltip">Delete all events</div>
+                            </span>
+                            <div class="timeline-undo-redo">
+                                <span class="control-btn-shell">
+                                    <button class="ghost-btn ghost-btn-sm desk-editable" id="eventUndoBtn" type="button" disabled aria-label="Undo" aria-describedby="tooltip-eventUndoBtn">
+                                        <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>
+                                    </button>
+                                    <div id="tooltip-eventUndoBtn" role="tooltip" class="video-control-tooltip">Undo</div>
+                                </span>
+                                <span class="control-btn-shell">
+                                    <button class="ghost-btn ghost-btn-sm desk-editable" id="eventRedoBtn" type="button" disabled aria-label="Redo" aria-describedby="tooltip-eventRedoBtn">
+                                        <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
+                                    </button>
+                                    <div id="tooltip-eventRedoBtn" role="tooltip" class="video-control-tooltip">Redo</div>
+                                </span>
+                            </div>
+                            <div class="timeline-mode">
+                                <button type="button" class="ghost-btn ghost-btn-sm timeline-mode-btn is-active" data-mode="list">List</button>
+                                <button type="button" class="ghost-btn ghost-btn-sm timeline-mode-btn" data-mode="matrix">Matrix</button>
+                            </div>
+                            <div class="timeline-filters">
+                                <select id="filterTeam" class="input-pill input-pill-sm">
+                                    <option value="">All teams</option>
+                                    <option value="home">Home</option>
+                                    <option value="away">Away</option>
+                                    <option value="unknown">Unknown</option>
+                                </select>
+                                <select id="filterType" class="input-pill input-pill-sm">
+                                    <option value="">All types</option>
+                                    <?php foreach ($eventTypes as $type): ?>
+                                        <option value="<?= (int)$type['id'] ?>"><?= htmlspecialchars($type['label']) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <select id="filterPlayer" class="input-pill input-pill-sm">
+                                    <option value="">All players</option>
+                                    <?php foreach (array_merge($homePlayers, $awayPlayers) as $p): ?>
+                                        <option value="<?= (int)$p['id'] ?>"><?= htmlspecialchars($p['display_name']) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="timeline-scroll">
+                        <div class="timeline-view" id="timelineList"></div>
+                        <div class="timeline-view is-active" id="timelineMatrix"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="desk-playlist-row">
+                <section class="desk-section desk-playlists-section" aria-label="Playlists">
+                    <div id="playlistsPanel" class="panel-dark playlists-panel p-3">
+                        <div class="playlist-panel-header">
+                            <div class="playlist-panel-heading">
+                                <div>
+                                    <div class="text-sm text-subtle">Playlists</div>
+                                    <div class="text-xs text-muted-alt">Curate clips for replay</div>
+                                </div>
+                            </div>
+                            <div class="playlist-panel-controls">
+                                <div class="playlist-control-buttons">
+                                    <button id="playlistFilterBtn" type="button" class="ghost-btn ghost-btn-sm playlist-filter-btn" aria-label="Filter playlists" aria-expanded="false" style="display: none">
+                                        <i class="fa-solid fa-filter" aria-hidden="true"></i>
+                                    </button>
+                                    <button id="playlistSearchToggle" type="button" class="ghost-btn ghost-btn-sm playlist-toggle-btn" aria-label="Search playlists">
+                                        <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                                    </button>
+                                    <button id="playlistCreateToggle" type="button" class="ghost-btn ghost-btn-sm playlist-toggle-btn" aria-label="Create playlist">
+                                        <i class="fa-solid fa-plus" aria-hidden="true"></i>
+                                    </button>
+                                </div>
+                                <div id="playlistSearchRow" class="playlist-input-row">
+                                    <div class="playlist-search-wrapper">
+                                        <input id="playlistSearchInput" class="input-dark playlist-search-input" type="text" placeholder="Search playlists…" autocomplete="off">
+                                        <span class="playlist-search-icon" aria-hidden="true"><i class="fa-solid fa-magnifying-glass"></i></span>
+                                    </div>
+                                </div>
+                                <div id="playlistCreateRow" class="playlist-input-row">
+                                    <form id="playlistCreateForm" class="playlist-create-form" autocomplete="off">
+                                        <input id="playlistTitleInput" class="input-dark playlist-title-input" type="text" name="title" placeholder="New playlist title" autocomplete="off" aria-label="New playlist title">
+                                        <button type="submit" class="ghost-btn ghost-btn-sm playlist-create-btn" aria-label="Create playlist">
+                                            <i class="fa-solid fa-plus" aria-hidden="true"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="playlistFilterPopover" class="playlist-filter-popover" hidden style="display: none">
+                            <button type="button" class="playlist-filter-option" data-team="">All teams</button>
+                            <button type="button" class="playlist-filter-option" data-team="home">Home - <?= htmlspecialchars($match['home_team'] ?? 'Home') ?></button>
+                            <button type="button" class="playlist-filter-option" data-team="away">Away - <?= htmlspecialchars($match['away_team'] ?? 'Away') ?></button>
+                        </div>
+                        <div id="playlistList" class="playlist-list text-sm text-muted-alt">Loading playlists…</div>
+                    </div>
+                </section>
+                <section class="desk-section desk-clips-section" aria-label="Clips">
+                    <div id="clipsPanel" class="panel-dark playlists-panel p-3 clips-panel">
+                        <div class="playlist-mode">
+                            <div class="playlist-mode-header">
+                                <div>
+                                    <div class="text-sm text-subtle">Clips</div>
+                                    <div id="playlistActiveTitle" class="text-xs text-muted-alt">click on playlist to show clips</div>
+                                </div>
+                                <button id="playlistAddClipBtn" type="button" class="ghost-btn ghost-btn-sm" disabled aria-label="Add clip">
+                                    <i class="fa-solid fa-plus" aria-hidden="true"></i>
+                                </button>
+                            </div>
+                            <div class="playlist-controls">
+                                <button id="playlistPrevBtn" type="button" class="ghost-btn ghost-btn-sm" disabled>Previous clip</button>
+                                <button id="playlistNextBtn" type="button" class="ghost-btn ghost-btn-sm" disabled>Next clip</button>
+                            </div>
+                            <div id="playlistClips" class="playlist-clips text-sm text-muted-alt">No playlist selected.</div>
+                        </div>
+                    </div>
+                </section>
             </div>
                 </div>
         </div>
@@ -1319,45 +1339,59 @@ ob_start();
 
 <script nonce="<?= htmlspecialchars($cspNonce) ?>">
     (function () {
-        const modeRoot = document.querySelector('[data-desk-side-modes]');
-        const panelRoot = document.querySelector('[data-mode-panels]');
-        const deskSide = document.querySelector('.desk-side');
-        const liveContainer = document.querySelector('[data-desk-live-tagging]');
-        if (!modeRoot) {
+        const openBtn = document.querySelector('[data-stats-modal-open]');
+        const modal = document.getElementById('statsModal');
+        if (!openBtn || !modal) {
             return;
         }
-        const buttons = Array.from(modeRoot.querySelectorAll('[data-mode]'));
-        const panels = panelRoot ? Array.from(panelRoot.querySelectorAll('[data-panel]')) : [];
-        const updateLiveVisibility = (mode) => {
-            const isLive = mode === 'tag-live';
-            deskSide?.classList.toggle('is-mode-active', isLive);
-            if (liveContainer) {
-                liveContainer.setAttribute('aria-hidden', (!isLive).toString());
-            }
-        };
-        const activateMode = (targetMode) => {
-            buttons.forEach((button) => {
-                const isActive = button.dataset.mode === targetMode;
+        const closeButtons = Array.from(modal.querySelectorAll('[data-stats-modal-close]'));
+        const tabButtons = Array.from(modal.querySelectorAll('[data-stats-tab]'));
+        const statSections = Array.from(modal.querySelectorAll('[data-stats-section]'));
+        const setActiveTab = (tab) => {
+            tabButtons.forEach((button) => {
+                const isActive = button.dataset.statsTab === tab;
                 button.classList.toggle('is-active', isActive);
                 button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
             });
-            if (!panelRoot) {
-                updateLiveVisibility(targetMode);
-                return;
-            }
-            const targetPanel = panels.find((panel) => panel.dataset.panel === targetMode);
-            panels.forEach((panel) => {
-                const isVisible = Boolean(targetPanel && panel === targetPanel);
-                panel.classList.toggle('is-visible', isVisible);
-                panel.setAttribute('aria-hidden', isVisible ? 'false' : 'true');
+            statSections.forEach((section) => {
+                const isActive = section.dataset.statsSection === tab;
+                section.classList.toggle('is-active', isActive);
             });
-            updateLiveVisibility(targetMode);
         };
-        activateMode(modeRoot.dataset.defaultMode || 'tag-live');
-        buttons.forEach((button) => {
+        const openModal = () => {
+            modal.hidden = false;
+            modal.classList.add('is-open');
+            modal.setAttribute('aria-hidden', 'false');
+            openBtn.setAttribute('aria-expanded', 'true');
+            if (tabButtons.length && !tabButtons.some((btn) => btn.classList.contains('is-active'))) {
+                setActiveTab(tabButtons[0].dataset.statsTab);
+            }
+        };
+        const closeModal = () => {
+            modal.hidden = true;
+            modal.classList.remove('is-open');
+            modal.setAttribute('aria-hidden', 'true');
+            openBtn.setAttribute('aria-expanded', 'false');
+        };
+        openBtn.addEventListener('click', openModal);
+        tabButtons.forEach((button) => {
             button.addEventListener('click', () => {
-                activateMode(button.dataset.mode);
+                const tab = button.dataset.statsTab;
+                if (tab) {
+                    setActiveTab(tab);
+                }
             });
+        });
+        if (tabButtons.length) {
+            setActiveTab(tabButtons[0].dataset.statsTab);
+        }
+        closeButtons.forEach((btn) => {
+            btn.addEventListener('click', closeModal);
+        });
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && !modal.hidden) {
+                closeModal();
+            }
         });
     })();
 </script>

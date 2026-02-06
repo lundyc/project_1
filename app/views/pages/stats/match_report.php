@@ -189,8 +189,10 @@ header('Content-Type: text/html; charset=utf-8');
     <style>
         table { border-collapse: collapse; width: 100%; font-size: 13px; }
         th { background: #e3e6f3; text-align: left; padding: 4px; }
-        td { padding: 4px; vertical-align: top; }
-        h1, h2, h3 { margin: 1em 0 0.5em; font-family: sans-serif; }
+        td { padding: 4px; vertical-align: middle; }
+        body { font-size: 13px;font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        .marker-font { font-family: "DejaVu Sans", "Arial Unicode MS", Arial, sans-serif; font-size: 11px; }
+        h1, h2, h3 { margin: 1em 0 0.5em; font-family: inherit; }
         .divider { height: 1px; margin: 1em 0; background: #ccc; }
         .section-table td { border-bottom: 1px solid #e3e6f3; }
         .match-score td { border: none; }
@@ -207,28 +209,137 @@ header('Content-Type: text/html; charset=utf-8');
         .starting-xi-table td:nth-child(5),
         .starting-xi-table td:nth-child(6) { text-align: center; }
         .svg-block { display: block; }
+
+        /* Tailwind-style utility classes used in this template */
+        .text-xl { font-size: 1.25rem; }
+        .text-lg { font-size: 1.125rem; }
+        .text-base { font-size: 1rem; }
+        .text-sm { font-size: 0.875rem; }
+        .text-xs { font-size: 0.75rem; }
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .text-text-primary { color: #111827; }
+        .text-text-muted { color: #6b7280; }
+        .text-gray-700 { color: #374151; }
+        .font-semibold { font-weight: 600; }
+        .font-medium { font-weight: 500; }
+        .uppercase { text-transform: uppercase; }
+
+        .w-full { width: 100%; }
+        .min-w-full { min-width: 100%; }
+        .w-1\/3 { width: 33.3333%; }
+
+        .my-6 { margin-top: 1.5rem; margin-bottom: 1.5rem; }
+        .my-8 { margin-top: 2rem; margin-bottom: 2rem; }
+        .mb-2 { margin-bottom: 0.5rem; }
+        .mb-4 { margin-bottom: 1rem; }
+        .px-4 { padding-left: 1rem; padding-right: 1rem; }
+        .px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
+        .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+        .py-3 { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+        .pl-6 { padding-left: 1.5rem; }
+        .pr-2 { padding-right: 0.5rem; }
+
+        .list-disc { list-style-type: disc; }
+        .rounded-xl { border-radius: 0.75rem; }
+        .overflow-hidden { overflow: hidden; }
+
+        .bg-bg-tertiary { background: #f9fafb; }
+        .bg-bg-secondary { background: #eef1f7; }
+        .border-b { border-bottom: 1px solid #e3e6f3; }
+        .border-border-soft { border-color: #e3e6f3; }
+        .transition-colors { transition: color 0.2s ease, background-color 0.2s ease; }
+        .hover\:bg-bg-secondary\/60:hover { background: #f3f4f6; }
     </style>
 </head>
 <body>
-<h1>Match Report</h1>
-<table class="match-score" style="margin-bottom: 1em;">
+
+<!-- Prominent Scoreline with improved hierarchy -->
+<h1 style="font-size:2.5em; text-align:center; margin-bottom:0.2em; letter-spacing:1px;">Match Report</h1>
+<table class="match-score" style="margin-bottom: 1.2em; width:100%;">
     <tr>
-        <td style="text-align:left; font-weight:600;">
-            <span style="font-size:0.95em; color:#444;">Home</span><br>
-            <span style="font-size:1.5em; font-weight:bold; color:#222; line-height:1.1; display:inline-block; margin-top:2px;">
-                <?= htmlspecialchars($homeTeam['name']) ?>
-            </span>
+        <td style="text-align:left; font-weight:700; font-size:1.2em; min-width:160px;">
+            <?= htmlspecialchars($homeTeam['name']) ?>
         </td>
-        <td style="text-align:center; font-size:2.5em; font-weight:bold;"><?= (int)($matchStats['home']['goals'] ?? 0) ?> : <?= (int)($matchStats['away']['goals'] ?? 0) ?></td>
-        <td style="text-align:right; font-weight:600;">
-            <span style="font-size:0.95em; color:#444;">Away</span><br>
-            <span style="font-size:1.5em; font-weight:bold; color:#222; line-height:1.1; display:inline-block; margin-top:2px;">
-                <?= htmlspecialchars($awayTeam['name']) ?>
-            </span>
+        <td style="text-align:center; font-size:3.2em; font-weight:900; letter-spacing:2px; background:#f3f4f6; border-radius:12px; border:2px solid #e3e6f3; padding:0.2em 0.7em;">
+            <?= (int)($matchStats['home']['goals'] ?? 0) ?> <span style="color:#888; font-size:0.7em; font-weight:400;">:</span> <?= (int)($matchStats['away']['goals'] ?? 0) ?>
+        </td>
+        <td style="text-align:right; font-weight:700; font-size:1.2em; min-width:160px;">
+            <?= htmlspecialchars($awayTeam['name']) ?>
         </td>
     </tr>
 </table>
-<div class="divider"></div>
+
+<!-- Match Summary / Key Takeaways (auto-generated, coach-friendly) -->
+<!-- This section gives coaches a quick, factual summary of the match using existing stats. -->
+<div class="match-summary my-6 px-6" style="margin-bottom:2.2em;">
+    <h2 class="text-xl font-semibold mb-2" style="font-size:1.25em; margin-bottom:0.5em;">Match Summary / Key Takeaways</h2>
+    <ul class="list-disc pl-6 text-base" style="font-size:1.05em;">
+        <?php
+        // --- Generate summary points using existing data ---
+        $homeShots = $matchStats['home']['shots'] ?? $matchStats['home']['shots_total'] ?? 0;
+        $awayShots = $matchStats['away']['shots'] ?? $matchStats['away']['shots_total'] ?? 0;
+        $homeOnTarget = $matchStats['home']['shots_on_target'] ?? 0;
+        $awayOnTarget = $matchStats['away']['shots_on_target'] ?? 0;
+        $homeGoals = $matchStats['home']['goals'] ?? $match['home_score'] ?? 0;
+        $awayGoals = $matchStats['away']['goals'] ?? $match['away_score'] ?? 0;
+        $homeSetPieceGoals = $derivedData['home']['set_piece_goals'] ?? 0;
+        $awaySetPieceGoals = $derivedData['away']['set_piece_goals'] ?? 0;
+        $homeFouls = $matchStats['home']['fouls'] ?? 0;
+        $awayFouls = $matchStats['away']['fouls'] ?? 0;
+        $homeYellows = $matchStats['home']['yellow_cards'] ?? 0;
+        $awayYellows = $matchStats['away']['yellow_cards'] ?? 0;
+        $homeReds = $matchStats['home']['red_cards'] ?? 0;
+        $awayReds = $matchStats['away']['red_cards'] ?? 0;
+        $homeConversion = $homeShots ? round(100 * $homeGoals / $homeShots, 1) : 0;
+        $awayConversion = $awayShots ? round(100 * $awayGoals / $awayShots, 1) : 0;
+        $setPieceReliance = ($homeSetPieceGoals + $awaySetPieceGoals) > 0;
+        $disciplineMention = ($homeYellows + $awayYellows + $homeReds + $awayReds) > 0;
+        // 1. Shot dominance/efficiency
+        if ($homeShots > $awayShots + 3) {
+            echo '<li>' . htmlspecialchars($homeTeam['name']) . ' created more chances but conversion rate was ' . ($homeConversion > $awayConversion ? 'higher' : 'lower') . ' than ' . htmlspecialchars($awayTeam['name']) . '.</li>';
+        } elseif ($awayShots > $homeShots + 3) {
+            echo '<li>' . htmlspecialchars($awayTeam['name']) . ' created more chances but conversion rate was ' . ($awayConversion > $homeConversion ? 'higher' : 'lower') . ' than ' . htmlspecialchars($homeTeam['name']) . '.</li>';
+        } else {
+            echo '<li>Both teams had a similar number of shots. Finishing was ' . ($homeConversion == $awayConversion ? 'even' : (($homeConversion > $awayConversion) ? 'more clinical for ' . htmlspecialchars($homeTeam['name']) : 'more clinical for ' . htmlspecialchars($awayTeam['name']))) . '.</li>';
+        }
+        // 2. Set-piece reliance
+        if ($setPieceReliance) {
+            $setPieceSummary = [];
+            if ($homeSetPieceGoals > 0) $setPieceSummary[] = htmlspecialchars($homeTeam['name']) . ' scored ' . $homeSetPieceGoals . ' from set pieces';
+            if ($awaySetPieceGoals > 0) $setPieceSummary[] = htmlspecialchars($awayTeam['name']) . ' scored ' . $awaySetPieceGoals . ' from set pieces';
+            echo '<li>' . implode('; ', $setPieceSummary) . '.</li>';
+        } else {
+            echo '<li>No goals from set pieces for either team.</li>';
+        }
+        // 3. Discipline
+        if ($disciplineMention) {
+            $cardSummary = [];
+            if ($homeYellows > 0) $cardSummary[] = htmlspecialchars($homeTeam['name']) . ' received ' . $homeYellows . ' yellow' . ($homeYellows > 1 ? 's' : '');
+            if ($awayYellows > 0) $cardSummary[] = htmlspecialchars($awayTeam['name']) . ' received ' . $awayYellows . ' yellow' . ($awayYellows > 1 ? 's' : '');
+            if ($homeReds > 0) $cardSummary[] = htmlspecialchars($homeTeam['name']) . ' had ' . $homeReds . ' red card' . ($homeReds > 1 ? 's' : '');
+            if ($awayReds > 0) $cardSummary[] = htmlspecialchars($awayTeam['name']) . ' had ' . $awayReds . ' red card' . ($awayReds > 1 ? 's' : '');
+            echo '<li>Discipline: ' . implode('; ', $cardSummary) . '.</li>';
+        } else {
+            echo '<li>No cards shown in the match.</li>';
+        }
+        // 4. Clinical finishing
+        if ($homeConversion >= 30) {
+            echo '<li>' . htmlspecialchars($homeTeam['name']) . ' were clinical in front of goal (' . $homeConversion . '% conversion).</li>';
+        } elseif ($awayConversion >= 30) {
+            echo '<li>' . htmlspecialchars($awayTeam['name']) . ' were clinical in front of goal (' . $awayConversion . '% conversion).</li>';
+        } else {
+            echo '<li>Both teams struggled to convert chances into goals.</li>';
+        }
+        // 5. Fouls
+        if ($homeFouls > $awayFouls + 3) {
+            echo '<li>' . htmlspecialchars($homeTeam['name']) . ' committed more fouls than ' . htmlspecialchars($awayTeam['name']) . '.</li>';
+        } elseif ($awayFouls > $homeFouls + 3) {
+            echo '<li>' . htmlspecialchars($awayTeam['name']) . ' committed more fouls than ' . htmlspecialchars($homeTeam['name']) . '.</li>';
+        }
+        ?>
+    </ul>
+</div>
 <h2>Match Info</h2>
 <table class="info-table" style="margin-bottom: 1em;">
     <tr>
@@ -251,28 +362,117 @@ header('Content-Type: text/html; charset=utf-8');
 </table>
 <div class="divider"></div>
 
-<h2>Overview</h2>
-<table class="min-w-full bg-bg-tertiary text-text-primary text-xs rounded-xl overflow-hidden center-cols">
-    <thead>
-        <tr class="bg-bg-secondary text-text-muted uppercase font-semibold text-xs">
-            <th class="px-4 py-3">Metric</th>
-            <th class="px-4 py-3 text-center"><?= htmlspecialchars($homeTeam['name']) ?></th>
-            <th class="px-4 py-3 text-center"><?= htmlspecialchars($awayTeam['name']) ?></th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr class="border-b border-border-soft hover:bg-bg-secondary/60 transition-colors"><td class="px-4 py-2">Goals</td><td class="px-4 py-2 text-center"><?= (int)($matchStats['home']['goals'] ?? 0) ?></td><td class="px-4 py-2"><?= (int)($matchStats['away']['goals'] ?? 0) ?></td></tr>
-        <tr class="border-b border-border-soft hover:bg-bg-secondary/60 transition-colors"><td class="px-4 py-2">Shots</td><td class="px-4 py-2"><?= $homeShots ?></td><td class="px-4 py-2"><?= $awayShots ?></td></tr>
-        <tr class="border-b border-border-soft hover:bg-bg-secondary/60 transition-colors"><td class="px-4 py-2">&nbsp;&nbsp;&nbsp;On Target</td><td class="px-4 py-2"><?= $homeShotsOnTarget ?></td><td class="px-4 py-2"><?= $awayShotsOnTarget ?></td></tr>
-        <tr class="border-b border-border-soft hover:bg-bg-secondary/60 transition-colors"><td class="px-4 py-2">&nbsp;&nbsp;&nbsp;Off Target</td><td class="px-4 py-2"><?= $homeShotsOffTarget ?></td><td class="px-4 py-2"><?= $awayShotsOffTarget ?></td></tr>
-        <tr class="border-b border-border-soft hover:bg-bg-secondary/60 transition-colors"><td class="px-4 py-2">Corners</td><td class="px-4 py-2"><?= (int)($matchStats['home']['corners'] ?? 0) ?></td><td class="px-4 py-2"><?= (int)($matchStats['away']['corners'] ?? 0) ?></td></tr>
-        <tr class="border-b border-border-soft hover:bg-bg-secondary/60 transition-colors"><td class="px-4 py-2">Free Kicks</td><td class="px-4 py-2"><?= (int)($matchStats['home']['free_kicks'] ?? 0) ?></td><td class="px-4 py-2"><?= (int)($matchStats['away']['free_kicks'] ?? 0) ?></td></tr>
-        <tr class="border-b border-border-soft hover:bg-bg-secondary/60 transition-colors"><td class="px-4 py-2">Penalties</td><td class="px-4 py-2"><?= (int)($matchStats['home']['penalties'] ?? 0) ?></td><td class="px-4 py-2"><?= (int)($matchStats['away']['penalties'] ?? 0) ?></td></tr>
-        <tr class="border-b border-border-soft hover:bg-bg-secondary/60 transition-colors"><td class="px-4 py-2">Yellow Cards</td><td class="px-4 py-2"><?= (int)($matchStats['home']['yellow_cards'] ?? 0) ?></td><td class="px-4 py-2"><?= (int)($matchStats['away']['yellow_cards'] ?? 0) ?></td></tr>
-        <tr><td class="px-4 py-2">Red Cards</td><td class="px-4 py-2"><?= (int)($matchStats['home']['red_cards'] ?? 0) ?></td><td class="px-4 py-2"><?= (int)($matchStats['away']['red_cards'] ?? 0) ?></td></tr>
-    </tbody>
-</table>
 
+<!-- Themed Stat Sections for improved hierarchy and insight -->
+<!-- Attacking -->
+<div class="attacking-section my-8" style="margin-bottom:1.5em;">
+    <h2 class="text-lg font-semibold mb-2" style="font-size:1.1em; margin-bottom:0.4em;">Attacking</h2>
+    <table class="w-full text-center mb-4">
+        <tbody>
+        <?php
+        // Group relevant overview stats for Attacking
+        $attackingLabels = ['Goals','Shots','On Target','Off Target'];
+        foreach ($attackingLabels as $label) {
+            $row = null;
+            foreach ([
+                ['label'=>'Goals','home'=>(int)($matchStats['home']['goals'] ?? 0),'away'=>(int)($matchStats['away']['goals'] ?? 0)],
+                ['label'=>'Shots','home'=>$homeShots,'away'=>$awayShots],
+                ['label'=>'On Target','home'=>$homeShotsOnTarget,'away'=>$awayShotsOnTarget],
+                ['label'=>'Off Target','home'=>$homeShotsOffTarget,'away'=>$awayShotsOffTarget],
+            ] as $r) { if ($r['label']==$label) $row=$r; }
+            if ($row) {
+                $homeVal = $row['home'];
+                $awayVal = $row['away'];
+                $boldHome = $homeVal > $awayVal;
+                $boldAway = $awayVal > $homeVal;
+                $arrowHome = $homeVal == $awayVal ? '' : ($boldHome ? ' <span class="marker-font" style="color:#222;">&#9650;</span>' : '');
+                $arrowAway = $homeVal == $awayVal ? '' : ($boldAway ? ' <span class="marker-font" style="color:#222;">&#9660;</span>' : '');
+                echo '<tr>';
+                echo '<td class="w-1/3 font-medium text-right pr-2">' . htmlspecialchars($label) . '</td>';
+                echo '<td class="w-1/3 text-lg" style="font-weight:' . ($boldHome ? 'bold' : 'normal') . '">' . $homeVal . $arrowHome . '</td>';
+                echo '<td class="w-1/3 text-lg" style="font-weight:' . ($boldAway ? 'bold' : 'normal') . '">' . $awayVal . $arrowAway . '</td>';
+                echo '</tr>';
+            }
+        }
+        ?>
+        </tbody>
+    </table>
+</div>
+
+<!-- Set Pieces -->
+<div class="set-piece-section my-8" style="margin-bottom:1.5em;">
+    <h2 class="text-lg font-semibold mb-2" style="font-size:1.1em; margin-bottom:0.4em;">Set Pieces</h2>
+    <table class="w-full text-center mb-4">
+        <tbody>
+        <?php
+        $setPieceLabels = ['Corners','Free Kicks','Penalties'];
+        foreach ($setPieceLabels as $label) {
+            $row = null;
+            foreach ([
+                ['label'=>'Corners','home'=>(int)($matchStats['home']['corners'] ?? 0),'away'=>(int)($matchStats['away']['corners'] ?? 0)],
+                ['label'=>'Free Kicks','home'=>(int)($matchStats['home']['free_kicks'] ?? 0),'away'=>(int)($matchStats['away']['free_kicks'] ?? 0)],
+                ['label'=>'Penalties','home'=>(int)($matchStats['home']['penalties'] ?? 0),'away'=>(int)($matchStats['away']['penalties'] ?? 0)],
+            ] as $r) { if ($r['label']==$label) $row=$r; }
+            if ($row) {
+                $homeVal = $row['home'];
+                $awayVal = $row['away'];
+                $boldHome = $homeVal > $awayVal;
+                $boldAway = $awayVal > $homeVal;
+                $arrow = $homeVal == $awayVal ? '' : ($boldHome ? ' <span class="marker-font" style="color:#222;">&#9650;</span>' : ' <span class="marker-font" style="color:#222;">&#9660;</span>');
+                echo '<tr>';
+                echo '<td class="w-1/3 font-medium text-right pr-2">' . htmlspecialchars($label) . '</td>';
+                echo '<td class="w-1/3 text-lg" style="font-weight:' . ($boldHome ? 'bold' : 'normal') . '">' . $homeVal . ($boldHome ? $arrow : '') . '</td>';
+                echo '<td class="w-1/3 text-lg" style="font-weight:' . ($boldAway ? 'bold' : 'normal') . '">' . $awayVal . ($boldAway ? $arrow : '') . '</td>';
+                echo '</tr>';
+            }
+        }
+        ?>
+        </tbody>
+    </table>
+</div>
+
+<!-- Discipline & Control -->
+<div class="discipline-section my-8" style="margin-bottom:2em;">
+    <h2 class="text-lg font-semibold mb-2" style="font-size:1.1em; margin-bottom:0.4em;">Discipline &amp; Control</h2>
+    <table class="w-full text-center mb-4">
+        <tbody>
+        <?php
+        $disciplineLabels = ['Yellow Cards','Red Cards'];
+        foreach ($disciplineLabels as $label) {
+            $row = null;
+            foreach ([
+                ['label'=>'Yellow Cards','home'=>(int)($matchStats['home']['yellow_cards'] ?? 0),'away'=>(int)($matchStats['away']['yellow_cards'] ?? 0)],
+                ['label'=>'Red Cards','home'=>(int)($matchStats['home']['red_cards'] ?? 0),'away'=>(int)($matchStats['away']['red_cards'] ?? 0)],
+            ] as $r) { if ($r['label']==$label) $row=$r; }
+            if ($row) {
+                $homeVal = $row['home'];
+                $awayVal = $row['away'];
+                $boldHome = $homeVal > $awayVal;
+                $boldAway = $awayVal > $homeVal;
+                $arrow = $homeVal == $awayVal ? '' : ($boldHome ? ' <span class="marker-font" style="color:#222;">&#9650;</span>' : ' <span class="marker-font" style="color:#222;">&#9660;</span>');
+                echo '<tr>';
+                echo '<td class="w-1/3 font-medium text-right pr-2">' . htmlspecialchars($label) . '</td>';
+                echo '<td class="w-1/3 text-lg" style="font-weight:' . ($boldHome ? 'bold' : 'normal') . '">' . $homeVal . ($boldHome ? $arrow : '') . '</td>';
+                echo '<td class="w-1/3 text-lg" style="font-weight:' . ($boldAway ? 'bold' : 'normal') . '">' . $awayVal . ($boldAway ? $arrow : '') . '</td>';
+                echo '</tr>';
+            }
+        }
+        // Add fouls row
+        $homeFouls = $matchStats['home']['fouls'] ?? 0;
+        $awayFouls = $matchStats['away']['fouls'] ?? 0;
+        $boldHome = $homeFouls > $awayFouls;
+        $boldAway = $awayFouls > $homeFouls;
+        $arrow = $homeFouls == $awayFouls ? '' : ($boldHome ? ' <span class="marker-font" style="color:#222;">&#9650;</span>' : ' <span class="marker-font" style="color:#222;">&#9660;</span>');
+        echo '<tr>';
+        echo '<td class="w-1/3 font-medium text-right pr-2">Fouls</td>';
+        echo '<td class="w-1/3 text-lg" style="font-weight:' . ($boldHome ? 'bold' : 'normal') . '">' . $homeFouls . ($boldHome ? $arrow : '') . '</td>';
+        echo '<td class="w-1/3 text-lg" style="font-weight:' . ($boldAway ? 'bold' : 'normal') . '">' . $awayFouls . ($boldAway ? $arrow : '') . '</td>';
+        echo '</tr>';
+        ?>
+        </tbody>
+    </table>
+</div>
+<div style="page-break-before: always;"></div>
 <h2>Exploited Event Types</h2>
 <table class="min-w-full bg-bg-tertiary text-text-primary text-xs rounded-xl overflow-hidden center-cols">
     <thead>
@@ -308,7 +508,6 @@ header('Content-Type: text/html; charset=utf-8');
     </tbody>
 </table>
 
-<div style="page-break-before: always;"></div>
 <h2>Efficiency & Discipline</h2>
 <table class="min-w-full bg-bg-tertiary text-text-primary text-xs rounded-xl overflow-hidden center-cols">
     <thead>
@@ -351,25 +550,34 @@ header('Content-Type: text/html; charset=utf-8');
     </tbody>
 </table>
 
+<div style="page-break-before: always;"></div>
+<!-- Shot Maps with captions and legend for clarity -->
 <h2>Shot Maps</h2>
 <table style="width:100%; margin-bottom: 1em;">
     <tr>
         <td style="width:50%; vertical-align: top; padding-right: 8px;">
             <div style="font-weight:600; margin-bottom:6px;"><?= htmlspecialchars($homeTeam['name']) ?> Shot Map</div>
             <div style="margin-bottom:6px; font-size:11px; color:#666;">Shot origins</div>
-            <img class="svg-block" style="width:100%; height:auto; max-height:160px;" src="<?= htmlspecialchars(build_shot_origin_svg($shotOriginMarkers['home'], '#3b82f6')) ?>" alt="Home shot origins" />
+            <img class="svg-block" style="width:100%; height:auto;" src="<?= htmlspecialchars(build_shot_origin_svg($shotOriginMarkers['home'], '#ef4444')) ?>" alt="Home shot origins" />
             <div style="margin:6px 0 6px; font-size:11px; color:#666;">Shot targets</div>
-            <img class="svg-block" style="width:100%; max-height:160px;" src="<?= htmlspecialchars(build_shot_target_svg($shotTargetMarkers['home'], '#3b82f6')) ?>" alt="Home shot targets" />
+            <img class="svg-block" style="width:100%;" src="<?= htmlspecialchars(build_shot_target_svg($shotTargetMarkers['home'], '#ef4444')) ?>" alt="Home shot targets" />
+            <div style="margin-top:6px; font-size:11px; color:#444; text-align:center;">All shots taken by <?= htmlspecialchars($homeTeam['name']) ?>. Circles = shots, filled = goals.</div>
         </td>
         <td style="width:50%; vertical-align: top; padding-left: 8px;">
             <div style="font-weight:600; margin-bottom:6px;"><?= htmlspecialchars($awayTeam['name']) ?> Shot Map</div>
             <div style="margin-bottom:6px; font-size:11px; color:#666;">Shot origins</div>
-            <img class="svg-block" style="width:100%; height:auto; max-height:160px;" src="<?= htmlspecialchars(build_shot_origin_svg($shotOriginMarkers['away'], '#ef4444')) ?>" alt="Away shot origins" />
+            <img class="svg-block" style="width:100%; height:auto;" src="<?= htmlspecialchars(build_shot_origin_svg($shotOriginMarkers['away'], '#ef4444')) ?>" alt="Away shot origins" />
             <div style="margin:6px 0 6px; font-size:11px; color:#666;">Shot targets</div>
-            <img class="svg-block" style="width:100%; max-height:160px;" src="<?= htmlspecialchars(build_shot_target_svg($shotTargetMarkers['away'], '#ef4444')) ?>" alt="Away shot targets" />
+            <img class="svg-block" style="width:100%;" src="<?= htmlspecialchars(build_shot_target_svg($shotTargetMarkers['away'], '#ef4444')) ?>" alt="Away shot targets" />
+            <div style="margin-top:6px; font-size:11px; color:#444; text-align:center;">All shots taken by <?= htmlspecialchars($awayTeam['name']) ?>. Circles = shots, filled = goals.</div>
         </td>
     </tr>
 </table>
+<!-- Simple legend for shot map -->
+<div style="display:flex; justify-content:center; align-items:center; gap:18px; margin-bottom:1.5em;">
+    <span style="display:inline-block;width:16px;height:16px;border-radius:50%;border:1px solid #333;background:#ef4444;margin-right:4px;"></span> Shot
+    <span style="display:inline-block;width:16px;height:16px;border-radius:50%;border:1px solid #333;background:#22c55e;margin-left:16px;margin-right:4px;"></span> Goal
+</div>
 
 <div style="page-break-before: always;"></div>
 <h2>Match Events</h2>
@@ -386,7 +594,9 @@ header('Content-Type: text/html; charset=utf-8');
     </td></tr>
 </table>
 
+<!-- Player Performance section with summary label and goal highlights -->
 <h2>Player Performance</h2>
+<div class="text-sm text-gray-700 text-center mb-2" style="margin-bottom:0.7em;">Minutes, goals and discipline summary</div>
 <h3>Starting XI</h3>
 <?php
 $subOffByMatchPlayerId = [];
@@ -424,7 +634,7 @@ $hasRedCards = ((int)($matchStats['home']['red_cards'] ?? 0) + (int)($matchStats
         }
         $goals = (int)($player['goals'] ?? 0);
         ?>
-        <tr class="border-b border-border-soft hover:bg-bg-secondary/60 transition-colors">
+        <tr class="border-b border-border-soft hover:bg-bg-secondary/60 transition-colors"<?= ($goals > 0 ? ' style="background:#e6ffe6;font-weight:bold;"' : '') ?>>
             <td class="px-4 py-2"><?= htmlspecialchars($player['shirt_number'] ?? '-') ?></td>
             <td class="px-4 py-2"><?= htmlspecialchars($player['name'] ?? '-') ?></td>
             <td class="px-4 py-2"><?= htmlspecialchars($player['position'] ?? '-') ?></td>
@@ -485,7 +695,7 @@ foreach ($substitutions as $sub) {
             <?php if ($showReds): ?><td><?= ($player['red_cards'] ?? 0 ? (int)$player['red_cards'] : '') ?></td><?php endif; ?>
             <td>
                 <?php if ($sub): ?>
-                    <span style="color:green;font-weight:bold;">&#8594;</span>
+                    <span class="marker-font" style="color:green;font-weight:bold;">&#8594;</span>
                     On for <?= htmlspecialchars($sub['player_off_name'] ?? '-') ?> (<?php
                         $subSecond = (int)($sub['match_second'] ?? 0);
                         echo $subSecond > 0 ? (int)floor($subSecond / 60) : (int)($sub['minute'] ?? 0);

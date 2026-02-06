@@ -56,6 +56,7 @@ $homeShotsTotal = (int)($shotTotals['home'] ?? 0);
 $awayShotsTotal = (int)($shotTotals['away'] ?? 0);
 ?>
 
+<div class="stats-section" data-stats-section="overview">
 <div class="summary-score summary-score-card mb-3">
           <div class="summary-team summary-team-home">
                     <div class="summary-team-label">Home</div>
@@ -213,9 +214,12 @@ if (isset($match['id'])) {
                               </div>
                     </div>
           <?php endif; ?>
-</div>
+    </div>
 <?php endif; ?>
 
+</div>
+
+<div class="stats-section" data-stats-section="comparison">
 <div class="comparison-list">
           <?php foreach ($comparisonRows as $row): ?>
                     <?php
@@ -245,4 +249,5 @@ if (isset($match['id'])) {
                               </div>
                     </div>
           <?php endforeach; ?>
+</div>
 </div>
