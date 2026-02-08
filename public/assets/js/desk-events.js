@@ -1,26 +1,8 @@
 // Team side labels for player display
-const teamSideLabels = {
+const teamSideLabels = Object.freeze({
       home: 'Home',
       away: 'Away',
       unknown: 'Unknown'
-};
-// Ensure playlist filter popover is hidden on page load
-// --- Playlist Filter Popover Dropdown ---
-$(function () {
-      // Force a second render after initial load to fix timeline stretching and missing bucket labels
-      setTimeout(function () {
-            if (typeof renderTimeline === 'function') {
-                  renderTimeline();
-            }
-      }, 50);
-      // Force timeline resize/re-render on initial load to fix scaling
-      setTimeout(function () {
-            $(window).trigger('resize');
-      }, 0);
-      var $playlistFilterPopover = $('#playlistFilterPopover');
-      if ($playlistFilterPopover.length) {
-            $playlistFilterPopover.attr('hidden', '');
-      }
 });
 // --- Skeleton Loader Synchronization ---
 let deskVideoReady = false;
@@ -31,42 +13,6 @@ function tryHideDeskSkeleton() {
       }
 }
 // --- Playlist Filter Popover Dropdown ---
-$(function () {
-      $playlistFilterBtn = $('#playlistFilterBtn');
-      $playlistFilterPopover = $('#playlistFilterPopover');
-      if ($playlistFilterBtn.length && $playlistFilterPopover.length) {
-            function closePopover() {
-                  $playlistFilterPopover.attr('hidden', '');
-                  $playlistFilterBtn.attr('aria-expanded', 'false');
-            }
-            function openPopover() {
-                  $playlistFilterPopover.removeAttr('hidden');
-                  $playlistFilterBtn.attr('aria-expanded', 'true');
-            }
-            $playlistFilterBtn.on('click', function (e) {
-                  e.stopPropagation();
-                  if ($playlistFilterPopover.is(':visible')) {
-                        closePopover();
-                  } else {
-                        openPopover();
-                  }
-            });
-            // Hide popover when clicking outside
-            $(document).on('mousedown', function (e) {
-                  if (
-                        !$playlistFilterPopover.is(e.target) &&
-                        $playlistFilterPopover.has(e.target).length === 0 &&
-                        !$playlistFilterBtn.is(e.target)
-                  ) {
-                        closePopover();
-                  }
-            });
-            // Hide on ESC
-            $(document).on('keydown', function (e) {
-                  if (e.key === 'Escape') closePopover();
-            });
-      }
-});
 
 /* global jQuery */
 (function ($) {
@@ -117,12 +63,12 @@ $(function () {
             </div>
       </div>
 </div>`;
-      const $regenerateModal = $(regenerateModalHtml).appendTo('body');
-      const $regenerateModalMessage = $regenerateModal.find('[data-regenerate-message]');
-      const $regenerateModalError = $regenerateModal.find('[data-regenerate-error]');
-      const $regenerateModalConfirm = $regenerateModal.find('[data-regenerate-confirm]');
-      const $regenerateModalCancel = $regenerateModal.find('[data-regenerate-cancel]');
-      const $regenerateModalBackdrop = $regenerateModal.find('[data-regenerate-backdrop]');
+      let $regenerateModal = null;
+      let $regenerateModalMessage = null;
+      let $regenerateModalError = null;
+      let $regenerateModalConfirm = null;
+      let $regenerateModalCancel = null;
+      let $regenerateModalBackdrop = null;
       let regenerateModalClipId = null;
       let regenerateModalPending = false;
       let missingClipToastShown = false;
@@ -134,6 +80,23 @@ $(function () {
             endSecond: null,
       };
       window.DeskClipPlaybackState = clipPlaybackState;
+
+      function ensureRegenerateModal() {
+            if ($regenerateModal) return;
+            $regenerateModal = $(regenerateModalHtml).appendTo('body');
+            $regenerateModalMessage = $regenerateModal.find('[data-regenerate-message]');
+            $regenerateModalError = $regenerateModal.find('[data-regenerate-error]');
+            $regenerateModalConfirm = $regenerateModal.find('[data-regenerate-confirm]');
+            $regenerateModalCancel = $regenerateModal.find('[data-regenerate-cancel]');
+            $regenerateModalBackdrop = $regenerateModal.find('[data-regenerate-backdrop]');
+            $regenerateModalConfirm.on('click', submitRegenerateClip);
+            $regenerateModalCancel.on('click', function () {
+                  closeRegenerateModal();
+            });
+            $regenerateModalBackdrop.on('click', function () {
+                  closeRegenerateModal();
+            });
+      }
 
       const $video = $('#deskVideoPlayer');
       if ($video.length) {
@@ -264,7 +227,7 @@ $(function () {
       const $btnClipCreate = $('#clipCreateBtn');
       const $btnClipDelete = $('#clipDeleteBtn');
 
-      const EVENT_COLOURS = {
+      const EVENT_COLOURS = Object.freeze({
             goal: '#22C55E',
             goal_for: '#22C55E',
             goal_against: '#22C55E',
@@ -288,7 +251,7 @@ $(function () {
             good_play: '#7CC378',
             highlight: '#3F51B5',
             other: '#B8C1EC',
-      };
+      });
       const EVENT_NEUTRAL = '#B8C1EC';
       const VIDEO_TIME_KEY = cfg && cfg.matchId ? `deskVideoTime_${cfg.matchId}` : 'deskVideoTime';
       const DRAWING_WINDOW_FALLBACK_SECONDS = 5;
@@ -324,6 +287,20 @@ $(function () {
       // Ownership: STRATEGY A (Server embeds all required events as JSON in window.DeskConfig; client reads from cfg.events)
       // Rationale: Avoids duplicate DB/API fetches on load, ensures single source of truth for initial render
       let events = [];
+      let eventById = new Map();
+      function setDeskEvents(nextEvents) {
+            events = Array.isArray(nextEvents) ? nextEvents : [];
+            eventById = new Map();
+            for (let i = 0; i < events.length; i += 1) {
+                  const ev = events[i];
+                  const id = Number(ev && ev.id);
+                  if (Number.isFinite(id)) {
+                        eventById.set(id, ev);
+                  }
+            }
+            window.DeskEvents = events;
+            document.dispatchEvent(new CustomEvent('desk:events', { detail: events }));
+      }
       let filteredCache = [];
       let selectedId = null;
       let clipState = { id: null, start: null, end: null };
@@ -337,7 +314,7 @@ $(function () {
       const eventTypeAccents = {};
       const eventTypeKeyMap = {};
       const boardLabelByTypeId = {};
-      const tagReplacements = {
+      const tagReplacements = Object.freeze({
             'TOR HEIM': { label: 'Goal (For)', key: 'goal_for' },
             'TOR-G': { label: 'Goal (Against)', key: 'goal_against' },
             'CHANCE': { label: 'Chance', key: 'chance' },
@@ -358,7 +335,7 @@ $(function () {
             'PRESSING LB': { label: 'Low Block Press', key: 'low_block_press' },
             'HIGHLIGHT': { label: 'Highlight', key: 'highlight' },
             'SONSTIGES': { label: 'Other', key: 'other' },
-      };
+      });
       let quickTagBoard = {
             title: 'Quick Tags',
             tiles: [],
@@ -367,14 +344,22 @@ $(function () {
       const SHOT_EVENT_KEYS = new Set(['shot', 'shot_on_target', 'shot_off_target']);
       const CARD_EVENT_KEYS = new Set(['card', 'yellow_card', 'red_card']);
       const OFFSIDE_EVENT_KEYS = new Set(['off_side', 'offside']);
-      const shotOutcomeLabels = {
+      const shotOutcomeLabels = Object.freeze({
             on_target: 'On Target',
             off_target: 'Off Target',
-      };
+      });
       // DATASET: players
       // Ownership: STRATEGY A (Server embeds all required players as JSON in window.DeskConfig; client reads from cfg.players)
       // Rationale: Avoids duplicate DB/API fetches on load, ensures single source of truth for initial render
       const players = Array.isArray(cfg.players) ? cfg.players : [];
+      const playerByMatchPlayerId = new Map();
+      for (let i = 0; i < players.length; i += 1) {
+            const player = players[i];
+            const id = Number(player && player.id);
+            if (Number.isFinite(id)) {
+                  playerByMatchPlayerId.set(id, player);
+            }
+      }
 
       // --- DEFERRED: Non-critical data and actions ---
       function deferNonCriticalWork() {
@@ -401,29 +386,6 @@ $(function () {
                   window.requestIdleCallback(deferNonCriticalWork, { timeout: 2000 });
             } else {
                   setTimeout(deferNonCriticalWork, 1200);
-            }
-            // Also trigger on first user interaction if not already run
-            let deferredRun = false;
-            function init() {
-                  if ($jsBadge.length) {
-                        $jsBadge.text('JS');
-                  } else {
-                        console.warn('[desk-events] jsBadge not found — skipping badge logic');
-                  }
-                  applyQuickTagReplacements();
-                  buildTypeMap();
-                  // Now that eventTypeMap is ready, apply event label replacements
-                  events = Array.isArray(cfg.events) ? applyEventLabelReplacements(cfg.events) : [];
-                  rebuildQuickTagBoard();
-                  syncEventTypeOptions();
-                  renderTagGrid();
-                  renderGoalPlayerList();
-                  renderShotPlayerList();
-                  setContext(currentContext);
-                  setTeam(currentTeam);
-                  fillForm(null);
-                  setTimelineMode(timelineMode);
-                  applyMode(false, {});
             }
       };
       const $goalPlayerModal = $('#goalPlayerModal');
@@ -465,6 +427,8 @@ $(function () {
       let drawingDragState = null;
       let matrixWheelListenerBound = false;
       let resizeTimer = null;
+      let timelineRenderTimer = null;
+      let initialTimelineRefreshScheduled = false;
       let editorDirty = false;
       let suppressDirtyTracking = false;
       let activeEditorTab = 'details';
@@ -715,8 +679,139 @@ $(function () {
             return { total: normalized, minutes, seconds, text };
       }
 
+      function formatGameClockFromPeriods(totalSeconds) {
+            const normalized = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+            const state = typeof periodState !== 'undefined' ? periodState : window.DeskPeriodState;
+            const firstHalf = state && state.first_half ? state.first_half : null;
+            const secondHalf = state && state.second_half ? state.second_half : null;
+            const pad = (num) => String(num).padStart(2, '0');
+
+            const inPeriod = (entry) => {
+                  if (!entry || !Number.isFinite(entry.startMatchSecond)) return false;
+                  const start = Number(entry.startMatchSecond);
+                  const end = Number(entry.endMatchSecond);
+                  return normalized >= start && (!Number.isFinite(end) || normalized <= end);
+            };
+
+            let period = null;
+            if (secondHalf && inPeriod(secondHalf)) {
+                  period = { baseMinute: 46, injuryBase: 90, entry: secondHalf };
+            } else if (firstHalf && inPeriod(firstHalf)) {
+                  period = { baseMinute: 0, injuryBase: 45, entry: firstHalf };
+            }
+
+            if (!period) {
+                  if (firstHalf && Number.isFinite(firstHalf.startMatchSecond) && normalized < Number(firstHalf.startMatchSecond)) {
+                        return '00:00';
+                  }
+                  if (secondHalf && Number.isFinite(secondHalf.startMatchSecond) && normalized < Number(secondHalf.startMatchSecond)) {
+                        return '45:00';
+                  }
+                  return formatMatchSecond(normalized).text;
+            }
+
+            const startSecond = Number(period.entry.startMatchSecond);
+            const endSecond = Number(period.entry.endMatchSecond);
+            let effective = normalized;
+            if (Number.isFinite(endSecond) && endSecond > 0) {
+                  effective = Math.min(effective, endSecond);
+            }
+            const elapsedSeconds = Math.max(0, effective - startSecond);
+            const total = elapsedSeconds + period.baseMinute * 60;
+            const minute = Math.floor(total / 60);
+            const second = Math.floor(total % 60);
+            if (minute > period.injuryBase) {
+                  return `${period.injuryBase}+${minute - period.injuryBase}`;
+            }
+            return `${pad(minute)}:${pad(second)}`;
+      }
+
       function fmtTime(sec) {
             return formatMatchSecond(sec).text;
+      }
+
+      function buildMatrixTooltipHtml(ev) {
+            if (!ev) return '';
+            const matchSecond = Number(ev.match_second) || 0;
+            const videoTime = formatMatchSecond(matchSecond).text;
+            const gameTime = formatGameClockFromPeriods(matchSecond);
+            const typeLabel = ev.event_type_label || eventTypeMap[resolveEventTypeId(ev)]?.label || ev.event_type_key || 'Event';
+            const detailLabel = displayEventLabel(ev, typeLabel);
+            const teamLabel = teamSideLabels[ev.team_side] || 'Unknown';
+            const playerId = Number(ev.match_player_id);
+            const player = Number.isFinite(playerId) ? playerByMatchPlayerId.get(playerId) : null;
+            const playerName = player ? player.display_name || player.player_name || 'Unknown' : 'Unknown';
+            const outcome = (ev.outcome || '').toString().trim();
+
+            return `
+                  <div class="matrix-tooltip-header">${h(typeLabel)}</div>
+                  <div class="matrix-tooltip-sub">${h(detailLabel || '')}</div>
+                  <div class="matrix-tooltip-row">
+                        <span>Video time</span>
+                        <strong>${h(videoTime)}</strong>
+                  </div>
+                  <div class="matrix-tooltip-row">
+                        <span>Game time</span>
+                        <strong>${h(gameTime)}</strong>
+                  </div>
+                  <div class="matrix-tooltip-row">
+                        <span>Team</span>
+                        <strong>${h(teamLabel)}</strong>
+                  </div>
+                  <div class="matrix-tooltip-row">
+                        <span>Player</span>
+                        <strong>${h(playerName)}</strong>
+                  </div>
+                  ${outcome ? `<div class="matrix-tooltip-row"><span>Outcome</span><strong>${h(outcome)}</strong></div>` : ''}
+            `;
+      }
+
+      let matrixTooltip = null;
+      function ensureMatrixTooltip() {
+            if (matrixTooltip) return matrixTooltip;
+            matrixTooltip = document.createElement('div');
+            matrixTooltip.className = 'matrix-tooltip';
+            document.body.appendChild(matrixTooltip);
+            return matrixTooltip;
+      }
+
+      function positionMatrixTooltip(target, tooltip) {
+            const rect = target.getBoundingClientRect();
+            tooltip.style.left = '0px';
+            tooltip.style.top = '0px';
+            const tooltipRect = tooltip.getBoundingClientRect();
+            let left = rect.left + rect.width / 2 - tooltipRect.width / 2;
+            let top = rect.top - tooltipRect.height - 10;
+            if (top < 8) {
+                  top = rect.bottom + 10;
+            }
+            left = Math.max(8, Math.min(left, window.innerWidth - tooltipRect.width - 8));
+            tooltip.style.left = `${left}px`;
+            tooltip.style.top = `${top}px`;
+      }
+
+      let matrixTooltipBound = false;
+      function bindMatrixTooltipHandlers() {
+            if (matrixTooltipBound) return;
+            matrixTooltipBound = true;
+            $timelineMatrix.on('mouseenter', '.matrix-dot', function () {
+                  const tooltip = ensureMatrixTooltip();
+                  const eventId = Number(this.dataset.eventId);
+                  const ev = Number.isFinite(eventId) ? eventById.get(eventId) : null;
+                  tooltip.innerHTML = buildMatrixTooltipHtml(ev);
+                  tooltip.classList.add('is-visible');
+                  positionMatrixTooltip(this, tooltip);
+            });
+            $timelineMatrix.on('mouseleave', '.matrix-dot', function () {
+                  if (matrixTooltip) {
+                        matrixTooltip.classList.remove('is-visible');
+                  }
+            });
+            $timelineMatrix.on('mousemove', '.matrix-dot', function () {
+                  if (matrixTooltip && matrixTooltip.classList.contains('is-visible')) {
+                        positionMatrixTooltip(this, matrixTooltip);
+                  }
+            });
       }
 
       function parseMatchTimeInput(value) {
@@ -2230,7 +2325,7 @@ $(function () {
       function loadEvents(forceApi = false) {
             // If forceApi is true, always fetch from API. Otherwise, use embedded events for first paint only.
             if (!forceApi && Array.isArray(cfg.events)) {
-                  events = applyEventLabelReplacements(cfg.events);
+                  setDeskEvents(applyEventLabelReplacements(cfg.events));
                   refreshPeriodStateFromEvents();
                   // meta and selectedId are not available from embedded, so skip those
                   renderTimeline();
@@ -2250,7 +2345,7 @@ $(function () {
                               return;
                         }
                         hideError();
-                        events = applyEventLabelReplacements(res.events || []);
+                        setDeskEvents(applyEventLabelReplacements(res.events || []));
                         refreshPeriodStateFromEvents();
                         syncUndoRedoFromMeta(res.meta);
                         renderTimeline();
@@ -2262,23 +2357,18 @@ $(function () {
       function refreshSummaryPanel() {
             // Reload the summary panel by fetching fresh data from the server
             const matchId = cfg.matchId;
-            console.log('refreshSummaryPanel called for match:', matchId);
             if (!matchId) {
                   console.warn('refreshSummaryPanel: No matchId available');
                   return;
             }
 
             const url = `${cfg.basePath}/api/stats/match/summary?match_id=${matchId}`;
-            console.log('refreshSummaryPanel: Fetching from', url);
             $.getJSON(url)
                   .done((res) => {
-                        console.log('refreshSummaryPanel: API response received', res);
                         if (res && res.ok && res.html) {
                               const $summaryContent = $('.desk-summary-content');
                               if ($summaryContent.length) {
-                                    console.log('refreshSummaryPanel: Updating summary content with', res.html.length, 'bytes');
                                     $summaryContent.html(res.html);
-                                    console.log('Summary panel refreshed successfully');
                               } else {
                                     console.warn('refreshSummaryPanel: .desk-summary-content not found in DOM');
                               }
@@ -2302,6 +2392,33 @@ $(function () {
                   $timelineList.addClass('is-active');
             }
             renderTimeline();
+      }
+
+      function scheduleTimelineRender(delay = 80) {
+            if (timelineRenderTimer) {
+                  clearTimeout(timelineRenderTimer);
+            }
+            timelineRenderTimer = setTimeout(() => {
+                  timelineRenderTimer = null;
+                  renderTimeline();
+            }, delay);
+      }
+
+      function scheduleInitialTimelineRefresh() {
+            if (initialTimelineRefreshScheduled) {
+                  return;
+            }
+            initialTimelineRefreshScheduled = true;
+            setTimeout(() => renderTimeline(), 50);
+            if (typeof window.requestAnimationFrame === 'function') {
+                  window.requestAnimationFrame(() => {
+                        $(window).trigger('resize');
+                  });
+            } else {
+                  setTimeout(() => {
+                        $(window).trigger('resize');
+                  }, 0);
+            }
       }
 
       function renderTimeline(options = {}) {
@@ -2369,6 +2486,7 @@ $(function () {
             // Mark timeline as ready and try to hide skeleton
             deskTimelineReady = true;
             tryHideDeskSkeleton();
+            scheduleInitialTimelineRefresh();
       }
 
       function getEventMinuteBucket(ev) {
@@ -2543,6 +2661,21 @@ $(function () {
             ];
             const axisPad = axisOffset();
             const baseDuration = 6000;
+            const resolvePeriodKey = (second) => {
+                  const state = typeof periodState !== 'undefined' ? periodState : window.DeskPeriodState;
+                  if (!state) return null;
+                  const order = ['first_half', 'second_half', 'extra_time_1', 'extra_time_2', 'penalties'];
+                  for (const key of order) {
+                        const entry = state[key];
+                        if (!entry || !Number.isFinite(entry.startMatchSecond)) continue;
+                        const start = Number(entry.startMatchSecond);
+                        const end = Number(entry.endMatchSecond);
+                        if (second >= start && (!Number.isFinite(end) || second <= end)) {
+                              return key;
+                        }
+                  }
+                  return null;
+            };
 
             if (!filtered.length) {
                   timelineMetrics.duration = baseDuration;
@@ -2749,7 +2882,10 @@ $(function () {
             html += `<div class="matrix-type-spacer" style="width:${MATRIX_TYPE_WIDTH}px"></div>`;
             html += `<div class="matrix-bucket-labels" style="grid-template-columns:${bucketColumns}; width:${timelineWidth}px">`;
             buckets.forEach((b) => {
-                  html += `<div class="text-center">${h(b.label)}</div>`;
+                  const bucketEnd = b.end === null ? rawDuration : b.end;
+                  const bucketMid = b.start + (bucketEnd - b.start) / 2;
+                  const periodKey = resolvePeriodKey(bucketMid) || (b.start >= 5400 ? 'extra_time' : b.start >= 2700 ? 'second_half' : 'first_half');
+                  html += `<div class="matrix-bucket-label" data-period-key="${h(periodKey)}">${h(b.label)}</div>`;
             });
             html += '</div>';
             html += '</div>';
@@ -2763,7 +2899,10 @@ $(function () {
                   html += `<div class="matrix-track" style="width:${timelineWidth}px">`;
                   html += `<div class="matrix-row-buckets" style="grid-template-columns:${bucketColumns}; width:${timelineWidth}px">`;
                   buckets.forEach((bucket, idx) => {
-                        html += `<div class="matrix-cell" data-bucket="${idx}" style="width:${bucketWidths[idx]}px"></div>`;
+                        const bucketEnd = bucket.end === null ? rawDuration : bucket.end;
+                        const bucketMid = bucket.start + (bucketEnd - bucket.start) / 2;
+                        const periodKey = resolvePeriodKey(bucketMid) || (bucket.start >= 5400 ? 'extra_time' : bucket.start >= 2700 ? 'second_half' : 'first_half');
+                        html += `<div class="matrix-cell" data-bucket="${idx}" data-period-key="${h(periodKey)}" style="width:${bucketWidths[idx]}px"></div>`;
                   });
                   html += '</div>';
                   html += `<div class="matrix-row-events" style="width:${timelineWidth}px">`;
@@ -2817,9 +2956,7 @@ $(function () {
                         const eventClipId = Number.isFinite(clipNumeric) && clipNumeric > 0 ? String(clipNumeric) : null;
                         const clipAttributes = ` draggable="true"${eventClipId ? ` data-clip-id="${eventClipId}"` : ''}`;
                         const evTypeKey = typeof ev.event_type_key === 'string' ? ev.event_type_key.toLowerCase() : '';
-                        html += `<span class="matrix-dot"${clipAttributes} data-event-type-key="${h(evTypeKey)}" data-second="${ev.match_second}" data-event-id="${ev.id}" title="${matrixTimeLabel} - ${h(
-                              labelText
-                        )} (${h(ev.team_side || 'team')})" style="${dotStyle}"></span>`;
+                        html += `<span class="matrix-dot"${clipAttributes} data-event-type-key="${h(evTypeKey)}" data-second="${ev.match_second}" data-event-id="${ev.id}" style="${dotStyle}"></span>`;
                   });
                   html += '</div></div></div>';
             });
@@ -2830,6 +2967,7 @@ $(function () {
             html += '</div>';
 
             $timelineMatrix.html(html);
+            bindMatrixTooltipHandlers();
             const debugCounts = {
                   dots: $timelineMatrix.find('.matrix-dot').length,
                   dotsWithClip: $timelineMatrix.find('.matrix-dot[data-clip-id]').length,
@@ -2837,10 +2975,8 @@ $(function () {
                   clips: $timelineMatrix.find('.matrix-clip').length,
                   drawings: $timelineMatrix.find('.matrix-drawing').length,
             };
-            // console.log('[Desk DnD] renderMatrix complete', ...);
             if (debugCounts.dots > 0 && debugCounts.dotsWithClip === 0 && !missingClipToastShown) {
                   missingClipToastShown = true;
-                  console.log('[Desk DnD] using event IDs as clip IDs (no explicit clips yet)');
             }
             const $viewport = $timelineMatrix.find('.matrix-viewport');
             timelineMetrics.viewportWidth = $viewport.length ? $viewport[0].clientWidth : availableWidth + axisPad;
@@ -3526,11 +3662,26 @@ $(function () {
 
       function setPeriodState(nextState) {
             periodState = nextState || createBasePeriodState();
+            window.DeskPeriodState = periodState;
+            document.dispatchEvent(new CustomEvent('desk:periodstate', { detail: periodState }));
             updatePeriodControlsUI();
       }
 
       function refreshPeriodStateFromEvents() {
-            const nextState = createBasePeriodState();
+            const hasExisting = periodState && Object.keys(periodState).length > 0;
+            const nextState = hasExisting ? JSON.parse(JSON.stringify(periodState)) : createBasePeriodState();
+            if (!hasExisting && Array.isArray(cfg.periods)) {
+                  (cfg.periods || []).forEach((p) => {
+                        const key = canonicalizePeriodKey(p.period_key, p.label);
+                        if (!key || !nextState[key]) return;
+                        const entry = nextState[key];
+                        entry.started = !!p.start_second;
+                        entry.ended = !!p.end_second;
+                        entry.startMatchSecond = p.start_second !== null ? Number(p.start_second) : null;
+                        entry.endMatchSecond = p.end_second !== null ? Number(p.end_second) : null;
+                        entry.label = p.label || entry.label;
+                  });
+            }
             const periodCandidates = (events || []).filter((ev) => PERIOD_EVENT_KEYS.has(ev.event_type_key));
             const sorted = periodCandidates
                   .map((ev) => ({ ev, timestamp: parseEventTimestamp(ev) }))
@@ -3782,9 +3933,10 @@ $(function () {
       // Ownership: STRATEGY A (Server embeds all required tags as JSON in window.DeskConfig; client reads from cfg.tags)
       // Rationale: Avoids duplicate DB/API fetches on load, ensures single source of truth for initial render
       const tags = Array.isArray(cfg.tags) ? cfg.tags : [];
+      let periodsBootstrapped = false;
       function refreshPeriodStateFromApi() {
-            // Use embedded periods for initial load
-            if (Array.isArray(cfg.periods)) {
+            // Use embedded periods for initial load only
+            if (!periodsBootstrapped && Array.isArray(cfg.periods)) {
                   const nextState = createBasePeriodState();
                   (cfg.periods || []).forEach((p) => {
                         const key = canonicalizePeriodKey(p.period_key, p.label);
@@ -3798,6 +3950,7 @@ $(function () {
                         entry.label = p.label || entry.label;
                   });
                   setPeriodState(nextState);
+                  periodsBootstrapped = true;
                   return;
             }
             // Fallback: fetch if not present (should not happen)
@@ -4001,13 +4154,8 @@ $(function () {
 
       function initPlaylists() {
             if (!playlistEnabled()) {
-                  console.log('[Desk DnD] initPlaylists skipped: playlistEnabled=false', {
-                        playlistConfigHasList: !!playlistConfig.list,
-                        playlistPanel: !!($playlistPanel && $playlistPanel.length),
-                  });
                   return;
             }
-            // console.log('[Desk DnD] initPlaylists start');
             fetchPlaylists();
       }
 
@@ -4066,12 +4214,10 @@ $(function () {
 
       function renderPlaylistList() {
             if (!playlistEnabled()) {
-                  console.log('[Desk DnD] renderPlaylistList skipped: playlistEnabled=false');
                   return;
             }
             if (!playlistState.playlists.length) {
                   $playlistList.text('No playlists yet.');
-                  console.log('[Desk DnD] renderPlaylistList: no playlists');
                   return;
             }
             const filteredPlaylists = getFilteredPlaylists();
@@ -4079,7 +4225,6 @@ $(function () {
                   const hasFilters =
                         (playlistViewState.teamFilter || '') !== '' || (playlistViewState.searchQuery || '').trim() !== '';
                   $playlistList.text(hasFilters ? 'No playlists match the current filters.' : 'No playlists yet.');
-                  console.log('[Desk DnD] renderPlaylistList: no playlists after filters', { hasFilters });
                   return;
             }
             const html = filteredPlaylists
@@ -4130,7 +4275,6 @@ $(function () {
                   })
                   .join('');
             $playlistList.html(html);
-            // console.log('[Desk DnD] renderPlaylistList: rendered playlists', ...);
       }
 
       function handlePlaylistTitleClick(event) {
@@ -4389,10 +4533,6 @@ $(function () {
 
       function fetchPlaylists() {
             if (!playlistEnabled()) {
-                  console.log('[Desk DnD] fetchPlaylists skipped: playlistEnabled=false', {
-                        playlistConfigHasList: !!playlistConfig.list,
-                        playlistPanel: !!($playlistPanel && $playlistPanel.length),
-                  });
                   return;
             }
             $playlistList.text('Loading playlists…');
@@ -4404,7 +4544,6 @@ $(function () {
                               return;
                         }
                         playlistState.playlists = Array.isArray(res.playlists) ? res.playlists : [];
-                        // console.log('[Desk DnD] fetchPlaylists success', ...);
                         renderPlaylistList();
                         if (playlistState.activePlaylistId) {
                               const stillExists = playlistState.playlists.some((pl) => pl.id === playlistState.activePlaylistId);
@@ -4423,7 +4562,6 @@ $(function () {
                   .fail((xhr, status, error) => {
                         showError('Unable to load playlists', xhr.responseText || error || status);
                         $playlistList.text('Unable to load playlists');
-                        console.log('[Desk DnD] fetchPlaylists failed', { status, error, response: xhr && xhr.responseText });
                   });
       }
 
@@ -4576,19 +4714,8 @@ $(function () {
                                           $status.removeClass('creating ready error').addClass('pending');
                                           return;
                                     }
-                                    console.log('[Clip Status Debug] Checking mp4 status:', {
-                                          clipId,
-                                          mp4Url,
-                                          statusElement: $status[0]
-                                    });
                                     fetch(mp4Url, { method: 'HEAD' })
                                           .then(resp => {
-                                                console.log('[Clip Status Debug] HEAD response:', {
-                                                      clipId,
-                                                      mp4Url,
-                                                      status: resp.status,
-                                                      ok: resp.ok
-                                                });
                                                 if (resp.ok) {
                                                       $status.text('Ready');
                                                       $status.removeClass('creating error').addClass('ready');
@@ -4659,6 +4786,7 @@ $(function () {
             if (!clip || !clip.id) {
                   return;
             }
+            ensureRegenerateModal();
             regenerateModalClipId = clip.id;
             const label = clip.clip_name ? clip.clip_name.toString() : 'clip';
             $regenerateModalMessage.text(`This will permanently replace "${label}" using the latest naming and generation logic.`);
@@ -4669,6 +4797,9 @@ $(function () {
 
       function closeRegenerateModal(force = false) {
             if (regenerateModalPending && !force) {
+                  return;
+            }
+            if (!$regenerateModal) {
                   return;
             }
             regenerateModalClipId = null;
@@ -4682,11 +4813,17 @@ $(function () {
             if (!message) {
                   message = 'Regeneration failed.';
             }
+            if (!$regenerateModalError) {
+                  return;
+            }
             $regenerateModalError.text(message).show();
       }
 
       function submitRegenerateClip() {
             if (!regenerateModalClipId || regenerateModalPending) {
+                  return;
+            }
+            if (!$regenerateModalConfirm || !$regenerateModalError) {
                   return;
             }
             regenerateModalPending = true;
@@ -4896,12 +5033,6 @@ $(function () {
             const clipId = dataClipId !== undefined && dataClipId !== null ? dataClipId : attrClipId;
             const hasClipId = clipId !== undefined && clipId !== null && `${clipId}` !== '';
             if (!hasClipId) {
-                  console.log('[Desk DnD] dragstart ignored: no clipId on element', {
-                        hasDataTransfer: !!(event.originalEvent && event.originalEvent.dataTransfer),
-                        dataClipId,
-                        attrClipId,
-                        target: event.currentTarget && event.currentTarget.outerHTML ? event.currentTarget.outerHTML.slice(0, 200) : null,
-                  });
                   showToast('This event has no clip yet. Set in/out and create a clip first.', true);
                   event.preventDefault();
                   return;
@@ -4909,12 +5040,10 @@ $(function () {
             const clipIdString = String(clipId);
             const clipNumeric = Number(clipIdString);
             if (!Number.isFinite(clipNumeric) || clipNumeric <= 0) {
-                  console.log('[Desk DnD] dragstart ignored: non-positive clipId', { clipIdString, clipNumeric });
                   showToast('This event has no clip yet. Set in/out and create a clip first.', true);
                   event.preventDefault();
                   return;
             }
-            console.log('[Desk DnD] dragstart', { clipId: clipIdString, hasDataTransfer: !!(event.originalEvent && event.originalEvent.dataTransfer) });
             if (event.originalEvent && event.originalEvent.dataTransfer) {
                   event.originalEvent.dataTransfer.setData('text/plain', clipIdString);
                   event.originalEvent.dataTransfer.effectAllowed = 'copy';
@@ -4923,14 +5052,12 @@ $(function () {
       }
 
       function handleMatrixItemDragEnd() {
-            console.log('[Desk DnD] dragend', { draggingClipId });
             draggingClipId = null;
             clearPlaylistDropHighlight();
       }
 
       function handlePlaylistDragOver(event) {
             if (!draggingClipId) {
-                  console.log('[Desk DnD] dragover ignored: no draggingClipId');
                   return;
             }
             const $target = $(event.currentTarget);
@@ -4944,32 +5071,27 @@ $(function () {
 
       function handlePlaylistDragEnter(event) {
             if (!draggingClipId) {
-                  console.log('[Desk DnD] dragenter ignored: no draggingClipId');
                   return;
             }
             const $target = $(event.currentTarget);
             dropTargetElement = $target[0];
             $target.addClass('is-drop-target');
             event.preventDefault();
-            console.log('[Desk DnD] dragenter', { playlistId: $target.data('playlistId'), draggingClipId });
       }
 
       function handlePlaylistDragLeave(event) {
             if (!draggingClipId) {
-                  console.log('[Desk DnD] dragleave ignored: no draggingClipId');
                   return;
             }
             const $target = $(event.currentTarget);
             const related = event.originalEvent && event.originalEvent.relatedTarget;
             if (related && $target[0] && $target[0].contains(related)) {
-                  console.log('[Desk DnD] dragleave ignored: moving inside target', { playlistId: $target.data('playlistId') });
                   return;
             }
             if (dropTargetElement === $target[0]) {
                   dropTargetElement = null;
             }
             $target.removeClass('is-drop-target');
-            console.log('[Desk DnD] dragleave', { playlistId: $target.data('playlistId'), draggingClipId });
       }
 
       function handlePlaylistDrop(event) {
@@ -4984,15 +5106,12 @@ $(function () {
             const hasClipId = rawClipId !== undefined && rawClipId !== null && rawClipId !== '';
             const clipId = hasClipId ? String(rawClipId) : null;
             const clipNumeric = clipId !== null ? Number(clipId) : NaN;
-            console.log('[Desk DnD] drop', { playlistId, transferredClipId, draggingClipId, resolvedClipId: clipId });
             draggingClipId = null;
             clearPlaylistDropHighlight();
             if (!playlistId) {
-                  console.log('[Desk DnD] drop aborted: missing playlistId');
                   return;
             }
             if (!clipId || !Number.isFinite(clipNumeric) || clipNumeric <= 0) {
-                  console.log('[Desk DnD] drop aborted: missing clipId');
                   showToast('No clip available to add', true);
                   return;
             }
@@ -5245,6 +5364,26 @@ $(function () {
                   .fail((xhr, status, error) => showError('Clip delete failed', xhr.responseText || error || status));
       }
 
+      function handleGlobalEscape(event) {
+            if (event.key !== 'Escape') {
+                  return;
+            }
+            if ($editorPanel.length && !$editorPanel.hasClass('is-hidden') && editorOpen) {
+                  event.preventDefault();
+                  attemptCloseEditor(true);
+                  return;
+            }
+            if ($regenerateModal && $regenerateModal.is(':visible')) {
+                  event.preventDefault();
+                  closeRegenerateModal();
+                  return;
+            }
+            if (playlistFilterPopoverOpen) {
+                  event.preventDefault();
+                  closePlaylistFilterPopover();
+            }
+      }
+
       function bindHandlers() {
             // Handle desk mode buttons (Summary, Tag Live, Drawings)
             $(document).on('click', '.desk-mode-button', function () {
@@ -5482,11 +5621,6 @@ $(function () {
                         $playlistFilterBtn.on('click', togglePlaylistFilterPopover);
                         $playlistFilterPopover.on('click', '.playlist-filter-option', handlePlaylistFilterOptionClick);
                         $(document).on('click', handleDocumentClickCloseFilter);
-                        $(document).on('keydown', (event) => {
-                              if (event.key === 'Escape') {
-                                    closePlaylistFilterPopover();
-                              }
-                        });
                         updatePlaylistFilterOptions();
                   }
                   if ($playlistSearchToggle.length) {
@@ -5514,14 +5648,7 @@ $(function () {
                   $playlistNextBtn.on('click', () => navigatePlaylist(1));
             }
 
-            $regenerateModalConfirm.on('click', submitRegenerateClip);
-            $regenerateModalCancel.on('click', () => closeRegenerateModal());
-            $regenerateModalBackdrop.on('click', () => closeRegenerateModal());
-            $regenerateModal.on('click', (event) => {
-                  if (event.target === $regenerateModal[0]) {
-                        closeRegenerateModal();
-                  }
-            });
+            // Regenerate modal is bound lazily in ensureRegenerateModal()
 
             // Bind drag-and-drop handlers unconditionally so DnD always works
             $timelineMatrix.on('dragstart', '.matrix-dot, .matrix-clip', handleMatrixItemDragStart);
@@ -5534,22 +5661,10 @@ $(function () {
                   draggingClipId = null;
                   clearPlaylistDropHighlight();
             });
-            // Debug: capture all dragstart on matrix dots and clips (even without data-clip-id)
-            $(document).on('dragstart', '.matrix-dot', function (e) {
-                  const attrClipId = $(this).attr('data-clip-id');
-                  const dataClipId = $(this).data('clipId');
-                  console.log('[Desk DnD] debug dragstart (raw matrix-dot)', {
-                        attrClipId,
-                        dataClipId,
-                        hasDataTransfer: !!(e.originalEvent && e.originalEvent.dataTransfer),
-                        outer: this.outerHTML ? this.outerHTML.slice(0, 200) : null,
-                  });
-            });
-            // console.log('[Desk DnD] handlers bound', ...);
 
-            $filterTeam.on('change', renderTimeline);
-            $filterType.on('change', renderTimeline);
-            $filterPlayer.on('change', renderTimeline);
+            $filterTeam.on('change', () => scheduleTimelineRender());
+            $filterType.on('change', () => scheduleTimelineRender());
+            $filterPlayer.on('change', () => scheduleTimelineRender());
             $timelineList.on('click', '.timeline-item', function () {
                   const seconds = $(this).data('second');
                   goToVideoTime(seconds);
@@ -5638,16 +5753,7 @@ $(function () {
                   return false;
             });
 
-            $(document).on('keydown', (e) => {
-                  if (e.key === 'Escape' && editorOpen) {
-                        attemptCloseEditor();
-                  }
-            });
-            $(document).on('keydown', (event) => {
-                  if (event.key === 'Escape' && $regenerateModal.is(':visible')) {
-                        closeRegenerateModal();
-                  }
-            });
+            $(document).on('keydown', handleGlobalEscape);
 
             if ($video.length) {
                   const persistTime = () => {
@@ -5682,22 +5788,30 @@ $(function () {
             applyMode(false, {});
             // Cache playlist controls now that the DOM has rendered
             $playlistPanel = $('#playlistsPanel');
-            $playlistList = $('#playlistList');
-            $playlistCreateForm = $('#playlistCreateForm');
-            $playlistTitleInput = $('#playlistTitleInput');
-            $playlistAddClipBtn = $('#playlistAddClipBtn');
-            $playlistClips = $('#playlistClips');
-            $playlistActiveTitle = $('#playlistActiveTitle');
-            $playlistPrevBtn = $('#playlistPrevBtn');
-            $playlistNextBtn = $('#playlistNextBtn');
-            $playlistRefreshBtn = $('#playlistRefreshBtn');
-            $playlistFilterBtn = $('#playlistFilterBtn');
-            $playlistFilterPopover = $('#playlistFilterPopover');
-            $playlistSearchToggle = $('#playlistSearchToggle');
-            $playlistSearchRow = $('#playlistSearchRow');
-            $playlistSearchInput = $('#playlistSearchInput');
-            $playlistCreateToggle = $('#playlistCreateToggle');
-            $playlistCreateRow = $('#playlistCreateRow');
+            if ($playlistPanel.length) {
+                  $playlistList = $('#playlistList');
+                  $playlistCreateForm = $('#playlistCreateForm');
+                  $playlistTitleInput = $('#playlistTitleInput');
+                  $playlistAddClipBtn = $('#playlistAddClipBtn');
+                  $playlistClips = $('#playlistClips');
+                  $playlistActiveTitle = $('#playlistActiveTitle');
+                  $playlistPrevBtn = $('#playlistPrevBtn');
+                  $playlistNextBtn = $('#playlistNextBtn');
+                  $playlistRefreshBtn = $('#playlistRefreshBtn');
+                  $playlistFilterBtn = $('#playlistFilterBtn');
+                  $playlistFilterPopover = $('#playlistFilterPopover');
+                  $playlistSearchToggle = $('#playlistSearchToggle');
+                  $playlistSearchRow = $('#playlistSearchRow');
+                  $playlistSearchInput = $('#playlistSearchInput');
+                  $playlistCreateToggle = $('#playlistCreateToggle');
+                  $playlistCreateRow = $('#playlistCreateRow');
+                  if ($playlistFilterPopover.length) {
+                        $playlistFilterPopover.attr('hidden', 'hidden');
+                  }
+                  if ($playlistFilterBtn.length) {
+                        $playlistFilterBtn.attr('aria-expanded', 'false');
+                  }
+            }
             setupTimeStepper($timeStepDown, -1);
             setupTimeStepper($timeStepUp, 1);
             bindHandlers();
@@ -5707,7 +5821,7 @@ $(function () {
             acquireLock();
             updateClipUi();
             loadEvents();
-            initPlaylists();
+            scheduleDeferredWork();
             emitClipPlaybackState();
       }
 

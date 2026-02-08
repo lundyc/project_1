@@ -171,27 +171,46 @@ def get_duration_seconds(match_id: int, video_path: Path) -> Optional[int]:
 
 
 def parse_config() -> Dict[str, str]:
-    if not CONFIG_PATH.exists():
-        raise RuntimeError(f"Missing config.php at {CONFIG_PATH}")
-
-    text = CONFIG_PATH.read_text(encoding="utf-8").splitlines()
-    in_db = False
     cfg: Dict[str, str] = {}
+    env_map = {
+        "host": "DB_HOST",
+        "name": "DB_NAME",
+        "user": "DB_USER",
+        "pass": "DB_PASS",
+        "charset": "DB_CHARSET",
+    }
 
-    for line in text:
-        if not in_db:
-            if re.search(r"'db'\s*=>\s*\[", line):
-                in_db = True
-            continue
+    for key, env_key in env_map.items():
+        value = os.environ.get(env_key)
+        if value is not None and value != "":
+            cfg[key] = value
 
-        if re.search(r"^\s*\],", line):
-            break
+    if CONFIG_PATH.exists():
+        text = CONFIG_PATH.read_text(encoding="utf-8").splitlines()
+        in_db = False
+        for line in text:
+            if not in_db:
+                if re.search(r"'db'\s*=>\s*\[", line):
+                    in_db = True
+                continue
 
-        m = re.search(r"'(host|name|user|pass|charset)'\s*=>\s*'([^']*)'", line)
-        if m:
-            cfg[m.group(1)] = m.group(2)
+            if re.search(r"^\s*\],", line):
+                break
 
-    missing = {"host", "name", "user", "pass", "charset"} - set(cfg)
+            for key, env_key in env_map.items():
+                if key in cfg:
+                    continue
+                pattern = rf"'{key}'\s*=>\s*(?:getenv\(['\"]{env_key}['\"]\)\s*\?:\s*)?'([^']*)'"
+                m = re.search(pattern, line)
+                if m:
+                    cfg[key] = m.group(1)
+
+    if "pass" not in cfg:
+        cfg["pass"] = ""
+    if "charset" not in cfg:
+        cfg["charset"] = "utf8mb4"
+
+    missing = {"host", "name", "user"} - set(cfg)
     if missing:
         raise RuntimeError(f"Missing DB config keys: {missing}")
 

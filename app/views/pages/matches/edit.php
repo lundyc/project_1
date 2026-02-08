@@ -46,7 +46,7 @@ $goals = array_filter($allEvents, fn($e) => ($e['event_type_key'] ?? '') === 'go
 $yellowCards = array_filter($allEvents, fn($e) => ($e['event_type_key'] ?? '') === 'yellow_card');
 $redCards = array_filter($allEvents, fn($e) => ($e['event_type_key'] ?? '') === 'red_card');
 $cards = array_merge($yellowCards, $redCards);
-usort($cards, fn($a, $b) => ($a['minute'] ?? 0) <=> ($b['minute'] ?? 0));
+usort($cards, fn($a, $b) => ((int)($a['match_second'] ?? 0)) <=> ((int)($b['match_second'] ?? 0)));
 
 // Get substitutions
 $substitutions = get_match_substitutions($matchId);
@@ -391,6 +391,7 @@ if (isset($matchStatus) && $matchStatus === 'ready') {
                         </div>
                         <div class="p-6">
                             <form id="match-details-form" method="post" action="<?= htmlspecialchars($base) ?>/api/matches/<?= $matchId ?>/update-details" class="space-y-6">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(get_csrf_token()) ?>">
                                 <input type="hidden" name="club_id" value="<?= htmlspecialchars($selectedClubId) ?>">
                                 <input type="hidden" name="match_id" value="<?= $matchId ?>">
                                 
@@ -906,9 +907,9 @@ if (isset($matchStatus) && $matchStatus === 'ready') {
                                             $homeGoalsList = array_filter($goals, fn($g) => $g['team_side'] === 'home');
                                             // Sort by minute (chronological)
                                             usort($homeGoalsList, function($a, $b) {
-                                                $minuteA = ($a['minute'] ?? 0) + (($a['minute_extra'] ?? 0) / 100);
-                                                $minuteB = ($b['minute'] ?? 0) + (($b['minute_extra'] ?? 0) / 100);
-                                                return $minuteA <=> $minuteB;
+                                                $secondA = (int)($a['match_second'] ?? 0);
+                                                $secondB = (int)($b['match_second'] ?? 0);
+                                                return $secondA <=> $secondB;
                                             });
                                             if (empty($homeGoalsList)): ?>
                                                 <div class="text-center py-8 text-slate-500 text-sm">
@@ -921,8 +922,9 @@ if (isset($matchStatus) && $matchStatus === 'ready') {
                                                         ?? $goal['display_name'] 
                                                         ?? '';
                                                     $goalPlayer = trim($goalPlayerRaw) !== '' ? $goalPlayerRaw : 'Unknown';
-                                                    $goalMinute = $goal['minute'] ?? 0;
-                                                    $goalMinuteExtra = $goal['minute_extra'] ?? 0;
+                                                    $goalMatchSecond = (int)($goal['match_second'] ?? 0);
+                                                    $goalMinute = (int)floor($goalMatchSecond / 60);
+                                                    $goalMinuteExtra = 0;
                                                     $goalMinuteDisplay = $goalMinute . ($goalMinuteExtra > 0 ? "+{$goalMinuteExtra}" : '');
                                                     $goalMatchPlayerId = (int)($goal['match_player_id'] ?? 0);
                                                     $goalEventTypeId = (int)($goal['event_type_id'] ?? 0);
@@ -980,9 +982,9 @@ if (isset($matchStatus) && $matchStatus === 'ready') {
                                             $awayGoalsList = array_filter($goals, fn($g) => $g['team_side'] === 'away');
                                             // Sort by minute (chronological)
                                             usort($awayGoalsList, function($a, $b) {
-                                                $minuteA = ($a['minute'] ?? 0) + (($a['minute_extra'] ?? 0) / 100);
-                                                $minuteB = ($b['minute'] ?? 0) + (($b['minute_extra'] ?? 0) / 100);
-                                                return $minuteA <=> $minuteB;
+                                                $secondA = (int)($a['match_second'] ?? 0);
+                                                $secondB = (int)($b['match_second'] ?? 0);
+                                                return $secondA <=> $secondB;
                                             });
                                             if (empty($awayGoalsList)): ?>
                                                 <div class="text-center py-8 text-slate-500 text-sm">
@@ -995,8 +997,9 @@ if (isset($matchStatus) && $matchStatus === 'ready') {
                                                         ?? $goal['display_name'] 
                                                         ?? '';
                                                     $goalPlayer = trim($goalPlayerRaw) !== '' ? $goalPlayerRaw : 'Unknown';
-                                                    $goalMinute = $goal['minute'] ?? 0;
-                                                    $goalMinuteExtra = $goal['minute_extra'] ?? 0;
+                                                    $goalMatchSecond = (int)($goal['match_second'] ?? 0);
+                                                    $goalMinute = (int)floor($goalMatchSecond / 60);
+                                                    $goalMinuteExtra = 0;
                                                     $goalMinuteDisplay = $goalMinute . ($goalMinuteExtra > 0 ? "+{$goalMinuteExtra}" : '');
                                                     $goalMatchPlayerId = (int)($goal['match_player_id'] ?? 0);
                                                     $goalEventTypeId = (int)($goal['event_type_id'] ?? 0);
@@ -1084,8 +1087,9 @@ if (isset($matchStatus) && $matchStatus === 'ready') {
                                                     if (trim((string)$cardPlayer) === '') {
                                                         $cardPlayer = 'Unknown';
                                                     }
-                                                    $cardMinute = $card['minute'] ?? 0;
-                                                    $cardMinuteExtra = $card['minute_extra'] ?? 0;
+                                                    $cardMatchSecond = (int)($card['match_second'] ?? 0);
+                                                    $cardMinute = (int)floor($cardMatchSecond / 60);
+                                                    $cardMinuteExtra = 0;
                                                     $cardMinuteDisplay = $cardMinute . ($cardMinuteExtra > 0 ? "+{$cardMinuteExtra}" : '');
                                                     $isYellow = ($card['event_type_key'] ?? '') === 'yellow_card';
                                                     $cardMatchPlayerId = (int)($card['match_player_id'] ?? 0);
@@ -1154,8 +1158,9 @@ if (isset($matchStatus) && $matchStatus === 'ready') {
                                                     if (trim((string)$cardPlayer) === '') {
                                                         $cardPlayer = 'Unknown';
                                                     }
-                                                    $cardMinute = $card['minute'] ?? 0;
-                                                    $cardMinuteExtra = $card['minute_extra'] ?? 0;
+                                                    $cardMatchSecond = (int)($card['match_second'] ?? 0);
+                                                    $cardMinute = (int)floor($cardMatchSecond / 60);
+                                                    $cardMinuteExtra = 0;
                                                     $cardMinuteDisplay = $cardMinute . ($cardMinuteExtra > 0 ? "+{$cardMinuteExtra}" : '');
                                                     $isYellow = ($card['event_type_key'] ?? '') === 'yellow_card';
                                                     $cardMatchPlayerId = (int)($card['match_player_id'] ?? 0);

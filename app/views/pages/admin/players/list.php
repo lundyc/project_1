@@ -5,6 +5,7 @@ require_once __DIR__ . '/../../../../lib/team_repository.php';
 require_once __DIR__ . '/../../../../lib/season_repository.php';
 require_once __DIR__ . '/../../../../lib/club_repository.php';
 require_once __DIR__ . '/../../../../lib/player_name_helper.php';
+require_once __DIR__ . '/../../../../lib/csrf.php';
 
 $context = require_club_admin_access();
 $user = $context['user'];
@@ -26,6 +27,8 @@ $players = get_players_for_club($clubId, $filters);
 $success = $_SESSION['player_flash_success'] ?? null;
 $error = $_SESSION['player_flash_error'] ?? null;
 unset($_SESSION['player_flash_success'], $_SESSION['player_flash_error']);
+
+$csrfToken = get_csrf_token();
 
 $title = 'Players';
 $base = base_path();
@@ -186,7 +189,8 @@ include __DIR__ . '/../../../partials/header.php';
                                                             <i class="fa-solid fa-pen"></i>
                                                         </button>
                                                     </form>
-                                                    <form method="post" action="<?= htmlspecialchars($base) ?>/admin/players/<?= (int)$player['id'] ?>/delete" class="inline" onsubmit="return confirm('Mark this player as inactive?');">
+                                                    <form method="post" action="<?= htmlspecialchars($base) ?>/admin/players/<?= (int)$player['id'] ?>/delete" class="inline" data-confirm="Mark this player as inactive?">
+                                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                                                         <button type="submit" class="inline-flex items-center rounded-lg border border-red-700 bg-transparent px-2 py-1 text-xs text-red-700 hover:bg-red-700 hover:text-white pt-2 pb-2 transition-colors" aria-label="Delete player">
                                                             <i class="fa-solid fa-trash"></i>
                                                         </button>
@@ -225,6 +229,19 @@ include __DIR__ . '/../../../partials/header.php';
             </aside
                                             </div>
                                             </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('form[data-confirm]').forEach(function(form) {
+        form.addEventListener('submit', function(event) {
+            var message = form.getAttribute('data-confirm') || 'Are you sure?';
+            if (!window.confirm(message)) {
+                event.preventDefault();
+            }
+        });
+    });
+});
+</script>
     
 <?php
 $content = ob_get_clean();

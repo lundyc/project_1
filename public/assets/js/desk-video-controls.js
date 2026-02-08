@@ -1,4 +1,4 @@
-(function () {
+(() => {
   const playbackRates = [0.5, 1, 2, 4, 8];
 
   function initDeskControls() {
@@ -20,7 +20,24 @@
     const timelineProgress = document.getElementById('deskTimelineProgress');
     const timelineWrapper = document.getElementById('deskTimeline');
     const timelineHoverBall = document.querySelector('[data-video-timeline-ball]');
+    const timelineTooltip = (() => {
+      if (!timelineTrack) {
+        return null;
+      }
+      const existing = timelineTrack.querySelector('.desk-timeline-tooltip');
+      if (existing) {
+        return existing;
+      }
+      const tooltip = document.createElement('div');
+      tooltip.className = 'desk-timeline-tooltip';
+      tooltip.setAttribute('aria-hidden', 'true');
+      timelineTrack.appendChild(tooltip);
+      return tooltip;
+    })();
     const timeDisplay = document.getElementById('deskTimeDisplay');
+    const scorebugTime = document.getElementById('deskScorebugTime');
+    const scorebugHome = document.getElementById('deskScorebugHome');
+    const scorebugAway = document.getElementById('deskScorebugAway');
     // Removed deskCornerTimeDisplay reference
     const controls = document.getElementById('deskControls');
     const drawingToolbarShell = document.querySelector('[data-drawing-toolbar]');
@@ -391,6 +408,152 @@
       detachBtn.addEventListener('click', detachVideo);
     }
 
+    const GOAL_EVENT_KEYS = new Set(['goal', 'goal_for', 'goal_against']);
+    const normalizeTeamSide = (side) => (side === 'home' ? 'home' : side === 'away' ? 'away' : null);
+    const resolveGoalSide = (ev) => {
+      const side = normalizeTeamSide(ev?.team_side);
+      if (!side) {
+        return null;
+      }
+      if (ev.event_type_key === 'goal_against') {
+        return side === 'home' ? 'away' : 'home';
+      }
+      return side;
+    };
+
+    let scoreCache = {
+      eventsRef: null,
+      length: 0,
+      sorted: [],
+      lastIndex: 0,
+      lastTime: -1,
+      home: 0,
+      away: 0,
+    };
+
+    const buildScoreCache = () => {
+      const source = Array.isArray(window.DeskEvents) ? window.DeskEvents : [];
+      scoreCache.eventsRef = source;
+      scoreCache.length = source.length;
+      scoreCache.sorted = source
+        .map((ev) => {
+          const second = Number(ev.match_second);
+          if (!Number.isFinite(second)) return null;
+          const key = ev.event_type_key;
+          if (!GOAL_EVENT_KEYS.has(key)) return null;
+          const side = resolveGoalSide(ev);
+          if (!side) return null;
+          return { second, side, id: Number(ev.id) || 0 };
+        })
+        .filter(Boolean)
+        .sort((a, b) => (a.second === b.second ? a.id - b.id : a.second - b.second));
+      scoreCache.lastIndex = 0;
+      scoreCache.lastTime = -1;
+      scoreCache.home = 0;
+      scoreCache.away = 0;
+    };
+
+    const ensureScoreCache = () => {
+      const source = Array.isArray(window.DeskEvents) ? window.DeskEvents : [];
+      if (scoreCache.eventsRef !== source || scoreCache.length !== source.length) {
+        buildScoreCache();
+      }
+    };
+
+    const getScoreAtTime = (currentTime) => {
+      ensureScoreCache();
+      const time = Number.isFinite(currentTime) ? currentTime : 0;
+      if (time < scoreCache.lastTime) {
+        buildScoreCache();
+      }
+      const sorted = scoreCache.sorted;
+      let i = scoreCache.lastIndex;
+      while (i < sorted.length && sorted[i].second <= time) {
+        if (sorted[i].side === 'home') {
+          scoreCache.home += 1;
+        } else if (sorted[i].side === 'away') {
+          scoreCache.away += 1;
+        }
+        i += 1;
+      }
+      scoreCache.lastIndex = i;
+      scoreCache.lastTime = time;
+      return { home: scoreCache.home, away: scoreCache.away };
+    };
+
+    const getScorebugMinuteText = (currentTime) => {
+      const state = window.DeskPeriodState || null;
+      const current = Number.isFinite(currentTime) ? currentTime : 0;
+      const pad = (num) => String(num).padStart(2, '0');
+      const formatClock = (minute, second) => `${pad(minute)}:${pad(second)}`;
+
+      const resolvePeriod = (key) => {
+        const entry = state && state[key] ? state[key] : null;
+        const periods = Array.isArray(window.DeskConfig?.periods) ? window.DeskConfig.periods : [];
+        const fallback = periods.find((p) => p && p.period_key === key) || null;
+        const startSecond = Number(entry?.startMatchSecond ?? fallback?.start_second);
+        const endSecond = Number(entry?.endMatchSecond ?? fallback?.end_second);
+        const started = Boolean(entry?.started) || Number.isFinite(startSecond);
+        const ended = Boolean(entry?.ended) || Number.isFinite(endSecond);
+        return {
+          entry,
+          startSecond: Number.isFinite(startSecond) ? startSecond : null,
+          endSecond: Number.isFinite(endSecond) ? endSecond : null,
+          started,
+          ended,
+        };
+      };
+
+      const first = resolvePeriod('first_half');
+      const second = resolvePeriod('second_half');
+      const firstStart = first.startSecond;
+      const firstEnd = first.endSecond;
+      const secondStart = second.startSecond;
+      const secondEnd = second.endSecond;
+
+      if (Number.isFinite(firstStart) && current < firstStart) {
+        return formatClock(0, 0);
+      }
+
+      const computeClock = (periodData, baseMinute, injuryBase) => {
+        const startSecond = Number(periodData.startSecond);
+        if (!Number.isFinite(startSecond)) {
+          return formatClock(baseMinute, 0);
+        }
+        const endSecond = Number(periodData.endSecond);
+        let effectiveTime = current;
+        if (Number.isFinite(endSecond) && current >= endSecond) {
+          effectiveTime = endSecond;
+        }
+        const elapsedSeconds = Math.max(0, effectiveTime - startSecond);
+        const totalSeconds = elapsedSeconds + baseMinute * 60;
+        const minute = Math.floor(totalSeconds / 60);
+        const second = Math.floor(totalSeconds % 60);
+        if (totalSeconds > injuryBase * 60) {
+          const injurySeconds = Math.max(0, totalSeconds - injuryBase * 60);
+          const injuryMinute = Math.max(1, Math.ceil(injurySeconds / 60));
+          return `${injuryBase}:00+${injuryMinute}`;
+        }
+        return formatClock(minute, second);
+      };
+
+      if (Number.isFinite(secondStart) && current >= secondStart) {
+        if (Number.isFinite(secondEnd) && current >= secondEnd) {
+          return 'FULL TIME';
+        }
+        return computeClock(second, 46, 90);
+      }
+
+      if (Number.isFinite(firstStart) && current >= firstStart) {
+        if (Number.isFinite(firstEnd) && current >= firstEnd) {
+          return 'HALF TIME';
+        }
+        return computeClock(first, 0, 45);
+      }
+
+      return formatClock(0, 0);
+    };
+
     const updateTimeDisplay = (overrideTime) => {
       const currentTime = Number.isFinite(overrideTime) ? overrideTime : video.currentTime;
       const current = formatTime(currentTime);
@@ -410,14 +573,14 @@
         dividerSpan.textContent = `/ ${total}`;
         timeDisplay.appendChild(dividerSpan);
       }
-    };
-
-    const getTimelinePercent = (overrideTime) => {
-      if (!Number.isFinite(video.duration) || video.duration === 0) {
-        return 0;
+      if (scorebugTime) {
+        scorebugTime.textContent = getScorebugMinuteText(currentTime);
       }
-      const time = Number.isFinite(overrideTime) ? overrideTime : video.currentTime;
-      return Math.min(100, Math.max(0, (time / video.duration) * 100));
+      if (scorebugHome && scorebugAway) {
+        const score = getScoreAtTime(currentTime);
+        scorebugHome.textContent = `${score.home}`;
+        scorebugAway.textContent = `${score.away}`;
+      }
     };
 
     const updateTimelineProgress = (percent) => {
@@ -432,6 +595,28 @@
         return;
       }
       timelineHoverBall.style.left = `${percent}%`;
+    };
+
+    const showTimelineTooltip = (timeSeconds, percent) => {
+      if (!timelineTooltip) {
+        return;
+      }
+      const safeTime = Number.isFinite(timeSeconds) ? timeSeconds : 0;
+      const label = formatTime(safeTime);
+      timelineTooltip.textContent = label;
+      if (Number.isFinite(percent)) {
+        timelineTooltip.style.left = `${percent}%`;
+      }
+      timelineTooltip.classList.add('is-visible');
+      timelineTooltip.setAttribute('aria-hidden', 'false');
+    };
+
+    const hideTimelineTooltip = () => {
+      if (!timelineTooltip) {
+        return;
+      }
+      timelineTooltip.classList.remove('is-visible');
+      timelineTooltip.setAttribute('aria-hidden', 'true');
     };
 
     const getBufferedEndSeconds = () => {
@@ -461,6 +646,14 @@
       const bufferedEnd = clampToDuration(getBufferedEndSeconds());
       const percent = Math.min(100, Math.max(0, (bufferedEnd / duration) * 100));
       timelineBuffered.style.width = `${percent}%`;
+    };
+
+    const getTimelinePercent = (overrideTime) => {
+      if (!Number.isFinite(video.duration) || video.duration === 0) {
+        return 0;
+      }
+      const time = Number.isFinite(overrideTime) ? overrideTime : video.currentTime;
+      return Math.min(100, Math.max(0, (time / video.duration) * 100));
     };
 
     const syncTimeline = () => {
@@ -576,10 +769,14 @@
     };
 
     const handleTimelinePointerMove = (event) => {
+      const timeSeconds = computeTimelineTimeFromClientX(event.clientX);
+      if (Number.isFinite(timeSeconds)) {
+        const percent = getTimelinePercent(timeSeconds);
+        showTimelineTooltip(timeSeconds, percent);
+      }
       if (!isScrubbing) {
         return;
       }
-      const timeSeconds = computeTimelineTimeFromClientX(event.clientX);
       if (Number.isFinite(timeSeconds)) {
         beginScrubPreview(timeSeconds);
       }
@@ -626,6 +823,18 @@
       }
       isScrubbing = false;
       finishScrub();
+    };
+
+    const handleTimelineMouseMove = (event) => {
+      const timeSeconds = computeTimelineTimeFromClientX(event.clientX);
+      if (Number.isFinite(timeSeconds)) {
+        const percent = getTimelinePercent(timeSeconds);
+        showTimelineTooltip(timeSeconds, percent);
+      }
+    };
+
+    const handleTimelineMouseLeave = () => {
+      hideTimelineTooltip();
     };
 
     const handleKeyboardSeek = (event) => {
@@ -825,6 +1034,8 @@
     video.addEventListener('timeupdate', () => updateTimeDisplay());
     video.addEventListener('durationchange', () => updateTimeDisplay());
     video.addEventListener('loadedmetadata', () => updateTimeDisplay());
+    document.addEventListener('desk:periodstate', () => updateTimeDisplay());
+    document.addEventListener('desk:events', () => updateTimeDisplay());
     video.addEventListener('progress', updateTimelineBuffered);
     video.addEventListener('canplay', updateTimelineBuffered);
     video.addEventListener('play', () => {
@@ -889,7 +1100,12 @@
       timelineTrack.addEventListener('pointermove', handleTimelinePointerMove);
       timelineTrack.addEventListener('pointerup', handleTimelinePointerUp);
       timelineTrack.addEventListener('pointerleave', handleTimelinePointerUp);
+      timelineTrack.addEventListener('pointerleave', hideTimelineTooltip);
       timelineTrack.addEventListener('pointercancel', handleTimelinePointerCancel);
+      timelineTrack.addEventListener('pointercancel', hideTimelineTooltip);
+      timelineTrack.addEventListener('mouseenter', handleTimelineMouseMove);
+      timelineTrack.addEventListener('mousemove', handleTimelineMouseMove);
+      timelineTrack.addEventListener('mouseleave', handleTimelineMouseLeave);
     }
 
     if (timelineWrapper) {

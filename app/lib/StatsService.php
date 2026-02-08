@@ -670,8 +670,8 @@ class StatsService
         $yellowCardTypeId = $this->getEventTypeIdByKey('yellow_card');
         $redCardTypeId = $this->getEventTypeIdByKey('red_card');
         
-        $where = ['m.club_id = :club_id', 'm.status = "ready"', 'p.club_id = :club_id'];
-        $params = ['club_id' => $this->clubId];
+        $where = ['m.club_id = :club_id', 'm.status = "ready"', 'p.club_id = :player_club_id'];
+        $params = ['club_id' => $this->clubId, 'player_club_id' => $this->clubId];
         
         if ($seasonId !== null) {
             $where[] = 'm.season_id = :season_id';
@@ -873,7 +873,20 @@ class StatsService
 
         // Fetch substitutions for those matches
         $placeholders = implode(',', array_fill(0, count($matchIds), '?'));
-        $subsStmt = $this->pdo->prepare("\n            SELECT match_id, player_off_match_player_id, player_on_match_player_id, minute, minute_extra\n            FROM match_substitutions\n            WHERE match_id IN ($placeholders)\n        ");
+        $subsColumns = $this->getMatchSubstitutionColumns();
+        $selectParts = ['match_id', 'player_off_match_player_id', 'player_on_match_player_id'];
+        if (in_array('match_second', $subsColumns, true)) {
+            $selectParts[] = 'match_second';
+        }
+        if (in_array('minute', $subsColumns, true)) {
+            $selectParts[] = 'minute';
+        }
+        if (in_array('minute_extra', $subsColumns, true)) {
+            $selectParts[] = 'minute_extra';
+        }
+        $subsStmt = $this->pdo->prepare(
+            "\n            SELECT " . implode(', ', $selectParts) . "\n            FROM match_substitutions\n            WHERE match_id IN ($placeholders)\n        "
+        );
         $subsStmt->execute($matchIds);
         $subs = $subsStmt->fetchAll(\PDO::FETCH_ASSOC);
 
@@ -893,7 +906,12 @@ class StatsService
 
             // Build on/off maps in minutes
             foreach ($subsByMatch[$matchId] ?? [] as $sub) {
-                $minute = (int)$sub['minute'] + (int)$sub['minute_extra'];
+                $minute = 0;
+                if (isset($sub['match_second'])) {
+                    $minute = (int)floor(((int)$sub['match_second']) / 60);
+                } elseif (isset($sub['minute'])) {
+                    $minute = (int)$sub['minute'] + (int)($sub['minute_extra'] ?? 0);
+                }
                 if (!empty($sub['player_on_match_player_id'])) {
                     $onMap[(int)$sub['player_on_match_player_id']] = $minute;
                 }
@@ -929,6 +947,26 @@ class StatsService
         }
 
         return $minutesByPlayer;
+    }
+
+    /**
+     * Cache match_substitutions columns to support schema variants.
+     */
+    private function getMatchSubstitutionColumns(): array
+    {
+        static $columns = null;
+        if ($columns !== null) {
+            return $columns;
+        }
+        try {
+            $stmt = $this->pdo->query('SHOW COLUMNS FROM match_substitutions');
+            $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
+            $columns = array_map(static fn($c) => $c['Field'], $rows);
+        } catch (\Throwable $e) {
+            error_log('Unable to read match_substitutions columns: ' . $e->getMessage());
+            $columns = [];
+        }
+        return $columns;
     }
 
     /**

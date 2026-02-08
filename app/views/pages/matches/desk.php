@@ -11,6 +11,7 @@ require_once __DIR__ . '/../../../lib/event_outcome_rules.php';
 require_once __DIR__ . '/../../../lib/event_action_stack.php';
 require_once __DIR__ . '/../../../lib/match_period_repository.php';
 require_once __DIR__ . '/../../../lib/match_stats_service.php';
+require_once __DIR__ . '/../../../lib/StatsService.php';
 require_once __DIR__ . '/../../../lib/csrf.php';
 require_once __DIR__ . '/../../../lib/phase3.php';
 require_once __DIR__ . '/../../../lib/asset_helper.php';
@@ -97,6 +98,13 @@ $events = event_list_for_match($matchId);
 // Derived Stats: Only for summary panel, can be deferred. STRATEGY A (defer fetch)
 $eventsVersion = count($events); // crude versioning by event count
 $derivedStats = get_or_compute_match_stats($matchId, $eventsVersion, $events, $eventTypes);
+$playerPerformance = ['starting_xi' => [], 'substitutes' => []];
+try {
+    $statsService = new StatsService((int)$match['club_id']);
+    $playerPerformance = $statsService->getPlayerPerformanceForMatch($matchId);
+} catch (Throwable $e) {
+    $playerPerformance = ['starting_xi' => [], 'substitutes' => []];
+}
 
 $title = 'Analysis Desk';
 // Filemtime-based versions keep URLs stable until the asset changes.
@@ -173,6 +181,7 @@ $csrfToken = get_csrf_token();
 $deskConfig = [
     'basePath' => $base,
     'matchId' => $matchId,
+    'clubId' => (int)$match['club_id'],
     'userId' => (int)$user['id'],
     'userName' => $user['display_name'],
     'canEditRole' => $canManage,
@@ -221,6 +230,14 @@ $deskConfig = [
         'playlistRename' => $base . '/api/matches/' . (int)$match['id'] . '/playlists/rename',
         'playlistDelete' => $base . '/api/matches/' . (int)$match['id'] . '/playlists/delete',
         'playlistDownload' => $base . '/api/matches/' . (int)$match['id'] . '/playlists/download',
+        'matchPlayersList' => $base . '/api/match-players/list',
+        'matchPlayersAdd' => $base . '/api/match-players/add',
+        'matchPlayersUpdate' => $base . '/api/match-players/update',
+        'matchPlayersDelete' => $base . '/api/match-players/delete',
+        'playersList' => $base . '/api/players/list',
+        'matchSubstitutionsList' => $base . '/api/match-substitutions/list',
+        'matchSubstitutionsCreate' => $base . '/api/match-substitutions/create',
+        'matchSubstitutionsDelete' => $base . '/api/match-substitutions/delete',
         'annotationsList' => $base . '/api/matches/' . (int)$match['id'] . '/annotations',
         'annotationsCreate' => $base . '/api/matches/' . (int)$match['id'] . '/annotations/create',
         'annotationsUpdate' => $base . '/api/matches/' . (int)$match['id'] . '/annotations/update',
@@ -383,36 +400,46 @@ ob_start();
     <div class="desk-main">
         <div class="desk-layout">
             <div class="desk-top">
-                <div class="desk-left">
-                    <div class="panel-row video-header">
-                        <div class="video-title">
-                            <div class="text-xl fw-semibold"><?= htmlspecialchars($match['home_team']) ?> vs <?= htmlspecialchars($match['away_team']) ?></div>
-                        </div>
-                        <div class="video-actions">
-                                <div class="video-actions-left">
-                                           
-                                    <?php if (!empty($videoFormats) && count($videoFormats) > 1): ?>
-                                    <div class="video-format-toggle" data-video-format-toggle>
-                                        <?php foreach ($videoFormats as $format): ?>
-                      <button
-                          type="button"
-                          class="toggle-btn video-format-btn<?= $format['id'] === $defaultFormatId ? ' is-active' : '' ?>"
-                          data-video-format-id="<?= htmlspecialchars($format['id']) ?>"
-                          <?= !empty($format['relative_path']) ? 'data-video-format-src="' . htmlspecialchars($format['relative_path']) . '"' : '' ?>
-                          aria-pressed="<?= $format['id'] === $defaultFormatId ? 'true' : 'false' ?>">
-                          <?= htmlspecialchars($format['label']) ?>
-                      </button>
-                                        <?php endforeach; ?>
-                                    </div>
-                                <?php endif; ?>
+                <div class="panel-row video-header">
+                    <div class="video-title">
+                        <div class="text-xl fw-semibold"><?= htmlspecialchars($match['home_team']) ?> vs <?= htmlspecialchars($match['away_team']) ?></div>
+                    </div>
+                    <div class="video-actions">
+                        <div class="video-actions-left">
+                            <?php if (!empty($videoFormats) && count($videoFormats) > 1): ?>
+                            <div class="video-format-toggle" data-video-format-toggle>
+                                <?php foreach ($videoFormats as $format): ?>
+                  <button
+                      type="button"
+                      class="toggle-btn video-format-btn<?= $format['id'] === $defaultFormatId ? ' is-active' : '' ?>"
+                      data-video-format-id="<?= htmlspecialchars($format['id']) ?>"
+                      <?= !empty($format['relative_path']) ? 'data-video-format-src="' . htmlspecialchars($format['relative_path']) . '"' : '' ?>
+                      aria-pressed="<?= $format['id'] === $defaultFormatId ? 'true' : 'false' ?>">
+                      <?= htmlspecialchars($format['label']) ?>
+                  </button>
+                                <?php endforeach; ?>
                             </div>
+                            <?php endif; ?>
                         </div>
                     </div>
+                </div>
+                <div class="desk-left">
                     <section class="desk-video">
                         <div class="desk-video-shell">
                             <div class="video-panel">
                                 <div class="video-content">
                                     <div class="video-frame">
+                                        <div class="desk-scorebug" aria-label="Scoreboard">
+                                            <div class="desk-scorebug-time" id="deskScorebugTime">0</div>
+                                            <div class="desk-scorebug-row">
+                                                <span class="desk-scorebug-team"><?= htmlspecialchars($match['home_team'] ?? 'Home') ?></span>
+                                                <span class="desk-scorebug-score" id="deskScorebugHome"><?= (int)($match['home_score'] ?? 0) ?></span>
+                                            </div>
+                                            <div class="desk-scorebug-row">
+                                                <span class="desk-scorebug-team"><?= htmlspecialchars($match['away_team'] ?? 'Away') ?></span>
+                                                <span class="desk-scorebug-score" id="deskScorebugAway"><?= (int)($match['away_score'] ?? 0) ?></span>
+                                            </div>
+                                        </div>
                                         <div class="desk-drawing-toolbar toolbar-hidden" data-drawing-toolbar style="display:none;">
                                             <?php if ($ANNOTATIONS_ENABLED): ?>
                                                 <div class="drawing-toolbar" data-annotation-toolbar>
@@ -785,25 +812,26 @@ ob_start();
                 </div>
             <aside class="desk-side is-mode-active">
                 <div class="desk-side-shell">
-                   
-                        <button type="button" class="desk-mode-button" data-stats-modal-open aria-haspopup="dialog" aria-expanded="false" >Stats</button>
-                  
-                
                     <div class="desk-live-tagging" data-desk-live-tagging aria-hidden="false">
                             <section class="desk-section desk-quick-tags-section" aria-label="Quick tags">
                                 <div class="desk-quick-tags">
                                     <div class="panel-dark tagging-panel">
-                                        <div class="desk-section-header">
-                                            <div>
-                                                <div class="text-sm text-subtle">Quick Tags</div>
-                                                <div class="text-xs text-muted-alt">One click = one event</div>
-                                            </div>
-                                        </div>
+
                                         <div class="period-controls period-controls-collapsed">
                                             <div style="display:flex;flex-direction:column;gap:6px; width:100%;">
+                                                <button type="button"
+                                                    class="ghost-btn ghost-btn-sm lineup-toggle-btn"
+                                                    data-stats-modal-open
+                                                    aria-haspopup="dialog"
+                                                    aria-expanded="false"
+                                                    style="width:100%;">Stats</button>
                                                 <button type="button" 
                                                     class="ghost-btn ghost-btn-sm lineup-toggle-btn" 
-                                                    data-desk-lineup-button data-match-id="<?= $matchId ?>" aria-pressed="false" style="width:100%;">Lineup</button>
+                                                    data-lineup-modal-open
+                                                    aria-haspopup="dialog"
+                                                    aria-expanded="false"
+                                                    aria-controls="lineupModal"
+                                                    style="width:100%;">Lineup</button>
                                                 <button
                                                     class="ghost-btn ghost-btn-sm lineup-toggle-btn desk-editable period-modal-toggle"
                                                     type="button"
@@ -888,22 +916,360 @@ ob_start();
                                         </div>
                                         <div id="statsModal" class="periods-modal stats-modal" role="dialog" aria-modal="true" aria-hidden="true" hidden>
                                             <div class="periods-modal-backdrop" data-stats-modal-close></div>
-                                            <div class="panel-dark periods-modal-card stats-modal-card" role="document" style="max-width:900px;width:90vw;">
-                                                <div class="periods-modal-header">
-                                                    <div>
+                                            <div class="panel-dark periods-modal-card stats-modal-card" role="document">
+                                                <div class="periods-modal-header stats-modal-header">
+                                                    <div class="stats-modal-header-left">
                                                         <div class="text-sm text-subtle">Match stats</div>
                                                         <div class="text-xs text-muted-alt">Live analytics context</div>
                                                     </div>
-                                                    <button type="button" class="editor-modal-close" data-stats-modal-close aria-label="Close match stats">✕</button>
+                                                    <div class="stats-modal-header-center">
+                                                        <div class="stats-tabs stats-tabs--header" role="tablist" aria-label="Stats views">
+                                                            <button type="button" class="editor-tab is-active" data-stats-tab="overview" aria-pressed="true">Overview</button>
+                                                            <button type="button" class="editor-tab" data-stats-tab="comparison" aria-pressed="false">Comparisons</button>
+                                                            <button type="button" class="editor-tab" data-stats-tab="players" aria-pressed="false">Players</button>
+                                                        </div>
+                                                    </div>
+                                                    <div class="stats-modal-header-right">
+                                                        <button type="button" class="editor-modal-close" data-stats-modal-close aria-label="Close match stats">✕</button>
+                                                    </div>
                                                 </div>
                                                 <div class="periods-modal-body">
-                                                    <div class="stats-tabs" role="tablist" aria-label="Stats views">
-                                                        <button type="button" class="editor-tab is-active" data-stats-tab="overview" aria-pressed="true">Overview</button>
-                                                        <button type="button" class="editor-tab" data-stats-tab="comparison" aria-pressed="false">Comparisons</button>
-                                                    </div>
                                                     <div class="desk-summary-content">
                                                         <?php require __DIR__ . '/../../partials/match-summary-stats.php'; ?>
                                                     </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <?php
+                                        $homeStarters = array_values(array_filter($homePlayers ?? [], fn($p) => (int)($p['is_starting'] ?? 0) === 1));
+                                        $homeBench = array_values(array_filter($homePlayers ?? [], fn($p) => (int)($p['is_starting'] ?? 0) !== 1));
+                                        $awayStarters = array_values(array_filter($awayPlayers ?? [], fn($p) => (int)($p['is_starting'] ?? 0) === 1));
+                                        $awayBench = array_values(array_filter($awayPlayers ?? [], fn($p) => (int)($p['is_starting'] ?? 0) !== 1));
+                                        ?>
+                                        <div id="lineupModal" class="periods-modal lineup-modal" role="dialog" aria-modal="true" aria-hidden="true" hidden>
+                                            <div class="periods-modal-backdrop" data-lineup-modal-close></div>
+                                            <div class="panel-dark periods-modal-card lineup-modal-card" role="document">
+                                                <div class="periods-modal-header">
+                                                    <div>
+                                                        <div class="text-sm text-subtle">Lineups</div>
+                                                        <div class="text-xs text-muted-alt">Starting XI and bench</div>
+                                                    </div>
+                                                    <button type="button" class="editor-modal-close" data-lineup-modal-close aria-label="Close lineups">✕</button>
+                                                </div>
+                                                <div class="periods-modal-body">
+                                                    <div class="lineup-modal-error text-xs text-danger" data-lineup-error hidden></div>
+                                                    <div class="grid grid-cols-2 gap-6">
+                                                        <div class="space-y-4">
+                                                            <div class="flex items-center justify-between">
+                                                                <h3 class="text-base font-semibold text-white">
+                                                                    <i class="fa-solid fa-house-chimney text-blue-400 mr-2"></i>
+                                                                    <?= htmlspecialchars($match['home_team'] ?? 'Home') ?>
+                                                                </h3>
+                                                            </div>
+                                                            <div class="space-y-3">
+                                                                <div class="flex items-center justify-between">
+                                                                    <h4 class="text-sm font-medium text-slate-300 uppercase tracking-wider">Starting XI</h4>
+                                                                    <?php if ($canManage): ?>
+                                                                    <button type="button" class="text-xs font-semibold text-blue-400 hover:text-blue-300 uppercase tracking-wider" data-lineup-add="home" data-lineup-starting="1">
+                                                                        <i class="fa-solid fa-plus mr-1"></i> Add
+                                                                    </button>
+                                                                    <?php endif; ?>
+                                                                </div>
+                                                                <div class="lineup-table-wrapper">
+                                                                    <table class="lineup-table">
+                                                                        <colgroup>
+                                                                            <col class="lineup-colgroup-number">
+                                                                            <col class="lineup-colgroup-name">
+                                                                            <col class="lineup-colgroup-actions">
+                                                                        </colgroup>
+                                                                        <thead>
+                                                                            <tr>
+                                                                                <th class="lineup-col-number">#</th>
+                                                                                <th>Player</th>
+                                                                                <th class="lineup-col-actions">Actions</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                    </table>
+                                                                    <div class="lineup-table-body lineup-table-body--starters">
+                                                                        <table class="lineup-table">
+                                                                            <colgroup>
+                                                                                <col class="lineup-colgroup-number">
+                                                                                <col class="lineup-colgroup-name">
+                                                                                <col class="lineup-colgroup-actions">
+                                                                            </colgroup>
+                                                                            <tbody id="lineup-home-starters" data-lineup-list data-team="home" data-is-starting="1"></tbody>
+                                                                        </table>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <div class="space-y-3">
+                                                                <div class="flex items-center justify-between">
+                                                                    <h4 class="text-sm font-medium text-slate-300 uppercase tracking-wider">Substitutes</h4>
+                                                                    <?php if ($canManage): ?>
+                                                                    <button type="button" class="text-xs font-semibold text-blue-400 hover:text-blue-300 uppercase tracking-wider" data-lineup-add="home" data-lineup-starting="0">
+                                                                        <i class="fa-solid fa-plus mr-1"></i> Add
+                                                                    </button>
+                                                                    <?php endif; ?>
+                                                                </div>
+                                                                <div class="lineup-table-wrapper">
+                                                                    <table class="lineup-table">
+                                                                        <colgroup>
+                                                                            <col class="lineup-colgroup-number">
+                                                                            <col class="lineup-colgroup-name">
+                                                                            <col class="lineup-colgroup-actions">
+                                                                        </colgroup>
+                                                                        <thead>
+                                                                            <tr>
+                                                                                <th class="lineup-col-number">#</th>
+                                                                                <th>Player</th>
+                                                                                <th class="lineup-col-actions">Actions</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                    </table>
+                                                                    <div class="lineup-table-body lineup-table-body--subs">
+                                                                        <table class="lineup-table">
+                                                                            <colgroup>
+                                                                                <col class="lineup-colgroup-number">
+                                                                                <col class="lineup-colgroup-name">
+                                                                                <col class="lineup-colgroup-actions">
+                                                                            </colgroup>
+                                                                            <tbody id="lineup-home-subs" data-lineup-list data-team="home" data-is-starting="0"></tbody>
+                                                                        </table>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div class="space-y-4">
+                                                            <div class="flex items-center justify-between">
+                                                                <h3 class="text-base font-semibold text-white">
+                                                                    <i class="fa-solid fa-plane-departure text-slate-400 mr-2"></i>
+                                                                    <?= htmlspecialchars($match['away_team'] ?? 'Away') ?>
+                                                                </h3>
+                                                            </div>
+                                                            <div class="space-y-3">
+                                                                <div class="flex items-center justify-between">
+                                                                    <h4 class="text-sm font-medium text-slate-300 uppercase tracking-wider">Starting XI</h4>
+                                                                    <?php if ($canManage): ?>
+                                                                    <button type="button" class="text-xs font-semibold text-blue-400 hover:text-blue-300 uppercase tracking-wider" data-lineup-add="away" data-lineup-starting="1">
+                                                                        <i class="fa-solid fa-plus mr-1"></i> Add
+                                                                    </button>
+                                                                    <?php endif; ?>
+                                                                </div>
+                                                                <div class="lineup-table-wrapper">
+                                                                    <table class="lineup-table">
+                                                                        <colgroup>
+                                                                            <col class="lineup-colgroup-number">
+                                                                            <col class="lineup-colgroup-name">
+                                                                            <col class="lineup-colgroup-actions">
+                                                                        </colgroup>
+                                                                        <thead>
+                                                                            <tr>
+                                                                                <th class="lineup-col-number">#</th>
+                                                                                <th>Player</th>
+                                                                                <th class="lineup-col-actions">Actions</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                    </table>
+                                                                    <div class="lineup-table-body lineup-table-body--starters">
+                                                                        <table class="lineup-table">
+                                                                            <colgroup>
+                                                                                <col class="lineup-colgroup-number">
+                                                                                <col class="lineup-colgroup-name">
+                                                                                <col class="lineup-colgroup-actions">
+                                                                            </colgroup>
+                                                                            <tbody id="lineup-away-starters" data-lineup-list data-team="away" data-is-starting="1"></tbody>
+                                                                        </table>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <div class="space-y-3">
+                                                                <div class="flex items-center justify-between">
+                                                                    <h4 class="text-sm font-medium text-slate-300 uppercase tracking-wider">Substitutes</h4>
+                                                                    <?php if ($canManage): ?>
+                                                                    <button type="button" class="text-xs font-semibold text-blue-400 hover:text-blue-300 uppercase tracking-wider" data-lineup-add="away" data-lineup-starting="0">
+                                                                        <i class="fa-solid fa-plus mr-1"></i> Add
+                                                                    </button>
+                                                                    <?php endif; ?>
+                                                                </div>
+                                                                <div class="lineup-table-wrapper">
+                                                                    <table class="lineup-table">
+                                                                        <colgroup>
+                                                                            <col class="lineup-colgroup-number">
+                                                                            <col class="lineup-colgroup-name">
+                                                                            <col class="lineup-colgroup-actions">
+                                                                        </colgroup>
+                                                                        <thead>
+                                                                            <tr>
+                                                                                <th class="lineup-col-number">#</th>
+                                                                                <th>Player</th>
+                                                                                <th class="lineup-col-actions">Actions</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                    </table>
+                                                                    <div class="lineup-table-body lineup-table-body--subs">
+                                                                        <table class="lineup-table">
+                                                                            <colgroup>
+                                                                                <col class="lineup-colgroup-number">
+                                                                                <col class="lineup-colgroup-name">
+                                                                                <col class="lineup-colgroup-actions">
+                                                                            </colgroup>
+                                                                            <tbody id="lineup-away-subs" data-lineup-list data-team="away" data-is-starting="0"></tbody>
+                                                                        </table>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="mt-6 border-t border-slate-800 pt-4">
+                                                        <div class="mb-3 flex items-center justify-between">
+                                                            <h3 class="text-lg font-semibold text-white">Substitutions</h3>
+                                                            <?php if ($canManage): ?>
+                                                            <button type="button" class="btn-primary text-sm" data-lineup-add-substitution>
+                                                                <i class="fa-solid fa-repeat mr-2"></i>
+                                                                Add Substitution
+                                                            </button>
+                                                            <?php endif; ?>
+                                                        </div>
+                                                        <div class="grid grid-cols-2 gap-4">
+                                                            <div>
+                                                                <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-700">
+                                                                    <h4 class="text-sm font-semibold text-blue-400">
+                                                                        <i class="fa-solid fa-house-chimney mr-2"></i>
+                                                                        <?= htmlspecialchars($match['home_team'] ?? 'Home') ?>
+                                                                    </h4>
+                                                                </div>
+                                                                <div class="space-y-2" id="lineup-home-substitutions"></div>
+                                                            </div>
+                                                            <div>
+                                                                <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-700">
+                                                                    <h4 class="text-sm font-semibold text-slate-400">
+                                                                        <i class="fa-solid fa-plane-departure mr-2"></i>
+                                                                        <?= htmlspecialchars($match['away_team'] ?? 'Away') ?>
+                                                                    </h4>
+                                                                </div>
+                                                                <div class="space-y-2" id="lineup-away-substitutions"></div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div id="lineupAddPlayerModal" class="modal" style="display:none;">
+                                            <div class="modal-backdrop"></div>
+                                            <div class="modal-dialog">
+                                                <div class="modal-content">
+                                                    <div class="modal-header">
+                                                        <div>
+                                                            <h3 class="modal-title">Add player</h3>
+                                                            <div class="text-xs text-slate-400" id="lineup-add-subtitle"></div>
+                                                        </div>
+                                                        <button type="button" class="modal-close" data-lineup-add-close>
+                                                            <i class="fa-solid fa-times"></i>
+                                                        </button>
+                                                    </div>
+                                                    <form id="lineupAddPlayerForm">
+                                                        <input type="hidden" name="team_side" id="lineup-add-team-side">
+                                                        <input type="hidden" name="is_starting" id="lineup-add-is-starting">
+                                                        <div class="modal-body space-y-4">
+                                                            <div>
+                                                                <label class="block text-sm font-medium text-slate-300 mb-2">Player <span class="text-rose-400">*</span></label>
+                                                                <select id="lineup-add-player" name="player_id" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"></select>
+                                                            </div>
+                                                            <div class="grid grid-cols-2 gap-4">
+                                                                <div>
+                                                                    <label class="block text-sm font-medium text-slate-300 mb-2">Shirt #</label>
+                                                                    <input type="number" id="lineup-add-shirt" name="shirt_number" min="0" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
+                                                                </div>
+                                                                <div>
+                                                                    <label class="block text-sm font-medium text-slate-300 mb-2">Position</label>
+                                                                    <input type="text" id="lineup-add-position" name="position_label" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
+                                                                </div>
+                                                            </div>
+                                                            <div class="flex items-center gap-2">
+                                                                <input type="checkbox" id="lineup-add-captain" name="is_captain" value="1">
+                                                                <label for="lineup-add-captain" class="text-sm text-slate-300">Captain</label>
+                                                            </div>
+                                                            <div id="lineup-add-error" class="hidden text-sm text-rose-400 p-3 bg-rose-900/20 rounded-lg border border-rose-700/50"></div>
+                                                        </div>
+                                                        <div class="modal-footer">
+                                                            <button type="button" class="btn-secondary" data-lineup-add-close>Cancel</button>
+                                                            <div class="flex gap-2">
+                                                                <button type="button" class="btn-primary" id="lineup-add-another-btn">
+                                                                    <i class="fa-solid fa-redo mr-2"></i>
+                                                                    Save &amp; Add Another
+                                                                </button>
+                                                                <button type="submit" class="btn-primary">Add Player</button>
+                                                            </div>
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div id="lineupSubstitutionModal" class="modal" style="display:none;">
+                                            <div class="modal-backdrop"></div>
+                                            <div class="modal-dialog">
+                                                <div class="modal-content">
+                                                    <div class="modal-header">
+                                                        <h3 class="modal-title">Add Substitution</h3>
+                                                        <button type="button" class="modal-close" data-lineup-sub-close>
+                                                            <i class="fa-solid fa-times"></i>
+                                                        </button>
+                                                    </div>
+                                                    <form id="lineupSubstitutionForm">
+                                                        <div class="modal-body space-y-4">
+                                                            <div>
+                                                                <label class="block text-sm font-medium text-slate-300 mb-2">Team <span class="text-rose-400">*</span></label>
+                                                                <div class="flex gap-2">
+                                                                    <button type="button" class="team-toggle-btn" data-lineup-sub-team="home">
+                                                                        <i class="fa-solid fa-house mr-2"></i>Home
+                                                                    </button>
+                                                                    <button type="button" class="team-toggle-btn" data-lineup-sub-team="away">
+                                                                        <i class="fa-solid fa-arrow-right mr-2"></i>Away
+                                                                    </button>
+                                                                    <input type="hidden" name="team_side" id="lineup-sub-team-side" value="home">
+                                                                </div>
+                                                            </div>
+                                                            <div class="grid grid-cols-2 gap-4">
+                                                                <div>
+                                                                    <label class="block text-sm font-medium text-slate-300 mb-2">Player ON <span class="text-rose-400">*</span></label>
+                                                                    <select id="lineup-sub-player-on" name="player_on_match_player_id" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"></select>
+                                                                </div>
+                                                                <div>
+                                                                    <label class="block text-sm font-medium text-slate-300 mb-2">Player OFF <span class="text-rose-400">*</span></label>
+                                                                    <select id="lineup-sub-player-off" name="player_off_match_player_id" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"></select>
+                                                                </div>
+                                                            </div>
+                                                            <div>
+                                                                <label class="block text-sm font-medium text-slate-300 mb-2" for="lineup-sub-minute">Minute <span class="text-rose-400">*</span></label>
+                                                                <input type="number" id="lineup-sub-minute" name="minute" required min="0" max="120" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
+                                                            </div>
+                                                            <div>
+                                                                <label class="block text-sm font-medium text-slate-300 mb-2">Reason (optional)</label>
+                                                                <input type="hidden" id="lineup-sub-reason" name="reason" value="">
+                                                                <div class="grid grid-cols-2 gap-2" id="lineup-sub-reason-buttons">
+                                                                    <button type="button" class="reason-toggle-btn" data-reason="tactical">Tactical</button>
+                                                                    <button type="button" class="reason-toggle-btn" data-reason="injury">Injury</button>
+                                                                    <button type="button" class="reason-toggle-btn" data-reason="fitness">Fitness</button>
+                                                                    <button type="button" class="reason-toggle-btn" data-reason="disciplinary">Disciplinary</button>
+                                                                </div>
+                                                            </div>
+                                                            <div id="lineup-sub-error" class="hidden text-sm text-rose-400 p-3 bg-rose-900/20 rounded-lg border border-rose-700/50"></div>
+                                                            <div id="lineup-sub-success" class="hidden text-sm text-green-400 p-3 bg-green-900/20 rounded-lg border border-green-700/50"></div>
+                                                        </div>
+                                                        <div class="modal-footer">
+                                                            <button type="button" class="btn-secondary" data-lineup-sub-close>Cancel</button>
+                                                            <div class="flex gap-2">
+                                                                <button type="button" class="btn-primary" id="lineup-sub-add-another-btn">
+                                                                    <i class="fa-solid fa-redo mr-2"></i>
+                                                                    Save &amp; Add Another
+                                                                </button>
+                                                                <button type="submit" class="btn-primary">
+                                                                    <i class="fa-solid fa-repeat mr-2"></i>
+                                                                    Add Substitution
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </form>
                                                 </div>
                                             </div>
                                         </div>
@@ -1397,21 +1763,655 @@ ob_start();
 </script>
 <script nonce="<?= htmlspecialchars($cspNonce) ?>">
     (function () {
-        const toggleBtn = document.querySelector('[data-desk-lineup-button]');
-        const deskRoot = document.getElementById('deskRoot');
-        if (!toggleBtn) {
+        const openBtn = document.querySelector('[data-lineup-modal-open]');
+        const modal = document.getElementById('lineupModal');
+        if (!openBtn || !modal) {
             return;
         }
+        const getConfig = () => window.DeskConfig || {};
+        const getEndpoints = () => getConfig().endpoints || {};
+        const canEdit = () => !!getConfig().canEditRole;
+        const getMatchId = () => getConfig().matchId;
+        const getClubId = () => getConfig().clubId;
+        const getCsrfToken = () => getConfig().csrfToken || '';
 
-        const normalizedBase = (deskRoot?.dataset.basePath || '').replace(/\/$/, '');
-        const contextMatchId = toggleBtn.dataset.matchId || deskRoot?.dataset.matchId;
-        if (!contextMatchId) {
-            return;
-        }
+        const closeButtons = Array.from(modal.querySelectorAll('[data-lineup-modal-close]'));
+        const errorEl = modal.querySelector('[data-lineup-error]');
+        const addButtons = Array.from(modal.querySelectorAll('[data-lineup-add]'));
+        const startersHome = modal.querySelector('#lineup-home-starters');
+        const subsHome = modal.querySelector('#lineup-home-subs');
+        const startersAway = modal.querySelector('#lineup-away-starters');
+        const subsAway = modal.querySelector('#lineup-away-subs');
+        const subsHomeList = modal.querySelector('#lineup-home-substitutions');
+        const subsAwayList = modal.querySelector('#lineup-away-substitutions');
+        const addSubstitutionBtn = modal.querySelector('[data-lineup-add-substitution]');
 
-        toggleBtn.addEventListener('click', () => {
-            const target = `${normalizedBase || ''}/matches/${encodeURIComponent(contextMatchId)}/edit`;
-            window.location.href = target + '?tab=lineups';
+        const addModal = document.getElementById('lineupAddPlayerModal');
+        const addForm = document.getElementById('lineupAddPlayerForm');
+        const addError = document.getElementById('lineup-add-error');
+        const addAnotherBtn = document.getElementById('lineup-add-another-btn');
+        const addTeamInput = document.getElementById('lineup-add-team-side');
+        const addStartingInput = document.getElementById('lineup-add-is-starting');
+        const addPlayerSelect = document.getElementById('lineup-add-player');
+        const addShirtInput = document.getElementById('lineup-add-shirt');
+        const addPositionInput = document.getElementById('lineup-add-position');
+        const addCaptainInput = document.getElementById('lineup-add-captain');
+        const addSubtitle = document.getElementById('lineup-add-subtitle');
+
+        const subModal = document.getElementById('lineupSubstitutionModal');
+        const subForm = document.getElementById('lineupSubstitutionForm');
+        const subError = document.getElementById('lineup-sub-error');
+        const subSuccess = document.getElementById('lineup-sub-success');
+        const subAddAnotherBtn = document.getElementById('lineup-sub-add-another-btn');
+        const subTeamInput = document.getElementById('lineup-sub-team-side');
+        const subPlayerOn = document.getElementById('lineup-sub-player-on');
+        const subPlayerOff = document.getElementById('lineup-sub-player-off');
+        const subMinuteInput = document.getElementById('lineup-sub-minute');
+        const subReasonInput = document.getElementById('lineup-sub-reason');
+        const subReasonButtons = document.getElementById('lineup-sub-reason-buttons');
+
+        let clubPlayers = [];
+        let matchPlayers = [];
+        let substitutions = [];
+        let loading = false;
+        let addAnotherMode = false;
+        let subAddAnotherMode = false;
+
+        const setError = (message) => {
+            if (!errorEl) {
+                return;
+            }
+            if (!message) {
+                errorEl.hidden = true;
+                errorEl.textContent = '';
+                return;
+            }
+            errorEl.textContent = message;
+            errorEl.hidden = false;
+        };
+
+        const setAddError = (message) => {
+            if (!addError) {
+                return;
+            }
+            if (!message) {
+                addError.classList.add('hidden');
+                addError.textContent = '';
+                return;
+            }
+            addError.textContent = message;
+            addError.classList.remove('hidden');
+        };
+
+        const setSubError = (message) => {
+            if (!subError) {
+                return;
+            }
+            if (!message) {
+                subError.classList.add('hidden');
+                subError.textContent = '';
+                return;
+            }
+            subError.textContent = message;
+            subError.classList.remove('hidden');
+        };
+
+        const setSubSuccess = (message) => {
+            if (!subSuccess) {
+                return;
+            }
+            if (!message) {
+                subSuccess.classList.add('hidden');
+                subSuccess.textContent = '';
+                return;
+            }
+            subSuccess.textContent = message;
+            subSuccess.classList.remove('hidden');
+        };
+
+        const fetchJson = (url, options = {}) => {
+            const csrfToken = getCsrfToken();
+            return fetch(url, {
+                credentials: 'same-origin',
+                ...options,
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+                    ...(options.headers || {}),
+                },
+            }).then(async (response) => {
+                const data = await response.json().catch(() => ({}));
+                return { ok: response.ok, data };
+            });
+        };
+
+        const getClubPlayers = async () => {
+            const endpoints = getEndpoints();
+            const clubId = getClubId();
+            if (!endpoints.playersList || !clubId) {
+                return [];
+            }
+            const url = `${endpoints.playersList}?club_id=${encodeURIComponent(clubId)}`;
+            const result = await fetchJson(url, { method: 'GET' });
+            if (!result.ok || !result.data || result.data.ok === false) {
+                throw new Error(result.data && result.data.error ? result.data.error : 'Unable to load players');
+            }
+            return Array.isArray(result.data.players) ? result.data.players : [];
+        };
+
+        const getMatchPlayers = async () => {
+            const endpoints = getEndpoints();
+            const matchId = getMatchId();
+            if (!endpoints.matchPlayersList || !matchId) {
+                return [];
+            }
+            const url = `${endpoints.matchPlayersList}?match_id=${encodeURIComponent(matchId)}`;
+            const result = await fetchJson(url, { method: 'GET' });
+            if (!result.ok || !result.data || result.data.ok === false) {
+                throw new Error(result.data && result.data.error ? result.data.error : 'Unable to load lineup');
+            }
+            return Array.isArray(result.data.match_players) ? result.data.match_players : [];
+        };
+
+        const getSubstitutions = async () => {
+            const endpoints = getEndpoints();
+            const matchId = getMatchId();
+            if (!endpoints.matchSubstitutionsList || !matchId) {
+                return [];
+            }
+            const url = `${endpoints.matchSubstitutionsList}?match_id=${encodeURIComponent(matchId)}`;
+            const result = await fetchJson(url, { method: 'GET' });
+            if (!result.ok || !result.data || result.data.ok === false) {
+                throw new Error(result.data && result.data.error ? result.data.error : 'Unable to load substitutions');
+            }
+            return Array.isArray(result.data.substitutions) ? result.data.substitutions : [];
+        };
+
+        const getPlayerLabel = (player) => {
+            if (!player) return 'Unknown';
+            const first = (player.first_name || '').toString().trim();
+            const last = (player.last_name || '').toString().trim();
+            const name = `${first} ${last}`.trim();
+            return name || player.display_name || `Player ${player.id || ''}`.trim();
+        };
+
+        const buildLineupCard = (entry) => {
+            const row = document.createElement('tr');
+            row.className = 'lineup-table-row';
+            row.dataset.matchPlayerId = entry.id;
+            row.innerHTML = `
+                <td class="lineup-col-number">${entry.shirt_number ?? '—'}</td>
+                <td class="lineup-col-name">
+                    <span class="lineup-name-wrap">
+                        <span class="lineup-name-text">${entry.display_name || 'Unknown'}</span>
+                        ${entry.is_captain ? '<span class="lineup-captain" title="Captain">⭐</span>' : ''}
+                    </span>
+                </td>
+                <td class="lineup-col-actions">
+                    <button type="button" class="lineup-delete-btn" data-delete-player="${entry.id}" aria-label="Remove player"><i class="fa-solid fa-trash"></i></button>
+                </td>
+            `;
+            return row;
+        };
+
+        const sortLineupPlayers = (entries) => {
+            return entries.slice().sort((a, b) => {
+                const aShirt = Number(a.shirt_number || 0);
+                const bShirt = Number(b.shirt_number || 0);
+                if (aShirt > 0 && bShirt > 0) return aShirt - bShirt;
+                if (aShirt > 0) return -1;
+                if (bShirt > 0) return 1;
+                return String(a.display_name || '').localeCompare(String(b.display_name || ''));
+            });
+        };
+
+        const renderLineupList = (container, entries, emptyText) => {
+            if (!container) {
+                return;
+            }
+            container.innerHTML = '';
+            if (!entries.length) {
+                const empty = document.createElement('tr');
+                empty.className = 'lineup-table-empty-row';
+                empty.innerHTML = `<td colspan="3" class="lineup-table-empty">${emptyText}</td>`;
+                container.appendChild(empty);
+                return;
+            }
+            entries.forEach((entry) => container.appendChild(buildLineupCard(entry)));
+        };
+
+        const renderLineups = () => {
+            const homeStarters = sortLineupPlayers(matchPlayers.filter((p) => p.team_side === 'home' && p.is_starting));
+            const homeSubs = sortLineupPlayers(matchPlayers.filter((p) => p.team_side === 'home' && !p.is_starting));
+            const awayStarters = sortLineupPlayers(matchPlayers.filter((p) => p.team_side === 'away' && p.is_starting));
+            const awaySubs = sortLineupPlayers(matchPlayers.filter((p) => p.team_side === 'away' && !p.is_starting));
+
+            renderLineupList(startersHome, homeStarters, 'No starting players added yet');
+            renderLineupList(subsHome, homeSubs, 'No substitutes added yet');
+            renderLineupList(startersAway, awayStarters, 'No starting players added yet');
+            renderLineupList(subsAway, awaySubs, 'No substitutes added yet');
+        };
+
+        const renderSubstitutions = () => {
+            const renderList = (container, list, isHome) => {
+                if (!container) return;
+                container.innerHTML = '';
+                if (!list.length) {
+                    const empty = document.createElement('div');
+                    empty.className = 'text-center py-8 text-slate-500 text-sm';
+                    empty.innerHTML = '<i class="fa-solid fa-repeat opacity-30 mb-2"></i><p>No substitutions</p>';
+                    container.appendChild(empty);
+                    return;
+                }
+                list.forEach((sub) => {
+                    const minute = sub.minute ?? 0;
+                    const offName = sub.player_off_name || 'Unknown';
+                    const onName = sub.player_on_name || 'Unknown';
+                    const offShirt = sub.player_off_shirt ?? '?';
+                    const onShirt = sub.player_on_shirt ?? '?';
+                    const reason = sub.reason || '';
+                    const card = document.createElement('div');
+                    card.className = 'rounded-lg bg-slate-800/40 border border-slate-700 p-3';
+                    card.innerHTML = `
+                        <div class="flex items-center gap-2">
+                            <span class="text-lg">🔄</span>
+                            <div class="flex-1 min-w-0">
+                                <div class="text-xs text-slate-400 mb-1">${minute}'</div>
+                                <div class="text-xs space-y-0.5">
+                                    <div class="text-slate-400"><i class="fa-solid fa-arrow-down mr-1"></i>OFF: #${offShirt} ${offName}</div>
+                                    <div class="text-emerald-400"><i class="fa-solid fa-arrow-up mr-1"></i>ON: #${onShirt} ${onName}</div>
+                                    ${reason ? `<div class="text-xs text-slate-500 mt-1">${reason.charAt(0).toUpperCase() + reason.slice(1)}</div>` : ''}
+                                </div>
+                            </div>
+                            ${canEdit() ? `<button type="button" class="text-rose-400 hover:text-rose-300 text-sm" data-delete-substitution="${sub.id}"><i class="fa-solid fa-trash"></i></button>` : ''}
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+            };
+
+            renderList(subsHomeList, substitutions.filter((s) => s.team_side === 'home'), true);
+            renderList(subsAwayList, substitutions.filter((s) => s.team_side === 'away'), false);
+        };
+
+        const refreshAddPlayerSelect = (teamSide) => {
+            if (!addPlayerSelect) {
+                return;
+            }
+            addPlayerSelect.innerHTML = '';
+            const taken = new Set(matchPlayers.map((p) => String(p.player_id)).filter(Boolean));
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = 'Select player';
+            addPlayerSelect.appendChild(placeholder);
+            clubPlayers.forEach((player) => {
+                const id = player && player.id ? String(player.id) : '';
+                if (!id || taken.has(id)) {
+                    return;
+                }
+                const option = document.createElement('option');
+                option.value = id;
+                option.textContent = getPlayerLabel(player);
+                addPlayerSelect.appendChild(option);
+            });
+        };
+
+        const suggestNextShirt = (teamSide) => {
+            const entries = matchPlayers.filter((p) => p.team_side === teamSide);
+            const max = entries.reduce((acc, p) => {
+                const num = Number(p.shirt_number || 0);
+                return Number.isFinite(num) && num > acc ? num : acc;
+            }, 0);
+            let next = max + 1;
+            if (next === 13) next = 14;
+            if (addShirtInput) {
+                addShirtInput.value = next || '';
+            }
+        };
+
+        const openAddPlayerModal = (teamSide, isStarting) => {
+            if (!addModal || !addForm) {
+                return;
+            }
+            addForm.reset();
+            setAddError('');
+            addTeamInput.value = teamSide;
+            addStartingInput.value = isStarting ? '1' : '0';
+            if (addSubtitle) {
+                const teamLabel = teamSide === 'home' ? (getConfig().homeTeamName || 'Home') : (getConfig().awayTeamName || 'Away');
+                addSubtitle.textContent = `${teamLabel} · ${isStarting ? 'Starting XI' : 'Substitute'}`;
+            }
+            refreshAddPlayerSelect(teamSide);
+            suggestNextShirt(teamSide);
+            if (addCaptainInput) addCaptainInput.checked = false;
+            addModal.style.display = 'block';
+        };
+
+        const closeAddPlayerModal = () => {
+            if (!addModal) return;
+            addModal.style.display = 'none';
+        };
+
+        const openSubstitutionModal = () => {
+            if (!subModal || !subForm) {
+                return;
+            }
+            subForm.reset();
+            setSubError('');
+            setSubSuccess('');
+            subTeamInput.value = 'home';
+            subModal.querySelectorAll('[data-lineup-sub-team]').forEach((node) => node.classList.remove('active'));
+            const homeBtn = subModal.querySelector('[data-lineup-sub-team="home"]');
+            if (homeBtn) {
+                homeBtn.classList.add('active');
+            }
+            if (subReasonButtons) {
+                subReasonButtons.querySelectorAll('.reason-toggle-btn').forEach((node) => node.classList.remove('active'));
+            }
+            if (subReasonInput) {
+                subReasonInput.value = '';
+            }
+            updateSubstitutionSelects('home');
+            subModal.style.display = 'block';
+        };
+
+        const closeSubstitutionModal = () => {
+            if (!subModal) return;
+            subModal.style.display = 'none';
+        };
+
+        const updateSubstitutionSelects = (teamSide) => {
+            if (!subPlayerOn || !subPlayerOff) {
+                return;
+            }
+            const starters = matchPlayers.filter((p) => p.team_side === teamSide && p.is_starting);
+            const bench = matchPlayers.filter((p) => p.team_side === teamSide && !p.is_starting);
+            subPlayerOn.innerHTML = '<option value="">Select player</option>';
+            subPlayerOff.innerHTML = '<option value="">Select player</option>';
+            bench.forEach((p) => {
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                opt.textContent = `#${p.shirt_number || '—'} ${p.display_name || 'Unknown'}`;
+                subPlayerOn.appendChild(opt);
+            });
+            starters.forEach((p) => {
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                opt.textContent = `#${p.shirt_number || '—'} ${p.display_name || 'Unknown'}`;
+                subPlayerOff.appendChild(opt);
+            });
+        };
+
+        const refreshAll = async () => {
+            if (loading) return;
+            loading = true;
+            setError('');
+            try {
+                if (!clubPlayers.length) {
+                    clubPlayers = await getClubPlayers();
+                }
+                matchPlayers = await getMatchPlayers();
+                substitutions = await getSubstitutions();
+                renderLineups();
+                renderSubstitutions();
+            } catch (error) {
+                setError(error && error.message ? error.message : 'Unable to refresh lineup');
+            } finally {
+                loading = false;
+            }
+        };
+
+        const openModal = () => {
+            modal.hidden = false;
+            modal.classList.add('is-open');
+            modal.setAttribute('aria-hidden', 'false');
+            openBtn.setAttribute('aria-expanded', 'true');
+            refreshAll();
+        };
+
+        const closeModal = () => {
+            modal.hidden = true;
+            modal.classList.remove('is-open');
+            modal.setAttribute('aria-hidden', 'true');
+            openBtn.setAttribute('aria-expanded', 'false');
+        };
+
+        const addMatchPlayer = async (payload) => {
+            const endpoints = getEndpoints();
+            if (!endpoints.matchPlayersAdd) {
+                throw new Error('Missing lineup add endpoint');
+            }
+            const result = await fetchJson(endpoints.matchPlayersAdd, {
+                method: 'POST',
+                body: JSON.stringify(payload),
+            });
+            if (!result.ok || !result.data || result.data.ok === false) {
+                throw new Error(result.data && result.data.error ? result.data.error : 'Unable to add player');
+            }
+        };
+
+        const deleteMatchPlayer = async (matchPlayerId) => {
+            const endpoints = getEndpoints();
+            if (!endpoints.matchPlayersDelete) {
+                throw new Error('Missing lineup delete endpoint');
+            }
+            const result = await fetchJson(endpoints.matchPlayersDelete, {
+                method: 'POST',
+                body: JSON.stringify({ match_player_id: matchPlayerId }),
+            });
+            if (!result.ok || !result.data || result.data.ok === false) {
+                throw new Error(result.data && result.data.error ? result.data.error : 'Unable to remove player');
+            }
+        };
+
+        const createSubstitution = async (payload) => {
+            const endpoints = getEndpoints();
+            if (!endpoints.matchSubstitutionsCreate) {
+                throw new Error('Missing substitution create endpoint');
+            }
+            const result = await fetchJson(endpoints.matchSubstitutionsCreate, {
+                method: 'POST',
+                body: JSON.stringify(payload),
+            });
+            if (!result.ok || !result.data || result.data.ok === false) {
+                throw new Error(result.data && result.data.error ? result.data.error : 'Unable to add substitution');
+            }
+            return result.data.substitution || null;
+        };
+
+        const deleteSubstitution = async (subId) => {
+            const endpoints = getEndpoints();
+            if (!endpoints.matchSubstitutionsDelete) {
+                throw new Error('Missing substitution delete endpoint');
+            }
+            const result = await fetchJson(endpoints.matchSubstitutionsDelete, {
+                method: 'POST',
+                body: JSON.stringify({ match_id: getMatchId(), id: subId }),
+            });
+            if (!result.ok || !result.data || result.data.success === false) {
+                throw new Error(result.data && result.data.error ? result.data.error : 'Unable to delete substitution');
+            }
+        };
+
+        addButtons.forEach((btn) => {
+            btn.addEventListener('click', () => {
+                if (!canEdit()) return;
+                const team = btn.dataset.lineupAdd || 'home';
+                const isStarting = btn.dataset.lineupStarting === '1';
+                openAddPlayerModal(team, isStarting);
+            });
+        });
+
+        addModal?.querySelectorAll('[data-lineup-add-close]').forEach((btn) => {
+            btn.addEventListener('click', closeAddPlayerModal);
+        });
+        addModal?.querySelector('.modal-backdrop')?.addEventListener('click', (event) => {
+            if (event.target === addModal.querySelector('.modal-backdrop')) {
+                closeAddPlayerModal();
+            }
+        });
+
+        addAnotherBtn?.addEventListener('click', (event) => {
+            event.preventDefault();
+            addAnotherMode = true;
+            addForm?.requestSubmit();
+        });
+
+        addForm?.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            if (loading) return;
+            addAnotherMode = addAnotherMode || false;
+            setAddError('');
+            const playerId = addPlayerSelect ? Number(addPlayerSelect.value || 0) : 0;
+            if (!playerId) {
+                setAddError('Select a player to add.');
+                addAnotherMode = false;
+                return;
+            }
+            try {
+                await addMatchPlayer({
+                    match_id: getMatchId(),
+                    team_side: addTeamInput.value || 'home',
+                    player_id: playerId,
+                    shirt_number: addShirtInput && addShirtInput.value ? addShirtInput.value.trim() : '',
+                    position_label: addPositionInput && addPositionInput.value ? addPositionInput.value.trim() : '',
+                    is_starting: addStartingInput.value === '1' ? 1 : 0,
+                    is_captain: addCaptainInput && addCaptainInput.checked ? 1 : 0,
+                });
+                await refreshAll();
+                if (addAnotherMode) {
+                    addAnotherMode = false;
+                    openAddPlayerModal(addTeamInput.value || 'home', addStartingInput.value === '1');
+                    return;
+                }
+                closeAddPlayerModal();
+            } catch (error) {
+                setAddError(error && error.message ? error.message : 'Unable to add player');
+            } finally {
+                addAnotherMode = false;
+            }
+        });
+
+        addSubstitutionBtn?.addEventListener('click', () => {
+            if (!canEdit()) return;
+            openSubstitutionModal();
+        });
+
+        subModal?.querySelectorAll('[data-lineup-sub-close]').forEach((btn) => {
+            btn.addEventListener('click', closeSubstitutionModal);
+        });
+        subModal?.querySelector('.modal-backdrop')?.addEventListener('click', (event) => {
+            if (event.target === subModal.querySelector('.modal-backdrop')) {
+                closeSubstitutionModal();
+            }
+        });
+
+        subModal?.querySelectorAll('[data-lineup-sub-team]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const team = btn.dataset.lineupSubTeam || 'home';
+                subTeamInput.value = team;
+                subModal.querySelectorAll('[data-lineup-sub-team]').forEach((node) => node.classList.remove('active'));
+                btn.classList.add('active');
+                updateSubstitutionSelects(team);
+            });
+        });
+
+        subReasonButtons?.querySelectorAll('.reason-toggle-btn').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const reason = btn.dataset.reason || '';
+                subReasonInput.value = reason;
+                subReasonButtons.querySelectorAll('.reason-toggle-btn').forEach((node) => node.classList.remove('active'));
+                btn.classList.add('active');
+            });
+        });
+
+        subAddAnotherBtn?.addEventListener('click', (event) => {
+            event.preventDefault();
+            subAddAnotherMode = true;
+            subForm?.requestSubmit();
+        });
+
+        subForm?.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            if (loading) return;
+            setSubError('');
+            setSubSuccess('');
+            const payload = {
+                match_id: getMatchId(),
+                team_side: subTeamInput.value || 'home',
+                minute: Number(subMinuteInput.value || 0),
+                player_off_match_player_id: Number(subPlayerOff.value || 0),
+                player_on_match_player_id: Number(subPlayerOn.value || 0),
+                reason: subReasonInput.value || '',
+            };
+            if (!payload.player_off_match_player_id || !payload.player_on_match_player_id) {
+                setSubError('Select players on and off.');
+                subAddAnotherMode = false;
+                return;
+            }
+            try {
+                const created = await createSubstitution(payload);
+                if (created) {
+                    substitutions.push(created);
+                } else {
+                    substitutions = await getSubstitutions();
+                }
+                renderSubstitutions();
+                if (subAddAnotherMode) {
+                    setSubSuccess('Substitution saved. Ready for the next one.');
+                    subForm.reset();
+                    subTeamInput.value = payload.team_side;
+                    updateSubstitutionSelects(payload.team_side);
+                    subAddAnotherMode = false;
+                    return;
+                }
+                closeSubstitutionModal();
+            } catch (error) {
+                setSubError(error && error.message ? error.message : 'Unable to add substitution');
+            } finally {
+                subAddAnotherMode = false;
+            }
+        });
+
+        modal.addEventListener('click', async (event) => {
+            const deletePlayerBtn = event.target.closest('[data-delete-player]');
+            if (deletePlayerBtn && canEdit()) {
+                if (!window.confirm('Remove this player from the lineup?')) {
+                    return;
+                }
+                const id = Number(deletePlayerBtn.dataset.deletePlayer || 0);
+                if (!id) return;
+                try {
+                    await deleteMatchPlayer(id);
+                    await refreshAll();
+                } catch (error) {
+                    setError(error && error.message ? error.message : 'Unable to remove player');
+                }
+            }
+
+            const deleteSubBtn = event.target.closest('[data-delete-substitution]');
+            if (deleteSubBtn && canEdit()) {
+                if (!window.confirm('Delete this substitution?')) {
+                    return;
+                }
+                const subId = Number(deleteSubBtn.dataset.deleteSubstitution || 0);
+                if (!subId) return;
+                try {
+                    await deleteSubstitution(subId);
+                    substitutions = substitutions.filter((s) => Number(s.id) !== subId);
+                    renderSubstitutions();
+                } catch (error) {
+                    setError(error && error.message ? error.message : 'Unable to delete substitution');
+                }
+            }
+        });
+
+        openBtn.addEventListener('click', openModal);
+        closeButtons.forEach((btn) => btn.addEventListener('click', closeModal));
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && !modal.hidden) {
+                closeModal();
+            }
         });
     })();
 </script>

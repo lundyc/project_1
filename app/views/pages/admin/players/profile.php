@@ -2,6 +2,7 @@
 <?php
 require_once __DIR__ . '/../../../../lib/auth.php';
 require_once __DIR__ . '/../../../../lib/player_repository.php';
+require_once __DIR__ . '/../../../../lib/csrf.php';
 
 $context = require_club_admin_access();
 $clubId = $context['club_id'];
@@ -46,6 +47,7 @@ $displayName = isset($player['display_name']) && $player['display_name'] !== nul
     : trim(($player['first_name'] ?? '') . ' ' . ($player['last_name'] ?? ''));
 $title = $displayName;
 $base = base_path();
+$csrfToken = get_csrf_token();
 
 ob_start();
 $headerTitle = 'Player Profile - '. htmlspecialchars((string)$displayName);
@@ -54,7 +56,8 @@ $headerDescription = 'Description here';
 $headerButtons = [
     '<a href="'.htmlspecialchars($base).'/admin/players" class="stats-tab w-50 justify-start text-left px-4 py-2.5 text-sm font-medium rounded-lg border transition-all duration-200 bg-slate-600 border-slate-500 text-white shadow-lg shadow-slate-500/20 flex hover:bg-slate-700">Back to players</a>',
     '<a href="'.htmlspecialchars($base).'/admin/players/'.(int)$playerId.'/edit" class="stats-tab w-50 justify-start text-left px-4 py-2.5 text-sm font-medium rounded-lg border transition-all duration-200 bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20 flex hover:text-white hover:bg-indigo-800">Edit player</a>',
-    '<form method="post" action="'.htmlspecialchars($base).'/admin/players/'.(int)$playerId.'/delete" class="inline" onsubmit="return confirm(\'Are you sure you want to delete this player? This will mark them as inactive.\');" style="display:inline-block;margin:0;">
+    '<form method="post" action="'.htmlspecialchars($base).'/admin/players/'.(int)$playerId.'/delete" class="inline" data-confirm="Are you sure you want to delete this player? This will mark them as inactive." style="display:inline-block;margin:0;">
+        <input type="hidden" name="csrf_token" value="'.htmlspecialchars($csrfToken).'">
         <button type="submit" class="stats-tab w-50 justify-start text-left px-4 py-2.5 text-sm font-medium rounded-lg border transition-all duration-200 bg-red-700 border-red-600 text-white shadow-lg shadow-red-500/20 flex hover:bg-red-800">
             Delete Player
         </button>
@@ -63,6 +66,18 @@ $headerButtons = [
 //$headerButtons[] = '<a href="' . htmlspecialchars($base) . '/admin/players/create" class="stats-tab w-full justify-start text-left px-4 py-2.5 text-sm font-medium rounded-lg border transition-all duration-200 bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20 flex">Create Player</a>';
 include __DIR__ . '/../../../partials/header.php';
 ?>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('form[data-confirm]').forEach(function(form) {
+        form.addEventListener('submit', function(event) {
+            var message = form.getAttribute('data-confirm') || 'Are you sure?';
+            if (!window.confirm(message)) {
+                event.preventDefault();
+            }
+        });
+    });
+});
+</script>
 <div class="stats-page w-full mt-4 text-slate-200">
     <div class="max-w-full">
         <div class="grid grid-cols-12 gap-2 px-4 md:px-6 lg:px-8 w-full">

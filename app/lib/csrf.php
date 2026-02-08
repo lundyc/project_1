@@ -30,10 +30,23 @@ function require_csrf_token(): void
 {
           auth_boot();
           $expected = $_SESSION['csrf_token'] ?? '';
-          
-          // Accept token from header or POST body only (not GET to prevent logging)
-          $provided = $_SERVER['HTTP_X_CSRF_TOKEN'] 
-                    ?? $_POST['csrf_token'] 
+
+          $jsonToken = '';
+          $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+          if (stripos($contentType, 'application/json') !== false) {
+                    $rawInput = file_get_contents('php://input');
+                    if ($rawInput !== false && $rawInput !== '') {
+                              $decoded = json_decode($rawInput, true);
+                              if (is_array($decoded) && isset($decoded['csrf_token'])) {
+                                        $jsonToken = (string)$decoded['csrf_token'];
+                              }
+                    }
+          }
+
+          // Accept token from header, POST body, or JSON body only (not GET to prevent logging)
+          $provided = $_SERVER['HTTP_X_CSRF_TOKEN']
+                    ?? $_POST['csrf_token']
+                    ?? $jsonToken
                     ?? '';
 
           if ($expected === '' || $provided === '' || !hash_equals($expected, $provided)) {

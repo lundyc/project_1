@@ -377,7 +377,12 @@
                             // Use the new public-facing endpoint
                             fetch('/api/video_veo.php', {
                                    method: 'POST',
-                                   headers: { 'Content-Type': 'application/json' },
+                                   headers: {
+                                          'Content-Type': 'application/json',
+                                          ...(window.MatchEditConfig && window.MatchEditConfig.csrfToken
+                                                 ? { 'X-CSRF-Token': window.MatchEditConfig.csrfToken }
+                                                 : {}),
+                                   },
                                    body: JSON.stringify({ match_id, veo_url })
                             })
                                    .then(resp => resp.json())
@@ -1259,7 +1264,10 @@
               try {
                      const response = await fetch(config.endpoints.matchPlayersAdd, {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
+                            headers: {
+                                   'Content-Type': 'application/json',
+                                   ...(config.csrfToken ? { 'X-CSRF-Token': config.csrfToken } : {}),
+                            },
                             body: JSON.stringify(playerData),
                      });
 
@@ -1373,19 +1381,40 @@
                                           container.appendChild(playerCard);
 
                                           // Re-attach delete handler to the new button
-                                          playerCard.querySelector('.lineup-delete-btn')?.addEventListener('click', function () {
+                                          playerCard.querySelector('.lineup-delete-btn')?.addEventListener('click', async function () {
                                                  if (!confirm('Remove this player from the lineup?')) return;
                                                  const matchPlayerId = this.getAttribute('data-delete-player');
-                                                 fetch(config.endpoints.matchPlayersDelete, {
-                                                        method: 'POST',
-                                                        headers: { 'Content-Type': 'application/json' },
-                                                        body: JSON.stringify({
-                                                               match_id: config.matchId,
-                                                               id: parseInt(matchPlayerId)
-                                                        }),
-                                                 }).then(r => r.json()).then(result => {
-                                                        if (result.ok) playerCard.remove();
-                                                 });
+
+                                                 const headers = { 'Content-Type': 'application/json' };
+                                                 if (config.csrfToken) headers['X-CSRF-Token'] = config.csrfToken;
+
+                                                 try {
+                                                        const response = await fetch(config.endpoints.matchPlayersDelete, {
+                                                               method: 'POST',
+                                                               headers,
+                                                               body: JSON.stringify({
+                                                                      match_id: config.matchId,
+                                                                      id: parseInt(matchPlayerId)
+                                                               }),
+                                                        });
+
+                                                        const contentType = response.headers.get('content-type') || '';
+                                                        let result = null;
+                                                        let rawText = '';
+                                                        if (contentType.includes('application/json')) {
+                                                               result = await response.json();
+                                                        } else {
+                                                               rawText = await response.text();
+                                                        }
+
+                                                        if (!response.ok || !result?.ok) {
+                                                               throw new Error(result?.error || rawText || 'Failed to delete player');
+                                                        }
+
+                                                        playerCard.remove();
+                                                 } catch (error) {
+                                                        alert('Error: ' + error.message);
+                                                 }
                                           });
                                    }
                             }
@@ -1455,19 +1484,28 @@
                      const matchPlayerId = this.getAttribute('data-delete-player');
 
                      try {
+                            const headers = { 'Content-Type': 'application/json' };
+                            if (config.csrfToken) headers['X-CSRF-Token'] = config.csrfToken;
                             const response = await fetch(config.endpoints.matchPlayersDelete, {
                                    method: 'POST',
-                                   headers: { 'Content-Type': 'application/json' },
+                                   headers,
                                    body: JSON.stringify({
                                           match_id: config.matchId,
                                           id: parseInt(matchPlayerId)
                                    }),
                             });
 
-                            const result = await response.json();
+                            const contentType = response.headers.get('content-type') || '';
+                            let result = null;
+                            let rawText = '';
+                            if (contentType.includes('application/json')) {
+                                   result = await response.json();
+                            } else {
+                                   rawText = await response.text();
+                            }
 
-                            if (!response.ok || !result.ok) {
-                                   throw new Error(result.error || 'Failed to delete player');
+                            if (!response.ok || !result?.ok) {
+                                   throw new Error(result?.error || rawText || 'Failed to delete player');
                             }
 
                             // Reload page
@@ -2094,6 +2132,13 @@
               });
        });
 
+       function minutesToMatchSecond(minuteValue, extraValue) {
+              const minute = Number.isFinite(minuteValue) ? minuteValue : parseInt(minuteValue || '0', 10);
+              const extra = Number.isFinite(extraValue) ? extraValue : parseInt(extraValue || '0', 10);
+              const totalMinutes = Math.max(0, (minute || 0) + (extra || 0));
+              return totalMinutes * 60;
+       }
+
        goalForm.addEventListener('submit', async (e) => {
               e.preventDefault();
               const errorDiv = document.getElementById('goal-form-error');
@@ -2117,12 +2162,13 @@
                      teamSide = getOppositeTeam(teamSide);
               }
 
+              const minuteValue = parseInt(formData.get('minute'), 10) || 0;
+              const minuteExtraValue = parseInt(formData.get('minute_extra'), 10) || 0;
               const data = {
                      match_id: config.matchId,
                      event_type_id: parseInt(goalEventTypeIdInput?.value || EVENT_TYPE_IDS.goal),
                      team_side: teamSide,
-                     minute: parseInt(formData.get('minute')),
-                     minute_extra: parseInt(formData.get('minute_extra')) || 0,
+                     match_second: minutesToMatchSecond(minuteValue, minuteExtraValue),
                      outcome: isOwnGoal ? 'own_goal' : null,
                      is_penalty: isPenalty ? 1 : 0,
               };
@@ -2268,13 +2314,15 @@
               const playerIdInput = cardForm.querySelector('input[id="card-player-value"]');
               const playerValue = playerIdInput?.value;
 
+              const minuteValue = parseInt(formData.get('minute'), 10) || 0;
+              const minuteExtraValue = parseInt(formData.get('minute_extra'), 10) || 0;
+
               const isEdit = Boolean(cardEventIdInput?.value);
               const payload = {
                      match_id: config.matchId,
                      event_type_id: parseInt(cardEventTypeIdInput?.value || (currentCardType === 'yellow' ? EVENT_TYPE_IDS.yellow : EVENT_TYPE_IDS.red)),
                      team_side: formData.get('team_side'),
-                     minute: parseInt(formData.get('minute')),
-                     minute_extra: parseInt(formData.get('minute_extra')) || 0,
+                     match_second: minutesToMatchSecond(minuteValue, minuteExtraValue),
                      notes: formData.get('notes') || null,
               };
 
@@ -2761,9 +2809,11 @@
                      const subId = parseInt(this.getAttribute('data-delete-substitution'));
 
                      try {
+                            const headers = { 'Content-Type': 'application/json' };
+                            if (config.csrfToken) headers['X-CSRF-Token'] = config.csrfToken;
                             const response = await fetch(config.basePath + '/api/match-substitutions/delete', {
                                    method: 'POST',
-                                   headers: { 'Content-Type': 'application/json' },
+                                   headers,
                                    body: JSON.stringify({
                                           match_id: config.matchId,
                                           id: subId
@@ -2771,7 +2821,8 @@
                             });
 
                             const result = await response.json();
-                            if (!response.ok || !result.ok) {
+                            const isOk = response.ok && (result.ok || result.success);
+                            if (!isOk) {
                                    throw new Error(result.error || 'Failed to delete substitution');
                             }
 
@@ -2902,9 +2953,11 @@
                      const subId = parseInt(this.getAttribute('data-delete-substitution'));
 
                      try {
+                            const headers = { 'Content-Type': 'application/json' };
+                            if (config.csrfToken) headers['X-CSRF-Token'] = config.csrfToken;
                             const response = await fetch(config.basePath + '/api/match-substitutions/delete', {
                                    method: 'POST',
-                                   headers: { 'Content-Type': 'application/json' },
+                                   headers,
                                    body: JSON.stringify({
                                           match_id: config.matchId,
                                           id: subId
@@ -2912,7 +2965,8 @@
                             });
 
                             const result = await response.json();
-                            if (!response.ok || !result.ok) {
+                            const isOk = response.ok && (result.ok || result.success);
+                            if (!isOk) {
                                    throw new Error(result.error || 'Failed to delete substitution');
                             }
 

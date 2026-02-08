@@ -5,6 +5,7 @@ require_once __DIR__ . '/../../../lib/team_repository.php';
 require_once __DIR__ . '/../../../lib/season_repository.php';
 require_once __DIR__ . '/../../../lib/competition_repository.php';
 require_once __DIR__ . '/../../../lib/club_repository.php';
+require_once __DIR__ . '/../../../lib/csrf.php';
 require_once __DIR__ . '/../../../lib/asset_helper.php';
 
 $user = current_user();
@@ -83,6 +84,7 @@ ob_start();
         <?php endif; ?>
 
         <form method="post" action="<?= htmlspecialchars($base) ?>/api/matches/<?= $matchId ?>/update-details">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(get_csrf_token()) ?>">
             <input type="hidden" name="match_id" value="<?= $matchId ?>">
             <div class="space-y-6 pb-32">
                 <section class="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-6">
