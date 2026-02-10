@@ -4730,6 +4730,21 @@ select.input-dark {
   background: rgba(14, 116, 144, 0.08);
 }
 
+.matrix-cell[data-period-key="pre_first_half"],
+.matrix-bucket-label[data-period-key="pre_first_half"] {
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.matrix-cell[data-period-key="half_time"],
+.matrix-bucket-label[data-period-key="half_time"] {
+  background: rgba(251, 191, 36, 0.08);
+}
+
+.matrix-cell[data-period-key="post_second_half"],
+.matrix-bucket-label[data-period-key="post_second_half"] {
+  background: rgba(100, 116, 139, 0.08);
+}
+
 .matrix-cell[data-period-key="extra_time"],
 .matrix-cell[data-period-key="extra_time_1"],
 .matrix-cell[data-period-key="extra_time_2"],

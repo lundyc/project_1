@@ -428,6 +428,8 @@ function tryHideDeskSkeleton() {
       let drawingDragState = null;
       let matrixWheelListenerBound = false;
       let resizeTimer = null;
+      let timelineResizeObserver = null;
+      let lastTimelineWidth = 0;
       let timelineRenderTimer = null;
       let initialTimelineRefreshScheduled = false;
       let editorDirty = false;
@@ -2715,6 +2717,28 @@ function tryHideDeskSkeleton() {
                         }
                         return null;
                   };
+                  const resolveMatrixPeriodKey = (second) => {
+                        const state = typeof periodState !== 'undefined' ? periodState : window.DeskPeriodState;
+                        if (!state) return null;
+                        const first = state.first_half;
+                        const secondHalf = state.second_half;
+                        const extra1 = state.extra_time_1;
+                        const firstStart = Number(first && first.startMatchSecond);
+                        const firstEnd = Number(first && first.endMatchSecond);
+                        const secondStart = Number(secondHalf && secondHalf.startMatchSecond);
+                        const secondEnd = Number(secondHalf && secondHalf.endMatchSecond);
+                        const extraStart = Number(extra1 && extra1.startMatchSecond);
+                        if (Number.isFinite(firstStart) && second < firstStart) {
+                              return 'pre_first_half';
+                        }
+                        if (Number.isFinite(firstEnd) && Number.isFinite(secondStart) && second >= firstEnd && second < secondStart) {
+                              return 'half_time';
+                        }
+                        if (Number.isFinite(secondEnd) && second >= secondEnd && (!Number.isFinite(extraStart) || second < extraStart)) {
+                              return 'post_second_half';
+                        }
+                        return resolvePeriodKey(second);
+                  };
 
                   if (!filtered.length) {
                         timelineMetrics.duration = baseDuration;
@@ -2923,7 +2947,9 @@ function tryHideDeskSkeleton() {
                   buckets.forEach((b) => {
                         const bucketEnd = b.end === null ? rawDuration : b.end;
                         const bucketMid = b.start + (bucketEnd - b.start) / 2;
-                        const periodKey = resolvePeriodKey(bucketMid) || (b.start >= 5400 ? 'extra_time' : b.start >= 2700 ? 'second_half' : 'first_half');
+                        const periodKey =
+                              resolveMatrixPeriodKey(bucketMid) ||
+                              (b.start >= 5400 ? 'extra_time' : b.start >= 2700 ? 'second_half' : 'first_half');
                         html += `<div class="matrix-bucket-label" data-period-key="${h(periodKey)}">${h(b.label)}</div>`;
                   });
                   html += '</div>';
@@ -2940,7 +2966,9 @@ function tryHideDeskSkeleton() {
                         buckets.forEach((bucket, idx) => {
                               const bucketEnd = bucket.end === null ? rawDuration : bucket.end;
                               const bucketMid = bucket.start + (bucketEnd - bucket.start) / 2;
-                              const periodKey = resolvePeriodKey(bucketMid) || (bucket.start >= 5400 ? 'extra_time' : bucket.start >= 2700 ? 'second_half' : 'first_half');
+                              const periodKey =
+                                    resolveMatrixPeriodKey(bucketMid) ||
+                                    (bucket.start >= 5400 ? 'extra_time' : bucket.start >= 2700 ? 'second_half' : 'first_half');
                               html += `<div class="matrix-cell" data-bucket="${idx}" data-period-key="${h(periodKey)}" style="width:${bucketWidths[idx]}px"></div>`;
                         });
                         html += '</div>';
@@ -3218,6 +3246,25 @@ function tryHideDeskSkeleton() {
                   if (timelineMode !== 'matrix') return;
                   clearTimeout(resizeTimer);
                   resizeTimer = setTimeout(() => renderTimeline(), 120);
+            }
+
+            function setupTimelineResizeObserver() {
+                  if (timelineResizeObserver || typeof window.ResizeObserver !== 'function') {
+                        return;
+                  }
+                  const target = $timelineMatrix.closest('.timeline-scroll')[0];
+                  if (!target) return;
+                  timelineResizeObserver = new window.ResizeObserver((entries) => {
+                        const entry = entries && entries[0];
+                        if (!entry) return;
+                        const width = Math.round(entry.contentRect && entry.contentRect.width ? entry.contentRect.width : 0);
+                        if (!width || width === lastTimelineWidth) return;
+                        lastTimelineWidth = width;
+                        if (timelineMode === 'matrix') {
+                              renderTimeline();
+                        }
+                  });
+                  timelineResizeObserver.observe(target);
             }
 
             function setEditorCollapsed(collapsed, hintText, hidePanel = false) {
@@ -5866,6 +5913,7 @@ function tryHideDeskSkeleton() {
                   setupTimeStepper($timeStepDown, -1);
                   setupTimeStepper($timeStepUp, 1);
                   bindHandlers();
+                  setupTimelineResizeObserver();
                   if (annotationsEnabled) {
                         ensureAnnotationBridge();
                   }
