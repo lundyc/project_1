@@ -58,39 +58,15 @@ if (!empty($match['season'])) {
     $seasonDisplay = $seasonName ? htmlspecialchars($seasonName) : '-';
 }
 
-$homeShots = (int)($matchStats['home']['shots'] ?? 0);
-$awayShots = (int)($matchStats['away']['shots'] ?? 0);
-
-$homeShotsOnTarget = $matchStats['home']['shots_on_target'] ?? null;
-if ($homeShotsOnTarget === null || $homeShotsOnTarget === 0) {
-    $homeShotsOnTarget = $derivedData['derived']['by_type_team']['shot_on_target']['home'] ?? 0;
-}
-$homeShotsOnTarget = (int)$homeShotsOnTarget;
-
-$awayShotsOnTarget = $matchStats['away']['shots_on_target'] ?? null;
-if ($awayShotsOnTarget === null || $awayShotsOnTarget === 0) {
-    $awayShotsOnTarget = $derivedData['derived']['by_type_team']['shot_on_target']['away'] ?? 0;
-}
-$awayShotsOnTarget = (int)$awayShotsOnTarget;
-
-$homeGoalsForReport = (int)($matchStats['home']['goals'] ?? 0);
-$awayGoalsForReport = (int)($matchStats['away']['goals'] ?? 0);
-$homeShotsOnTarget += $homeGoalsForReport;
-$awayShotsOnTarget += $awayGoalsForReport;
-
-$homeShotsOffTarget = $matchStats['home']['shots_off_target'] ?? null;
-if ($homeShotsOffTarget === null || $homeShotsOffTarget === 0) {
-    $homeShotsOffTarget = $derivedData['derived']['by_type_team']['shot_off_target']['home'] ?? 0;
-}
-$homeShotsOffTarget = (int)$homeShotsOffTarget;
-
-$awayShotsOffTarget = $matchStats['away']['shots_off_target'] ?? null;
-if ($awayShotsOffTarget === null || $awayShotsOffTarget === 0) {
-    $awayShotsOffTarget = $derivedData['derived']['by_type_team']['shot_off_target']['away'] ?? 0;
-}
-$awayShotsOffTarget = (int)$awayShotsOffTarget;
-
 $derivedByType = $derivedData['derived']['by_type_team'] ?? [];
+$homeShots = (int)($derivedByType['shot_on_target']['home'] ?? 0) + (int)($derivedByType['shot_off_target']['home'] ?? 0);
+$awayShots = (int)($derivedByType['shot_on_target']['away'] ?? 0) + (int)($derivedByType['shot_off_target']['away'] ?? 0);
+
+$homeShotsOnTarget = (int)($derivedByType['shot_on_target']['home'] ?? 0);
+$awayShotsOnTarget = (int)($derivedByType['shot_on_target']['away'] ?? 0);
+
+$homeShotsOffTarget = (int)($derivedByType['shot_off_target']['home'] ?? 0);
+$awayShotsOffTarget = (int)($derivedByType['shot_off_target']['away'] ?? 0);
 
 $shotOriginMarkers = ['home' => [], 'away' => []];
 $shotTargetMarkers = ['home' => [], 'away' => []];
@@ -363,111 +339,47 @@ header('Content-Type: text/html; charset=utf-8');
 <div class="divider"></div>
 
 
-<!-- Themed Stat Sections for improved hierarchy and insight -->
-<!-- Attacking -->
-<div class="attacking-section my-8" style="margin-bottom:1.5em;">
-    <h2 class="text-lg font-semibold mb-2" style="font-size:1.1em; margin-bottom:0.4em;">Attacking</h2>
-    <table class="w-full text-center mb-4">
+<!-- Combined Stat Table: Attacking, Set Pieces, Discipline & Control -->
+<div class="combined-section my-8" style="margin-bottom:2em;">
+    <h2 class="text-lg font-semibold mb-2" style="font-size:1.1em; margin-bottom:0.4em;">Match Statistics</h2>
+   <table class="min-w-full bg-bg-tertiary text-text-primary text-xs rounded-xl overflow-hidden center-cols">
+        <thead>
+            <tr class="bg-bg-secondary text-text-muted uppercase font-semibold text-xs">
+                <th class="w-1/3 px-4 py-2 text-left">Category</th>
+                <th class="w-1/3 px-4 py-2 text-center"><?= htmlspecialchars($homeTeam['name']) ?></th>
+                <th class="w-1/3 px-4 py-2 text-center"><?= htmlspecialchars($awayTeam['name']) ?></th>
+            </tr>
+        </thead>
         <tbody>
         <?php
-        // Group relevant overview stats for Attacking
-        $attackingLabels = ['Goals','Shots','On Target','Off Target'];
-        foreach ($attackingLabels as $label) {
-            $row = null;
-            foreach ([
-                ['label'=>'Goals','home'=>(int)($matchStats['home']['goals'] ?? 0),'away'=>(int)($matchStats['away']['goals'] ?? 0)],
-                ['label'=>'Shots','home'=>$homeShots,'away'=>$awayShots],
-                ['label'=>'On Target','home'=>$homeShotsOnTarget,'away'=>$awayShotsOnTarget],
-                ['label'=>'Off Target','home'=>$homeShotsOffTarget,'away'=>$awayShotsOffTarget],
-            ] as $r) { if ($r['label']==$label) $row=$r; }
-            if ($row) {
-                $homeVal = $row['home'];
-                $awayVal = $row['away'];
-                $boldHome = $homeVal > $awayVal;
-                $boldAway = $awayVal > $homeVal;
-                $arrowHome = $homeVal == $awayVal ? '' : ($boldHome ? ' <span class="marker-font" style="color:#222;">&#9650;</span>' : '');
-                $arrowAway = $homeVal == $awayVal ? '' : ($boldAway ? ' <span class="marker-font" style="color:#222;">&#9660;</span>' : '');
-                echo '<tr>';
-                echo '<td class="w-1/3 font-medium text-right pr-2">' . htmlspecialchars($label) . '</td>';
-                echo '<td class="w-1/3 text-lg" style="font-weight:' . ($boldHome ? 'bold' : 'normal') . '">' . $homeVal . $arrowHome . '</td>';
-                echo '<td class="w-1/3 text-lg" style="font-weight:' . ($boldAway ? 'bold' : 'normal') . '">' . $awayVal . $arrowAway . '</td>';
-                echo '</tr>';
+        // Define all rows in order: Attacking, Set Pieces, Discipline
+        $rows = [
+            // Attacking
+            ['section' => 'Attacking', 'label' => 'Goals', 'home' => (int)($matchStats['home']['goals'] ?? 0), 'away' => (int)($matchStats['away']['goals'] ?? 0)],
+            ['section' => 'Attacking', 'label' => 'Shots', 'home' => $homeShots, 'away' => $awayShots],
+            ['section' => 'Attacking', 'label' => 'On Target', 'home' => $homeShotsOnTarget, 'away' => $awayShotsOnTarget],
+            ['section' => 'Attacking', 'label' => 'Off Target', 'home' => $homeShotsOffTarget, 'away' => $awayShotsOffTarget],
+            // Set Pieces
+            ['section' => 'Set Pieces', 'label' => 'Corners', 'home' => (int)($matchStats['home']['corners'] ?? 0), 'away' => (int)($matchStats['away']['corners'] ?? 0)],
+            ['section' => 'Set Pieces', 'label' => 'Free Kicks', 'home' => (int)($matchStats['home']['free_kicks'] ?? 0), 'away' => (int)($matchStats['away']['free_kicks'] ?? 0)],
+            ['section' => 'Set Pieces', 'label' => 'Penalties', 'home' => (int)($matchStats['home']['penalties'] ?? 0), 'away' => (int)($matchStats['away']['penalties'] ?? 0)],
+            // Discipline & Control
+            ['section' => 'Discipline & Control', 'label' => 'Yellow Cards', 'home' => (int)($matchStats['home']['yellow_cards'] ?? 0), 'away' => (int)($matchStats['away']['yellow_cards'] ?? 0)],
+            ['section' => 'Discipline & Control', 'label' => 'Red Cards', 'home' => (int)($matchStats['home']['red_cards'] ?? 0), 'away' => (int)($matchStats['away']['red_cards'] ?? 0)],
+            ['section' => 'Discipline & Control', 'label' => 'Fouls', 'home' => (int)($matchStats['home']['fouls'] ?? 0), 'away' => (int)($matchStats['away']['fouls'] ?? 0)],
+        ];
+        $lastSection = '';
+        foreach ($rows as $row) {
+            if ($row['section'] !== $lastSection) {
+                echo '<tr style="background:#eef1f7;"><td colspan="3" class="font-semibold text-left px-4 py-2 text-center" style="font-size:1em;">' . htmlspecialchars($row['section']) . '</td></tr>';
+                $lastSection = $row['section'];
             }
+            echo '<tr>';
+            echo '<td class="px-4 py-2">' . htmlspecialchars($row['label']) . '</td>';
+            echo '<td class="px-4 py-2">' . $row['home'] . '</td>';
+            echo '<td class="px-4 py-2">' . $row['away'] . '</td>';
+            echo '</tr>';
         }
-        ?>
-        </tbody>
-    </table>
-</div>
-
-<!-- Set Pieces -->
-<div class="set-piece-section my-8" style="margin-bottom:1.5em;">
-    <h2 class="text-lg font-semibold mb-2" style="font-size:1.1em; margin-bottom:0.4em;">Set Pieces</h2>
-    <table class="w-full text-center mb-4">
-        <tbody>
-        <?php
-        $setPieceLabels = ['Corners','Free Kicks','Penalties'];
-        foreach ($setPieceLabels as $label) {
-            $row = null;
-            foreach ([
-                ['label'=>'Corners','home'=>(int)($matchStats['home']['corners'] ?? 0),'away'=>(int)($matchStats['away']['corners'] ?? 0)],
-                ['label'=>'Free Kicks','home'=>(int)($matchStats['home']['free_kicks'] ?? 0),'away'=>(int)($matchStats['away']['free_kicks'] ?? 0)],
-                ['label'=>'Penalties','home'=>(int)($matchStats['home']['penalties'] ?? 0),'away'=>(int)($matchStats['away']['penalties'] ?? 0)],
-            ] as $r) { if ($r['label']==$label) $row=$r; }
-            if ($row) {
-                $homeVal = $row['home'];
-                $awayVal = $row['away'];
-                $boldHome = $homeVal > $awayVal;
-                $boldAway = $awayVal > $homeVal;
-                $arrow = $homeVal == $awayVal ? '' : ($boldHome ? ' <span class="marker-font" style="color:#222;">&#9650;</span>' : ' <span class="marker-font" style="color:#222;">&#9660;</span>');
-                echo '<tr>';
-                echo '<td class="w-1/3 font-medium text-right pr-2">' . htmlspecialchars($label) . '</td>';
-                echo '<td class="w-1/3 text-lg" style="font-weight:' . ($boldHome ? 'bold' : 'normal') . '">' . $homeVal . ($boldHome ? $arrow : '') . '</td>';
-                echo '<td class="w-1/3 text-lg" style="font-weight:' . ($boldAway ? 'bold' : 'normal') . '">' . $awayVal . ($boldAway ? $arrow : '') . '</td>';
-                echo '</tr>';
-            }
-        }
-        ?>
-        </tbody>
-    </table>
-</div>
-
-<!-- Discipline & Control -->
-<div class="discipline-section my-8" style="margin-bottom:2em;">
-    <h2 class="text-lg font-semibold mb-2" style="font-size:1.1em; margin-bottom:0.4em;">Discipline &amp; Control</h2>
-    <table class="w-full text-center mb-4">
-        <tbody>
-        <?php
-        $disciplineLabels = ['Yellow Cards','Red Cards'];
-        foreach ($disciplineLabels as $label) {
-            $row = null;
-            foreach ([
-                ['label'=>'Yellow Cards','home'=>(int)($matchStats['home']['yellow_cards'] ?? 0),'away'=>(int)($matchStats['away']['yellow_cards'] ?? 0)],
-                ['label'=>'Red Cards','home'=>(int)($matchStats['home']['red_cards'] ?? 0),'away'=>(int)($matchStats['away']['red_cards'] ?? 0)],
-            ] as $r) { if ($r['label']==$label) $row=$r; }
-            if ($row) {
-                $homeVal = $row['home'];
-                $awayVal = $row['away'];
-                $boldHome = $homeVal > $awayVal;
-                $boldAway = $awayVal > $homeVal;
-                $arrow = $homeVal == $awayVal ? '' : ($boldHome ? ' <span class="marker-font" style="color:#222;">&#9650;</span>' : ' <span class="marker-font" style="color:#222;">&#9660;</span>');
-                echo '<tr>';
-                echo '<td class="w-1/3 font-medium text-right pr-2">' . htmlspecialchars($label) . '</td>';
-                echo '<td class="w-1/3 text-lg" style="font-weight:' . ($boldHome ? 'bold' : 'normal') . '">' . $homeVal . ($boldHome ? $arrow : '') . '</td>';
-                echo '<td class="w-1/3 text-lg" style="font-weight:' . ($boldAway ? 'bold' : 'normal') . '">' . $awayVal . ($boldAway ? $arrow : '') . '</td>';
-                echo '</tr>';
-            }
-        }
-        // Add fouls row
-        $homeFouls = $matchStats['home']['fouls'] ?? 0;
-        $awayFouls = $matchStats['away']['fouls'] ?? 0;
-        $boldHome = $homeFouls > $awayFouls;
-        $boldAway = $awayFouls > $homeFouls;
-        $arrow = $homeFouls == $awayFouls ? '' : ($boldHome ? ' <span class="marker-font" style="color:#222;">&#9650;</span>' : ' <span class="marker-font" style="color:#222;">&#9660;</span>');
-        echo '<tr>';
-        echo '<td class="w-1/3 font-medium text-right pr-2">Fouls</td>';
-        echo '<td class="w-1/3 text-lg" style="font-weight:' . ($boldHome ? 'bold' : 'normal') . '">' . $homeFouls . ($boldHome ? $arrow : '') . '</td>';
-        echo '<td class="w-1/3 text-lg" style="font-weight:' . ($boldAway ? 'bold' : 'normal') . '">' . $awayFouls . ($boldAway ? $arrow : '') . '</td>';
-        echo '</tr>';
         ?>
         </tbody>
     </table>
@@ -581,17 +493,87 @@ header('Content-Type: text/html; charset=utf-8');
 
 <div style="page-break-before: always;"></div>
 <h2>Match Events</h2>
-<table class="section-table">
-    <tr><td>
-        <ul class="event-list">
-            <?php foreach (($overview['events']['home_goals'] ?? []) as $goal): ?>
-                <li>Home Goal: <?= htmlspecialchars($goal['player'] ?? 'Unknown') ?> <?= isset($goal['match_second']) ? (int)floor((int)($goal['match_second'] ?? 0) / 60) : htmlspecialchars($goal['minute'] ?? '') ?>'</li>
-            <?php endforeach; ?>
-            <?php foreach (($overview['events']['away_goals'] ?? []) as $goal): ?>
-                <li>Away Goal: <?= htmlspecialchars($goal['player'] ?? 'Unknown') ?> <?= isset($goal['match_second']) ? (int)floor((int)($goal['match_second'] ?? 0) / 60) : htmlspecialchars($goal['minute'] ?? '') ?>'</li>
-            <?php endforeach; ?>
-        </ul>
-    </td></tr>
+<table class="section-table w-full text-center mb-4" style="margin-bottom:1em;">
+    <thead>
+        <tr style="background:#eef1f7;">
+            <th class="px-4 py-2 text-left">Team</th>
+            <th class="px-4 py-2 text-left">Player</th>
+            <th class="px-4 py-2 text-left">Event</th>
+            <th class="px-4 py-2 text-center">Minute</th>
+        </tr>
+    </thead>
+    <tbody>
+        <?php
+        // Helper to render a row
+        function render_event_row($team, $teamColor, $player, $event, $minute) {
+            echo '<tr>';
+            echo '<td class="px-4 py-2 text-left" style="font-weight:600;color:' . $teamColor . ';">' . htmlspecialchars($team) . '</td>';
+            echo '<td class="px-4 py-2 text-left">' . htmlspecialchars($player ?? 'Unknown') . '</td>';
+            echo '<td class="px-4 py-2 text-left">' . htmlspecialchars($event) . '</td>';
+            echo '<td class="px-4 py-2 text-center">' . htmlspecialchars($minute) . "'</td>";
+            echo '</tr>';
+        }
+        // Goals
+        foreach (($overview['events']['home_goals'] ?? []) as $goal) {
+            $minute = isset($goal['match_second']) ? (int)floor((int)($goal['match_second'] ?? 0) / 60) : htmlspecialchars($goal['minute'] ?? '');
+            render_event_row($homeTeam['name'], '#ef4444', $goal['player'], 'Goal', $minute);
+        }
+        foreach (($overview['events']['away_goals'] ?? []) as $goal) {
+            $minute = isset($goal['match_second']) ? (int)floor((int)($goal['match_second'] ?? 0) / 60) : htmlspecialchars($goal['minute'] ?? '');
+            render_event_row($awayTeam['name'], '#3b82f6', $goal['player'], 'Goal', $minute);
+        }
+        // Yellow Cards
+        foreach (($overview['events']['home_yellow_cards'] ?? []) as $ev) {
+            $minute = isset($ev['match_second']) ? (int)floor((int)($ev['match_second'] ?? 0) / 60) : htmlspecialchars($ev['minute'] ?? '');
+            render_event_row($homeTeam['name'], '#ef4444', $ev['player'], 'Yellow Card', $minute);
+        }
+        foreach (($overview['events']['away_yellow_cards'] ?? []) as $ev) {
+            $minute = isset($ev['match_second']) ? (int)floor((int)($ev['match_second'] ?? 0) / 60) : htmlspecialchars($ev['minute'] ?? '');
+            render_event_row($awayTeam['name'], '#3b82f6', $ev['player'], 'Yellow Card', $minute);
+        }
+        // Red Cards
+        foreach (($overview['events']['home_red_cards'] ?? []) as $ev) {
+            $minute = isset($ev['match_second']) ? (int)floor((int)($ev['match_second'] ?? 0) / 60) : htmlspecialchars($ev['minute'] ?? '');
+            render_event_row($homeTeam['name'], '#ef4444', $ev['player'], 'Red Card', $minute);
+        }
+        foreach (($overview['events']['away_red_cards'] ?? []) as $ev) {
+            $minute = isset($ev['match_second']) ? (int)floor((int)($ev['match_second'] ?? 0) / 60) : htmlspecialchars($ev['minute'] ?? '');
+            render_event_row($awayTeam['name'], '#3b82f6', $ev['player'], 'Red Card', $minute);
+        }
+        // Substitutions
+        foreach (($overview['events']['home_substitutions'] ?? []) as $ev) {
+            $minute = isset($ev['match_second']) ? (int)floor((int)($ev['match_second'] ?? 0) / 60) : htmlspecialchars($ev['minute'] ?? '');
+            $player = $ev['player_on'] ?? $ev['player'] ?? 'Unknown';
+            render_event_row($homeTeam['name'], '#ef4444', $player, 'Substitution', $minute);
+        }
+        foreach (($overview['events']['away_substitutions'] ?? []) as $ev) {
+            $minute = isset($ev['match_second']) ? (int)floor((int)($ev['match_second'] ?? 0) / 60) : htmlspecialchars($ev['minute'] ?? '');
+            $player = $ev['player_on'] ?? $ev['player'] ?? 'Unknown';
+            render_event_row($awayTeam['name'], '#3b82f6', $player, 'Substitution', $minute);
+        }
+        // Other event types (corners, penalties, fouls, etc.)
+        $otherTypes = [
+            'home_corners' => ['label' => 'Corner', 'team' => 'home', 'color' => '#ef4444'],
+            'away_corners' => ['label' => 'Corner', 'team' => 'away', 'color' => '#3b82f6'],
+            'home_penalties' => ['label' => 'Penalty', 'team' => 'home', 'color' => '#ef4444'],
+            'away_penalties' => ['label' => 'Penalty', 'team' => 'away', 'color' => '#3b82f6'],
+            'home_fouls' => ['label' => 'Foul', 'team' => 'home', 'color' => '#ef4444'],
+            'away_fouls' => ['label' => 'Foul', 'team' => 'away', 'color' => '#3b82f6'],
+        ];
+        foreach ($otherTypes as $key => $meta) {
+            foreach (($overview['events'][$key] ?? []) as $ev) {
+                $minute = isset($ev['match_second']) ? (int)floor((int)($ev['match_second'] ?? 0) / 60) : htmlspecialchars($ev['minute'] ?? '');
+                render_event_row(
+                    $meta['team'] === 'home' ? $homeTeam['name'] : $awayTeam['name'],
+                    $meta['color'],
+                    $ev['player'] ?? 'Unknown',
+                    $meta['label'],
+                    $minute
+                );
+            }
+        }
+        ?>
+    </tbody>
 </table>
 
 <!-- Player Performance section with summary label and goal highlights -->

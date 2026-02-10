@@ -194,6 +194,22 @@ class LeagueIntelligenceImportController extends Controller
         $competitionRepository = new CompetitionRepository($pdo);
         $matchRepository = new LeagueIntelligenceMatchRepository($pdo);
 
+        $teamExactFinder = function (string $value) use ($teamRepository, $clubId): array {
+            $rows = $teamRepository->findByNormalizedName($value, $clubId);
+            if (empty($rows)) {
+                $rows = $teamRepository->findByNormalizedName($value);
+            }
+            return $rows;
+        };
+
+        $teamPartialFinder = function (string $value) use ($teamRepository, $clubId): array {
+            $rows = $teamRepository->searchByNormalizedName($value, $clubId);
+            if (empty($rows)) {
+                $rows = $teamRepository->searchByNormalizedName($value);
+            }
+            return $rows;
+        };
+
         $counts = [
             'processed' => 0,
             'updated' => 0,
@@ -202,6 +218,8 @@ class LeagueIntelligenceImportController extends Controller
             'conflicts' => 0,
             'created_teams' => 0,
             'created_competitions' => 0,
+            'missing_team_samples' => [],
+            'already_exists_samples' => [],
         ];
         $skipped = [
             'missing_team' => 0,
@@ -222,17 +240,93 @@ class LeagueIntelligenceImportController extends Controller
                     continue;
                 }
 
-                // Instrumented skip logic
+                $kickoffAt = $this->normalizeDateTimeInput($row['date_time'] ?? null);
+                $homeTeamName = trim((string)($row['home_team_name'] ?? ''));
+                $awayTeamName = trim((string)($row['away_team_name'] ?? ''));
+                $competitionName = trim((string)($row['competition_name'] ?? ''));
+
+                $homeGoals = $this->normalizeScore($row['home_goals'] ?? null);
+                $awayGoals = $this->normalizeScore($row['away_goals'] ?? null);
+                $status = $this->normalizeStatus($row['status'] ?? null, $homeGoals, $awayGoals);
+
+                $homeTeamId = isset($row['home_team_id']) ? (int)$row['home_team_id'] : 0;
+                if ($homeTeamId <= 0) {
+                    $homeTeam = $this->resolveSingleMatch(
+                        $homeTeamName,
+                        $teamExactFinder,
+                        $teamPartialFinder
+                    );
+                    if ($homeTeam) {
+                        $homeTeamId = (int)$homeTeam['id'];
+                    } elseif ($homeTeamName !== '' && empty($row['home_team_ambiguous'])) {
+                        $createdHome = $teamRepository->create($homeTeamName, $clubId, 'opponent');
+                        if ($createdHome) {
+                            $homeTeamId = (int)$createdHome['id'];
+                            $counts['created_teams']++;
+                        }
+                    }
+                }
+
+                $awayTeamId = isset($row['away_team_id']) ? (int)$row['away_team_id'] : 0;
+                if ($awayTeamId <= 0) {
+                    $awayTeam = $this->resolveSingleMatch(
+                        $awayTeamName,
+                        $teamExactFinder,
+                        $teamPartialFinder
+                    );
+                    if ($awayTeam) {
+                        $awayTeamId = (int)$awayTeam['id'];
+                    } elseif ($awayTeamName !== '' && empty($row['away_team_ambiguous'])) {
+                        $createdAway = $teamRepository->create($awayTeamName, $clubId, 'opponent');
+                        if ($createdAway) {
+                            $awayTeamId = (int)$createdAway['id'];
+                            $counts['created_teams']++;
+                        }
+                    }
+                }
+
+                $competitionId = isset($row['competition_id']) ? (int)$row['competition_id'] : 0;
+                $competitionSeasonId = $seasonId;
+                if ($competitionId > 0) {
+                    $competition = $competitionRepository->findById($competitionId);
+                    if ($competition && !empty($competition['season_id'])) {
+                        $competitionSeasonId = (int)$competition['season_id'];
+                    }
+                } elseif ($competitionName !== '') {
+                    $competition = $this->resolveSingleMatch(
+                        $competitionName,
+                        function (string $value) use ($competitionRepository, $clubId): array {
+                            return $competitionRepository->findByNormalizedName($value, $clubId);
+                        },
+                        function (string $value) use ($competitionRepository, $clubId): array {
+                            return $competitionRepository->searchByNormalizedName($value, $clubId);
+                        }
+                    );
+                    if ($competition) {
+                        $competitionId = (int)$competition['id'];
+                        $competitionSeasonId = !empty($competition['season_id']) ? (int)$competition['season_id'] : $seasonId;
+                    } elseif (empty($row['competition_ambiguous'])) {
+                        $competitionType = $this->resolveCompetitionType($competitionName);
+                        $createdCompetition = $competitionRepository->create($competitionName, $clubId, $seasonId, $competitionType);
+                        if ($createdCompetition) {
+                            $competitionId = (int)$createdCompetition['id'];
+                            $competitionSeasonId = (int)($createdCompetition['season_id'] ?? $seasonId);
+                            $counts['created_competitions']++;
+                        }
+                    }
+                }
+
+                // Instrumented skip logic (after attempting auto-create)
                 $skipReason = null;
-                if (empty($row['home_team_found']) || empty($row['away_team_found'])) {
+                if ($homeTeamId <= 0 || $awayTeamId <= 0) {
                     $skipReason = 'missing_team';
                 } elseif (!empty($row['home_team_ambiguous']) || !empty($row['away_team_ambiguous'])) {
                     $skipReason = 'ambiguous_team';
-                } elseif (empty($row['competition_found'])) {
+                } elseif ($competitionId <= 0) {
                     $skipReason = 'missing_competition';
                 } elseif (!empty($row['competition_ambiguous'])) {
                     $skipReason = 'ambiguous_competition';
-                } elseif (empty($row['date_time'])) {
+                } elseif (empty($kickoffAt)) {
                     $skipReason = 'invalid_datetime';
                 } elseif (!empty($row['existing_match'])) {
                     $skipReason = 'already_exists';
@@ -246,6 +340,16 @@ class LeagueIntelligenceImportController extends Controller
                     }
                     if ($skippedLogCount < 20) {
                         if ($skipReason === 'missing_team') {
+                            if (count($counts['missing_team_samples']) < 5) {
+                                $counts['missing_team_samples'][] = [
+                                    'home' => $row['home_team_name'] ?? null,
+                                    'away' => $row['away_team_name'] ?? null,
+                                    'competition' => $row['competition_name'] ?? null,
+                                    'date_time' => $row['date_time'] ?? null,
+                                    'home_lookup_status' => $row['home_team_lookup_status'] ?? null,
+                                    'away_lookup_status' => $row['away_team_lookup_status'] ?? null,
+                                ];
+                            }
                             error_log('[WOSFL SKIP] ' . json_encode([
                                 'reason' => 'missing_team',
                                 'home_team' => $row['home_team_name'] ?? null,
@@ -270,70 +374,6 @@ class LeagueIntelligenceImportController extends Controller
                     continue;
                 }
 
-                $kickoffAt = $this->normalizeDateTimeInput($row['date_time'] ?? null);
-                $homeTeamName = trim((string)($row['home_team_name'] ?? ''));
-                $awayTeamName = trim((string)($row['away_team_name'] ?? ''));
-                $competitionName = trim((string)($row['competition_name'] ?? ''));
-
-                $homeGoals = $this->normalizeScore($row['home_goals'] ?? null);
-                $awayGoals = $this->normalizeScore($row['away_goals'] ?? null);
-                $status = $this->normalizeStatus($row['status'] ?? null, $homeGoals, $awayGoals);
-
-                $homeTeamId = isset($row['home_team_id']) ? (int)$row['home_team_id'] : 0;
-                if ($homeTeamId <= 0) {
-                    $homeTeam = $this->resolveSingleMatch(
-                        $homeTeamName,
-                        function (string $value) use ($teamRepository, $clubId): array {
-                            return $teamRepository->findByNormalizedName($value, $clubId);
-                        },
-                        function (string $value) use ($teamRepository, $clubId): array {
-                            return $teamRepository->searchByNormalizedName($value, $clubId);
-                        }
-                    );
-                    if ($homeTeam) {
-                        $homeTeamId = (int)$homeTeam['id'];
-                    }
-                }
-
-                $awayTeamId = isset($row['away_team_id']) ? (int)$row['away_team_id'] : 0;
-                if ($awayTeamId <= 0) {
-                    $awayTeam = $this->resolveSingleMatch(
-                        $awayTeamName,
-                        function (string $value) use ($teamRepository, $clubId): array {
-                            return $teamRepository->findByNormalizedName($value, $clubId);
-                        },
-                        function (string $value) use ($teamRepository, $clubId): array {
-                            return $teamRepository->searchByNormalizedName($value, $clubId);
-                        }
-                    );
-                    if ($awayTeam) {
-                        $awayTeamId = (int)$awayTeam['id'];
-                    }
-                }
-
-                $competitionId = isset($row['competition_id']) ? (int)$row['competition_id'] : 0;
-                $competitionSeasonId = $seasonId;
-                if ($competitionId > 0) {
-                    $competition = $competitionRepository->findById($competitionId);
-                    if ($competition && !empty($competition['season_id'])) {
-                        $competitionSeasonId = (int)$competition['season_id'];
-                    }
-                } elseif ($competitionName !== '') {
-                    $competition = $this->resolveSingleMatch(
-                        $competitionName,
-                        function (string $value) use ($competitionRepository, $clubId): array {
-                            return $competitionRepository->findByNormalizedName($value, $clubId);
-                        },
-                        function (string $value) use ($competitionRepository, $clubId): array {
-                            return $competitionRepository->searchByNormalizedName($value, $clubId);
-                        }
-                    );
-                    if ($competition) {
-                        $competitionId = (int)$competition['id'];
-                        $competitionSeasonId = !empty($competition['season_id']) ? (int)$competition['season_id'] : $seasonId;
-                    }
-                }
-
                 $matches = $matchRepository->findByKickoffAndTeams($kickoffAt, $homeTeamId, $awayTeamId, $competitionId);
 
                 if (!empty($matches)) {
@@ -348,15 +388,40 @@ class LeagueIntelligenceImportController extends Controller
                         ));
                     }
                     $match = $matches[0];
-                    // SAFEGUARD: Never overwrite a match that is already completed with non-null goals
-                    $isCompleted = (strtolower((string)($match['status'] ?? '')) === 'completed');
-                    $hasGoals = isset($match['home_goals'], $match['away_goals']) && $match['home_goals'] !== null && $match['away_goals'] !== null;
-                    if ($isCompleted && $hasGoals) {
+                    $incomingHasGoals = ($homeGoals !== null && $awayGoals !== null);
+                    $updateHomeGoals = $homeGoals;
+                    $updateAwayGoals = $awayGoals;
+                    if ((int)($match['home_team_id'] ?? 0) === $awayTeamId && (int)($match['away_team_id'] ?? 0) === $homeTeamId) {
+                        $updateHomeGoals = $awayGoals;
+                        $updateAwayGoals = $homeGoals;
+                    }
+                    $existingHasGoals = isset($match['home_goals'], $match['away_goals']) && $match['home_goals'] !== null && $match['away_goals'] !== null;
+                    $existingStatus = strtolower((string)($match['status'] ?? ''));
+                    $existingHomeGoals = $match['home_goals'] !== null ? (int)$match['home_goals'] : null;
+                    $existingAwayGoals = $match['away_goals'] !== null ? (int)$match['away_goals'] : null;
+
+                    // Force update unless incoming has no goals and existing already has results.
+                    if (!$incomingHasGoals && $existingHasGoals) {
                         $counts['skipped']++;
                         $skipped['already_exists']++;
+                        if (count($counts['already_exists_samples']) < 5) {
+                            $counts['already_exists_samples'][] = [
+                                'home' => $row['home_team_name'] ?? null,
+                                'away' => $row['away_team_name'] ?? null,
+                                'competition' => $row['competition_name'] ?? null,
+                                'date_time' => $row['date_time'] ?? null,
+                                'existing_home_goals' => $existingHomeGoals,
+                                'existing_away_goals' => $existingAwayGoals,
+                                'existing_status' => $existingStatus,
+                                'incoming_home_goals' => $updateHomeGoals,
+                                'incoming_away_goals' => $updateAwayGoals,
+                                'incoming_status' => $status,
+                                'skip_reason' => 'incoming_missing_goals',
+                            ];
+                        }
                         if ($skippedLogCount < 20) {
                             error_log('[WOSFL SKIP] ' . json_encode([
-                                'reason' => 'already_exists',
+                                'reason' => 'incoming_missing_goals',
                                 'home' => $row['home_team_name'] ?? null,
                                 'away' => $row['away_team_name'] ?? null,
                                 'competition' => $row['competition_name'] ?? null,
@@ -366,12 +431,7 @@ class LeagueIntelligenceImportController extends Controller
                         }
                         continue;
                     }
-                    $updateHomeGoals = $homeGoals;
-                    $updateAwayGoals = $awayGoals;
-                    if ((int)($match['home_team_id'] ?? 0) === $awayTeamId && (int)($match['away_team_id'] ?? 0) === $homeTeamId) {
-                        $updateHomeGoals = $awayGoals;
-                        $updateAwayGoals = $homeGoals;
-                    }
+
                     $matchRepository->updateMatch((int)$match['match_id'], [
                         'home_goals' => $updateHomeGoals,
                         'away_goals' => $updateAwayGoals,
@@ -541,12 +601,24 @@ class LeagueIntelligenceImportController extends Controller
 
         $clubId = $this->resolveClubId();
         if (!$clubId) {
+            if ($this->isAjax()) {
+                http_response_code(400);
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => 'Unable to determine a club for this update.']);
+                exit;
+            }
             $_SESSION['wosfl_import_error'] = 'Unable to determine a club for this update.';
             redirect('/league-intelligence');
         }
 
         $seasonId = $this->resolveSeasonId($clubId);
         if (!$seasonId) {
+            if ($this->isAjax()) {
+                http_response_code(400);
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => 'Unable to determine a season for this update.']);
+                exit;
+            }
             $_SESSION['wosfl_import_error'] = 'Unable to determine a season for this update.';
             redirect('/league-intelligence');
         }
@@ -556,21 +628,27 @@ class LeagueIntelligenceImportController extends Controller
         // For weekly updates, sync ALL competitions/seasons to ensure all valid matches are included
         $leagueService->syncMatches(true);
 
-        // 2. Import WOSFL results ONLY for matches still marked as scheduled
-        $matches = $this->importService->scrapeWeek();
-        // Filter to only scheduled matches (never overwrite completed matches)
-        $scheduledMatches = array_filter($matches, function ($row) {
-            // Precedence rule: Only import WOSFL data for matches still scheduled (no goals recorded internally)
-            $status = strtolower((string)($row['status'] ?? ''));
-            $hasGoals = isset($row['home_goals'], $row['away_goals']) && is_numeric($row['home_goals']) && is_numeric($row['away_goals']);
-            // Accept only if status is scheduled and no goals
-            return $status === 'scheduled' && !$hasGoals;
-        });
+        // 2. Force import WOSFL results for all available fixtures
+        $matches = $this->importService->scrapeAll();
+        $matches = array_values(array_filter($matches, static function ($row): bool {
+            return is_array($row) && empty($row['skip_reason']);
+        }));
+        $scheduledMatches = $this->importService->preparePreviewRows($matches);
+        $scheduledMatches = array_map(static function (array $row): array {
+            $row['existing_match'] = false;
+            return $row;
+        }, $scheduledMatches);
 
         try {
             $counts = $this->persistImportRows($scheduledMatches, $clubId, $seasonId, false);
         } catch (Throwable $e) {
             error_log('WOSFL weekly update failed: ' . $e->getMessage());
+            if ($this->isAjax()) {
+                http_response_code(500);
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => 'Weekly update failed. Please try again.']);
+                exit;
+            }
             $_SESSION['wosfl_import_error'] = 'Weekly update failed. Please try again.';
             redirect('/league-intelligence');
         }
@@ -615,6 +693,60 @@ class LeagueIntelligenceImportController extends Controller
         }
         if ($conflicts > 0) {
             $success .= sprintf(' %d conflicts resolved.', $conflicts);
+        }
+
+        if ($this->isAjax()) {
+            $missingSamples = $counts['missing_team_samples'] ?? [];
+            if (empty($missingSamples) && !empty($skipped['missing_team'])) {
+                foreach ($scheduledMatches as $row) {
+                    if (empty($row['home_team_found']) || empty($row['away_team_found'])) {
+                        $missingSamples[] = [
+                            'home' => $row['home_team_name'] ?? null,
+                            'away' => $row['away_team_name'] ?? null,
+                            'competition' => $row['competition_name'] ?? null,
+                            'date_time' => $row['date_time'] ?? null,
+                            'home_lookup_status' => $row['home_team_lookup_status'] ?? null,
+                            'away_lookup_status' => $row['away_team_lookup_status'] ?? null,
+                            'home_lookup_matches' => $row['home_team_lookup_matches'] ?? null,
+                            'away_lookup_matches' => $row['away_team_lookup_matches'] ?? null,
+                        ];
+                    }
+                    if (count($missingSamples) >= 5) {
+                        break;
+                    }
+                }
+            }
+
+            $existsSamples = $counts['already_exists_samples'] ?? [];
+            if (empty($existsSamples) && !empty($skipped['already_exists'])) {
+                foreach ($scheduledMatches as $row) {
+                    if (!empty($row['existing_match'])) {
+                        $existsSamples[] = [
+                            'home' => $row['home_team_name'] ?? null,
+                            'away' => $row['away_team_name'] ?? null,
+                            'competition' => $row['competition_name'] ?? null,
+                            'date_time' => $row['date_time'] ?? null,
+                        ];
+                    }
+                    if (count($existsSamples) >= 5) {
+                        break;
+                    }
+                }
+            }
+
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => true,
+                'message' => $success,
+                'debug' => [
+                    'missing_team_samples' => $missingSamples,
+                    'already_exists_samples' => $existsSamples,
+                    'skipped_breakdown' => $counts['skipped_breakdown'] ?? [],
+                    'total_rows' => count($scheduledMatches),
+                    'existing_match_rows' => array_sum(array_map(static fn($row) => !empty($row['existing_match']) ? 1 : 0, $scheduledMatches)),
+                ],
+            ]);
+            exit;
         }
 
         $_SESSION['wosfl_import_success'] = $success;

@@ -1334,6 +1334,11 @@ ob_start();
                                                             <button type="button" class="ghost-btn shot-outcome-btn" data-shot-outcome="on_target">On Target</button>
                                                             <button type="button" class="ghost-btn shot-outcome-btn" data-shot-outcome="off_target">Off Target</button>
                                                         </div>
+                                                        <div class="shot-result-controls" style="margin-top:0.75rem;display:flex;flex-wrap:wrap;gap:0.5rem;">
+                                                            <button type="button" class="ghost-btn shot-result-btn" data-shot-result="goal">Goal</button>
+                                                            <button type="button" class="ghost-btn shot-result-btn" data-shot-result="option_1">Option 1</button>
+                                                            <button type="button" class="ghost-btn shot-result-btn" data-shot-result="option_2">Option 2</button>
+                                                        </div>
                                                         <div id="shotPlayerList" class="goal-player-modal-list shot-player-modal-list"></div>
                                                     </div>
                                                     <!-- Right: SVG pitch selector -->

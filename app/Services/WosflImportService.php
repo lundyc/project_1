@@ -73,7 +73,8 @@ class TeamRepository
 
     private function normalizedNameExpr(): string
     {
-        return "LOWER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(name), '.', ''), '-', ''), '''', ''), CHAR(8217), ''), CHAR(8216), ''))";
+        $base = "LOWER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(name), '.', ''), '-', ''), '''', ''), CHAR(8217), ''), CHAR(8216), ''))";
+        return "TRIM(REPLACE(REPLACE(REPLACE({$base}, '  ', ' '), '  ', ' '), '  ', ' '))";
     }
 
     public function findByNormalizedName(string $name, ?int $clubId = null): array
@@ -195,7 +196,8 @@ class CompetitionRepository
 
     private function normalizedNameExpr(): string
     {
-        return "LOWER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(name), '.', ''), '-', ''), '''', ''), CHAR(8217), ''), CHAR(8216), ''))";
+        $base = "LOWER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(name), '.', ''), '-', ''), '''', ''), CHAR(8217), ''), CHAR(8216), ''))";
+        return "TRIM(REPLACE(REPLACE(REPLACE({$base}, '  ', ' '), '  ', ' '), '  ', ' '))";
     }
 
     public function findByNormalizedName(string $name, ?int $clubId = null): array
@@ -340,16 +342,18 @@ class LeagueIntelligenceMatchRepository
                 WHERE kickoff_at = :kickoff_at
                   AND competition_id = :competition_id
                   AND (
-                        (home_team_id = :home_team_id AND away_team_id = :away_team_id)
-                        OR (home_team_id = :away_team_id AND away_team_id = :home_team_id)
+                        (home_team_id = :home_team_id_a AND away_team_id = :away_team_id_a)
+                        OR (home_team_id = :home_team_id_b AND away_team_id = :away_team_id_b)
                   )
                 LIMIT 1
             ');
 
             $stmt->execute([
                 'kickoff_at' => $kickoffAt,
-                'home_team_id' => $homeTeamId,
-                'away_team_id' => $awayTeamId,
+                'home_team_id_a' => $homeTeamId,
+                'away_team_id_a' => $awayTeamId,
+                'home_team_id_b' => $awayTeamId,
+                'away_team_id_b' => $homeTeamId,
                 'competition_id' => $competitionId,
             ]);
 
@@ -367,16 +371,18 @@ class LeagueIntelligenceMatchRepository
                 SELECT match_id, competition_id, season_id, home_team_id, away_team_id, home_goals, away_goals, status
                 FROM league_intelligence_matches
                 WHERE kickoff_at = :kickoff_at
-                  AND (
-                        (home_team_id = :home_team_id AND away_team_id = :away_team_id)
-                        OR (home_team_id = :away_team_id AND away_team_id = :home_team_id)
-                  )
+                AND (
+                    (home_team_id = :home_team_id_a AND away_team_id = :away_team_id_a)
+                    OR (home_team_id = :home_team_id_b AND away_team_id = :away_team_id_b)
+                )
             ';
 
             $params = [
                 'kickoff_at' => $kickoffAt,
-                'home_team_id' => $homeTeamId,
-                'away_team_id' => $awayTeamId,
+                'home_team_id_a' => $homeTeamId,
+                'away_team_id_a' => $awayTeamId,
+                'home_team_id_b' => $awayTeamId,
+                'away_team_id_b' => $homeTeamId,
             ];
 
             if ($competitionId !== null && $competitionId > 0) {
@@ -389,7 +395,57 @@ class LeagueIntelligenceMatchRepository
             $stmt = $this->pdo->prepare($sql);
             $stmt->execute($params);
 
-            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $matches = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            if (!empty($matches)) {
+                return $matches;
+            }
+
+            // Fallback: match by date only to avoid duplicate fixtures with shifted times.
+            $dateSql = '
+                SELECT match_id, competition_id, season_id, home_team_id, away_team_id, home_goals, away_goals, status
+                FROM league_intelligence_matches
+                WHERE DATE(kickoff_at) = DATE(:kickoff_at)
+                  AND (
+                        (home_team_id = :home_team_id_a AND away_team_id = :away_team_id_a)
+                        OR (home_team_id = :home_team_id_b AND away_team_id = :away_team_id_b)
+                  )
+            ';
+
+            if ($competitionId !== null && $competitionId > 0) {
+                $dateSql .= ' AND competition_id = :competition_id';
+            }
+
+            $dateSql .= ' ORDER BY match_id ASC';
+
+            $dateStmt = $this->pdo->prepare($dateSql);
+            $dateStmt->execute($params);
+
+            $matches = $dateStmt->fetchAll(PDO::FETCH_ASSOC);
+            if (!empty($matches)) {
+                return $matches;
+            }
+
+            // Fallback: allow +/-1 day to correct previously misparsed dates.
+            $rangeSql = '
+                SELECT match_id, competition_id, season_id, home_team_id, away_team_id, home_goals, away_goals, status
+                FROM league_intelligence_matches
+                WHERE DATE(kickoff_at) BETWEEN DATE(:kickoff_at) - INTERVAL 1 DAY AND DATE(:kickoff_at) + INTERVAL 1 DAY
+                  AND (
+                        (home_team_id = :home_team_id_a AND away_team_id = :away_team_id_a)
+                        OR (home_team_id = :home_team_id_b AND away_team_id = :away_team_id_b)
+                  )
+            ';
+
+            if ($competitionId !== null && $competitionId > 0) {
+                $rangeSql .= ' AND competition_id = :competition_id';
+            }
+
+            $rangeSql .= ' ORDER BY match_id ASC';
+
+            $rangeStmt = $this->pdo->prepare($rangeSql);
+            $rangeStmt->execute($params);
+
+            return $rangeStmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (Throwable $e) {
             error_log('League intelligence match query failed: ' . $e->getMessage());
             return [];
@@ -897,57 +953,55 @@ class WosflImportService
             return null;
         }
 
-        // Try to parse using DateTimeImmutable directly (handles most textual formats)
+        // Prefer explicit dd/mm/yy or dd/mm/yyyy parsing to avoid US-style ambiguity.
         $dt = null;
-        $parseText = $text;
-        $hasTime = preg_match('/\b\d{1,2}:\d{2}\b/', $parseText);
-
-        // If no time is present, append default time (15:00)
-        if (!$hasTime) {
-            $parseText = trim($parseText) . ' 15:00';
+        $date = null;
+        $time = null;
+        if (preg_match('/\b(\d{1,2}\/\d{1,2}\/\d{2,4})\b/', $text, $matches)) {
+            $date = $matches[1];
         }
-
-        // Try parsing with Carbon if available, else DateTimeImmutable
-        try {
-            if (class_exists('Carbon\\Carbon')) {
-                $dt = \Carbon\Carbon::parse($parseText, $this->sourceTimezone);
-            } else {
-                $dt = new DateTimeImmutable($parseText, $this->sourceTimezone);
-            }
-        } catch (\Throwable $e) {
-            error_log('WOSFL: Failed to parse date: ' . $parseText);
-            $dt = null;
+        if (preg_match('/\b(\d{1,2}:\d{2})\b/', $text, $matches)) {
+            $time = $matches[1];
         }
-
-        // If parsing failed, try fallback regex for dd/mm/yyyy and dd/mm/yy
-        if (!$dt) {
-            $date = null;
-            $time = null;
-            if (preg_match('/\b(\d{1,2}\/\d{1,2}\/\d{2,4})\b/', $text, $matches)) {
-                $date = $matches[1];
-            }
-            if (preg_match('/\b(\d{1,2}:\d{2})\b/', $text, $matches)) {
-                $time = $matches[1];
-            }
-            // If no time, default to 15:00
+        if ($date) {
             if (!$time) {
                 $time = '15:00';
             }
-            if ($date) {
-                $format = (strlen(substr($date, strrpos($date, '/') + 1)) === 4) ? 'd/m/Y' : 'd/m/y';
-                $format .= ' H:i';
-                $value = $date . ' ' . $time;
-                try {
-                    if (class_exists('Carbon\\Carbon')) {
-                        $dt = \Carbon\Carbon::createFromFormat($format, $value, $this->sourceTimezone);
-                    } else {
-                        $dt = DateTimeImmutable::createFromFormat($format, $value, $this->sourceTimezone);
-                    }
-                } catch (\Throwable $e) {
-                    error_log('WOSFL date parse failed: ' . $value . ' (' . $e->getMessage() . ')');
-                    return null;
+            $format = (strlen(substr($date, strrpos($date, '/') + 1)) === 4) ? 'd/m/Y' : 'd/m/y';
+            $format .= ' H:i';
+            $value = $date . ' ' . $time;
+            try {
+                if (class_exists('Carbon\\Carbon')) {
+                    $dt = \Carbon\Carbon::createFromFormat($format, $value, $this->sourceTimezone);
+                } else {
+                    $dt = DateTimeImmutable::createFromFormat($format, $value, $this->sourceTimezone);
                 }
+            } catch (\Throwable $e) {
+                error_log('WOSFL date parse failed: ' . $value . ' (' . $e->getMessage() . ')');
+                return null;
             }
+        }
+
+        // Fallback: parse using DateTimeImmutable/Carbon for textual formats.
+        if (!$dt) {
+            $parseText = $text;
+            $hasTime = preg_match('/\b\d{1,2}:\d{2}\b/', $parseText);
+            if (!$hasTime) {
+                $parseText = trim($parseText) . ' 15:00';
+            }
+            try {
+                if (class_exists('Carbon\\Carbon')) {
+                    $dt = \Carbon\Carbon::parse($parseText, $this->sourceTimezone);
+                } else {
+                    $dt = new DateTimeImmutable($parseText, $this->sourceTimezone);
+                }
+            } catch (\Throwable $e) {
+                $dt = null;
+            }
+        }
+
+        if (!$dt) {
+            error_log('WOSFL date parse failed: ' . $text);
         }
 
         if (!$dt) {

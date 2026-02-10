@@ -28,11 +28,16 @@ $cardsTotals = is_array($cardsTotals)
 $scoreCounts = $safe('goal');
 $homeScore = (int)($scoreCounts['home'] ?? 0);
 $awayScore = (int)($scoreCounts['away'] ?? 0);
+$shotTotalCounts = [
+          'home' => ($shotOnTargetTotals['home'] ?? 0) + ($shotOffTargetTotals['home'] ?? 0),
+          'away' => ($shotOnTargetTotals['away'] ?? 0) + ($shotOffTargetTotals['away'] ?? 0),
+          'unknown' => ($shotOnTargetTotals['unknown'] ?? 0) + ($shotOffTargetTotals['unknown'] ?? 0),
+];
 $competitionLabel = trim((string)($match['competition'] ?? ''));
 
 $comparisonRows = [
           ['label' => 'Goals', 'key' => 'goal'],
-          ['label' => 'Shots', 'key' => 'shot'],
+          ['label' => 'Shots', 'value' => $shotTotalCounts],
           ['label' => 'Shots on Target', 'value' => $shotOnTargetTotals],
           ['label' => 'Shots off Target', 'value' => $shotOffTargetTotals],
           ['label' => 'Chances', 'key' => 'chance'],
@@ -58,7 +63,6 @@ $comparisonRows = [
 ?>
 
 <?php
-$shotTotals = $safe('shot');
 $shotOnTarget = $safe('shot_on_target');
 $shotOffTarget = $safe('shot_off_target');
 $homeShotOn = (int)($shotOnTarget['home'] ?? 0);
@@ -71,8 +75,8 @@ $homeShotOnPct = $homeShotBreakdownTotal > 0 ? round(($homeShotOn / $homeShotBre
 $awayShotOnPct = $awayShotBreakdownTotal > 0 ? round(($awayShotOn / $awayShotBreakdownTotal) * 100) : 0;
 $homeShotOffPct = $homeShotBreakdownTotal > 0 ? 100 - $homeShotOnPct : 0;
 $awayShotOffPct = $awayShotBreakdownTotal > 0 ? 100 - $awayShotOnPct : 0;
-$homeShotsTotal = (int)($shotTotals['home'] ?? 0);
-$awayShotsTotal = (int)($shotTotals['away'] ?? 0);
+$homeShotsTotal = (int)(($shotOnTarget['home'] ?? 0) + ($shotOffTarget['home'] ?? 0));
+$awayShotsTotal = (int)(($shotOnTarget['away'] ?? 0) + ($shotOffTarget['away'] ?? 0));
 ?>
 
 <div class="stats-section" data-stats-section="overview">

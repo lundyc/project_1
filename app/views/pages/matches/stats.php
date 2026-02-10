@@ -974,13 +974,12 @@ $overviewMetrics = [
 ];
 $shotOnTargetCounts = $safe('shot_on_target');
 $shotOffTargetCounts = $safe('shot_off_target');
-$goalCounts = $safe('goal');
-// Calculate totals: on_target shots + off_target shots (excluding goals from the total)
+// Calculate totals: on_target shots + off_target shots
 $homeShotTotal = (int)($shotOnTargetCounts['home'] ?? 0) + (int)($shotOffTargetCounts['home'] ?? 0);
 $awayShotTotal = (int)($shotOnTargetCounts['away'] ?? 0) + (int)($shotOffTargetCounts['away'] ?? 0);
-// On Target = on_target shots + goals scored
-$homeOnTargetCount = (int)($shotOnTargetCounts['home'] ?? 0) + (int)($goalCounts['home'] ?? 0);
-$awayOnTargetCount = (int)($shotOnTargetCounts['away'] ?? 0) + (int)($goalCounts['away'] ?? 0);
+// On Target includes goals via derived stats
+$homeOnTargetCount = (int)($shotOnTargetCounts['home'] ?? 0);
+$awayOnTargetCount = (int)($shotOnTargetCounts['away'] ?? 0);
 // Off Target = shots that were off target
 $homeOffTargetCount = (int)($shotOffTargetCounts['home'] ?? 0);
 $awayOffTargetCount = (int)($shotOffTargetCounts['away'] ?? 0);

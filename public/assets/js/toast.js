@@ -17,7 +17,8 @@ window.Toast = (() => {
           let toastIdCounter = 0;
           const toasts = new Map();
           const autoDismissTimers = new Map();
-          const DEFAULT_DURATION = 3000; // 3 seconds
+          const DEFAULT_DURATION = 8000; // 8 seconds
+          const MAX_DURATION = 10000; // 10 seconds
 
           const icons = {
                     success: '✓',
@@ -106,7 +107,10 @@ window.Toast = (() => {
 
                     const container = ensureContainer();
                     const toastId = ++toastIdCounter;
-                    const duration = 'duration' in options ? options.duration : DEFAULT_DURATION;
+                    let duration = 'duration' in options ? options.duration : DEFAULT_DURATION;
+                    if (duration && duration > MAX_DURATION) {
+                              duration = MAX_DURATION;
+                    }
 
                     const toastElement = createToastElement(type, message, options);
                     toastElement.setAttribute('data-toast-id', toastId);

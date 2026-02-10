@@ -604,8 +604,14 @@
       const safeTime = Number.isFinite(timeSeconds) ? timeSeconds : 0;
       const label = formatTime(safeTime);
       timelineTooltip.textContent = label;
-      if (Number.isFinite(percent)) {
-        timelineTooltip.style.left = `${percent}%`;
+      // Debug: add border and log
+      timelineTooltip.style.border = '2px solid #f00';
+      console.log('[desk] Tooltip show', { timeSeconds, percent, label });
+      // Clamp percent to [0, 100] to avoid overflow
+      let clampedPercent = percent;
+      if (typeof clampedPercent === 'number') {
+        clampedPercent = Math.max(0, Math.min(100, clampedPercent));
+        timelineTooltip.style.left = `${clampedPercent}%`;
       }
       timelineTooltip.classList.add('is-visible');
       timelineTooltip.setAttribute('aria-hidden', 'false');

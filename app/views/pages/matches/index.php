@@ -3,6 +3,7 @@ require_auth();
 require_once __DIR__ . '/../../../lib/match_repository.php';
 require_once __DIR__ . '/../../../lib/match_permissions.php';
 require_once __DIR__ . '/../../../lib/club_repository.php';
+require_once __DIR__ . '/../../../lib/csrf.php';
 
 $user = current_user();
 $roles = $_SESSION['roles'] ?? [];
@@ -165,7 +166,22 @@ $filteredMatches = array_values(
         return str_contains($haystack, $searchNormalized);
     })
 );
-$displayedMatches = count($filteredMatches);
+$filteredMatchesCount = count($filteredMatches);
+
+$matchesPerPage = 10;
+$matchesPage = max(1, (int)($_GET['matches_page'] ?? 1));
+$matchesTotalPages = max(1, (int)ceil($filteredMatchesCount / $matchesPerPage));
+$matchesPage = min($matchesPage, $matchesTotalPages);
+$matchesOffset = ($matchesPage - 1) * $matchesPerPage;
+$pagedMatches = array_slice($filteredMatches, $matchesOffset, $matchesPerPage);
+
+$fixturesPerPage = 5;
+$fixturesPage = max(1, (int)($_GET['fixtures_page'] ?? 1));
+$fixturesTotal = count($liFixtures);
+$fixturesTotalPages = max(1, (int)ceil($fixturesTotal / $fixturesPerPage));
+$fixturesPage = min($fixturesPage, $fixturesTotalPages);
+$fixturesOffset = ($fixturesPage - 1) * $fixturesPerPage;
+$pagedFixtures = array_slice($liFixtures, $fixturesOffset, $fixturesPerPage);
 $tabBasePath = ($base ?: '') . '/matches';
 
 $formatStatusLabel = static function (string $status): string {
@@ -190,6 +206,19 @@ $buildTabUrl = static function (?string $status) use ($tabBasePath, $searchQuery
     }
     $query = http_build_query($params);
     return $tabBasePath . ($query ? ('?' . $query) : '');
+};
+
+$buildMatchesIndexUrl = static function (array $overrides) use ($base): string {
+    $params = $_GET;
+    foreach ($overrides as $key => $value) {
+        if ($value === null) {
+            unset($params[$key]);
+        } else {
+            $params[$key] = $value;
+        }
+    }
+    $query = http_build_query($params);
+    return ($base ?: '') . '/matches' . ($query ? ('?' . $query) : '');
 };
 
 ob_start();
@@ -279,7 +308,7 @@ include __DIR__ . '/../../partials/header.php';
                     <?php elseif ($success): ?>
                         <div class="rounded-lg bg-emerald-900/80 border border-emerald-700 text-emerald-200 px-4 py-3 mb-4 text-sm"><?= htmlspecialchars($success) ?></div>
                     <?php endif; ?>
-                    <?php if ($displayedMatches === 0): ?>
+                    <?php if ($filteredMatchesCount === 0): ?>
                         <div class="rounded-xl border border-white/10 bg-slate-800/40 p-4 text-slate-400 text-sm">No matches found for the current view.</div>
                     <?php else: ?>
                               <table class="min-w-full bg-bg-tertiary text-text-primary text-xs rounded-xl overflow-hidden" id="matches-table">
@@ -294,7 +323,7 @@ include __DIR__ . '/../../partials/header.php';
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php foreach ($filteredMatches as $match): ?>
+                                <?php foreach ($pagedMatches as $match): ?>
                                     <?php
                                         $matchId = (int)$match['id'];
                                         $matchUrl = htmlspecialchars($base . '/matches/' . $matchId . '/desk');
@@ -413,6 +442,30 @@ include __DIR__ . '/../../partials/header.php';
                                 <?php endforeach; ?>
                             </tbody>
                         </table>
+                        <?php if ($matchesTotalPages > 1): ?>
+                            <div class="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+                                <div>Page <?= $matchesPage ?> of <?= $matchesTotalPages ?></div>
+                                <div class="flex items-center gap-2">
+                                    <?php if ($matchesPage > 1): ?>
+                                        <a href="<?= htmlspecialchars($buildMatchesIndexUrl(['matches_page' => $matchesPage - 1])) ?>" class="rounded-md border border-slate-700/80 bg-slate-900/80 px-2.5 py-1 text-slate-200 hover:bg-slate-700/60 transition">Prev</a>
+                                    <?php else: ?>
+                                        <span class="rounded-md border border-slate-800/60 bg-slate-900/40 px-2.5 py-1 text-slate-500">Prev</span>
+                                    <?php endif; ?>
+                                    <?php for ($i = 1; $i <= $matchesTotalPages; $i++): ?>
+                                        <?php if ($i === $matchesPage): ?>
+                                            <span class="rounded-md border border-indigo-500/60 bg-indigo-600/20 px-2.5 py-1 text-indigo-200"><?= $i ?></span>
+                                        <?php else: ?>
+                                            <a href="<?= htmlspecialchars($buildMatchesIndexUrl(['matches_page' => $i])) ?>" class="rounded-md border border-slate-700/80 bg-slate-900/80 px-2.5 py-1 text-slate-200 hover:bg-slate-700/60 transition"><?= $i ?></a>
+                                        <?php endif; ?>
+                                    <?php endfor; ?>
+                                    <?php if ($matchesPage < $matchesTotalPages): ?>
+                                        <a href="<?= htmlspecialchars($buildMatchesIndexUrl(['matches_page' => $matchesPage + 1])) ?>" class="rounded-md border border-slate-700/80 bg-slate-900/80 px-2.5 py-1 text-slate-200 hover:bg-slate-700/60 transition">Next</a>
+                                    <?php else: ?>
+                                        <span class="rounded-md border border-slate-800/60 bg-slate-900/40 px-2.5 py-1 text-slate-500">Next</span>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        <?php endif; ?>
                     <?php endif; ?>
                 </div>
             </main>
@@ -429,7 +482,7 @@ include __DIR__ . '/../../partials/header.php';
                             <div class="rounded-lg border border-white/10 bg-slate-900/70 p-3 text-xs text-slate-400">
                                 Select a club to view fixtures.
                             </div>
-                        <?php elseif (empty($liFixtures)): ?>
+                        <?php elseif ($fixturesTotal === 0): ?>
                             <div class="rounded-lg border border-white/10 bg-slate-900/70 p-3 text-xs text-slate-400">
                                 No upcoming fixtures found.
                             </div>
@@ -442,7 +495,7 @@ include __DIR__ . '/../../partials/header.php';
                             }
                             ?>
                             <div class="space-y-2">
-                                <?php foreach ($liFixtures as $fixture): ?>
+                                <?php foreach ($pagedFixtures as $fixture): ?>
                                     <?php
                                     $fixtureId = (int)$fixture['match_id'];
                                     $fixtureAlreadyAdded = isset($existingMatchIds[$fixtureId]);
@@ -472,6 +525,7 @@ include __DIR__ . '/../../partials/header.php';
                                                 </span>
                                             <?php else: ?>
                                                 <form method="post" action="<?= htmlspecialchars($base . '/api/league-intelligence/fixtures/accept') ?>" class="shrink-0 self-center">
+                                                    <input type="hidden" name="csrf_token" value="<?= get_csrf_token() ?>">
                                                     <input type="hidden" name="li_match_id" value="<?= htmlspecialchars((string)$fixtureId) ?>">
                                                     <input type="hidden" name="redirect" value="<?= htmlspecialchars($redirectPath) ?>">
                                                     <?php if ($isPlatformAdmin): ?>
@@ -486,6 +540,30 @@ include __DIR__ . '/../../partials/header.php';
                                     </article>
                                 <?php endforeach; ?>
                             </div>
+                            <?php if ($fixturesTotalPages > 1): ?>
+                                <div class="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
+                                    <div>Page <?= $fixturesPage ?> of <?= $fixturesTotalPages ?></div>
+                                    <div class="flex items-center gap-2">
+                                        <?php if ($fixturesPage > 1): ?>
+                                            <a href="<?= htmlspecialchars($buildMatchesIndexUrl(['fixtures_page' => $fixturesPage - 1])) ?>" class="rounded-md border border-slate-700/80 bg-slate-900/80 px-2 py-1 text-slate-200 hover:bg-slate-700/60 transition">Prev</a>
+                                        <?php else: ?>
+                                            <span class="rounded-md border border-slate-800/60 bg-slate-900/40 px-2 py-1 text-slate-500">Prev</span>
+                                        <?php endif; ?>
+                                        <?php for ($i = 1; $i <= $fixturesTotalPages; $i++): ?>
+                                            <?php if ($i === $fixturesPage): ?>
+                                                <span class="rounded-md border border-emerald-500/40 bg-emerald-600/10 px-2 py-1 text-emerald-200"><?= $i ?></span>
+                                            <?php else: ?>
+                                                <a href="<?= htmlspecialchars($buildMatchesIndexUrl(['fixtures_page' => $i])) ?>" class="rounded-md border border-slate-700/80 bg-slate-900/80 px-2 py-1 text-slate-200 hover:bg-slate-700/60 transition"><?= $i ?></a>
+                                            <?php endif; ?>
+                                        <?php endfor; ?>
+                                        <?php if ($fixturesPage < $fixturesTotalPages): ?>
+                                            <a href="<?= htmlspecialchars($buildMatchesIndexUrl(['fixtures_page' => $fixturesPage + 1])) ?>" class="rounded-md border border-slate-700/80 bg-slate-900/80 px-2 py-1 text-slate-200 hover:bg-slate-700/60 transition">Next</a>
+                                        <?php else: ?>
+                                            <span class="rounded-md border border-slate-800/60 bg-slate-900/40 px-2 py-1 text-slate-500">Next</span>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
                         <?php endif; ?>
                     </div>
                 <?php endif; ?>

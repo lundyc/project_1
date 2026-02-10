@@ -33,6 +33,7 @@ function add_csp_nonce_to_inline_scripts(string $html, string $nonce): string
           <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">
           <link href="<?= htmlspecialchars($base) ?>/assets/css/tailwind.css<?= asset_version('/assets/css/tailwind.css') ?>" rel="stylesheet">
           <link href="<?= htmlspecialchars($base) ?>/assets/css/app.css<?= asset_version('/assets/css/app.css') ?>" rel="stylesheet">
+          <link href="<?= htmlspecialchars($base) ?>/assets/css/toast.css<?= asset_version('/assets/css/toast.css') ?>" rel="stylesheet">
           <!-- Removed missing forms.css to avoid 404 -->
           <?= add_csp_nonce_to_inline_scripts($headExtras ?? '', $cspNonce) ?>
 </head>
@@ -70,6 +71,7 @@ $mainClassAttr = htmlspecialchars($mainClasses ?? 'app-main flex-fill p-4 bg-sur
           <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
           <script src="<?= htmlspecialchars($base) ?>/assets/js/components.js<?= asset_version('/assets/js/components.js') ?>"></script>
           <script src="<?= htmlspecialchars($base) ?>/assets/js/app.js<?= asset_version('/assets/js/app.js') ?>"></script>
+          <script src="<?= htmlspecialchars($base) ?>/assets/js/toast.js<?= asset_version('/assets/js/toast.js') ?>"></script>
           
           <?= add_csp_nonce_to_inline_scripts($footerScripts ?? '', $cspNonce) ?>
 </body>

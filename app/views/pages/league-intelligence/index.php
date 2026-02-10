@@ -96,23 +96,13 @@ include __DIR__ . '/../../partials/header.php';
 <link rel="stylesheet" href="/assets/css/stats-table.css">
 <div class="w-full mt-4 text-slate-200">
     <div class="max-w-full">
-        <?php if ($flashSuccess): ?>
-            <div class="mb-4 rounded-xl border border-emerald-500/40 bg-emerald-500/30 p-4 text-sm text-emerald-200">
-                <?= htmlspecialchars($flashSuccess) ?>
-            </div>
-        <?php endif; ?>
-        <?php if ($flashError): ?>
-            <div class="mb-4 rounded-xl border border-rose-700/50 bg-rose-900/20 p-4 text-sm text-rose-400">
-                <?= htmlspecialchars($flashError) ?>
-            </div>
-        <?php endif; ?>
         <div class="stats-three-col grid grid-cols-12 gap-2 px-4 md:px-6 lg:px-8 w-full">
             <!-- Left Sidebar -->
             <aside class="stats-col-left col-span-2 space-y-4 min-w-0">
                 <div class="rounded-xl bg-slate-900/80 border border-white/10 p-3 mb-4">
                 <nav class="flex flex-col gap-2 mb-3" role="tablist" aria-label="Sidebar actions">
              
-                        <form method="post" action="<?= htmlspecialchars($base) ?>/league-intelligence/update-week">
+                        <form method="post" action="<?= htmlspecialchars($base) ?>/league-intelligence/update-week" data-update-week>
                             <button type="submit" class="stats-tab w-full text-left px-4 py-2.5 text-sm font-medium rounded-lg border transition-all duration-200 bg-slate-800/40 border-white/10 text-slate-300 hover:bg-slate-700/50 hover:border-white/20" role="tab">Update This Week</button>
                         </form>
                         <?php if ($currentUserIsAdmin): ?>
@@ -146,6 +136,10 @@ include __DIR__ . '/../../partials/header.php';
             </aside>
             <!-- Main Content -->
             <main class="stats-col-main col-span-7 space-y-4 min-w-0">
+                <div id="li-update-debug-panel" class="hidden rounded-xl border border-slate-800/80 bg-slate-900/70 p-3">
+                    <div class="text-[11px] uppercase tracking-[0.25em] text-slate-500 mb-2">Update Debug Log</div>
+                    <div id="li-update-debug" class="text-xs text-slate-400 space-y-1 max-h-40 overflow-y-auto"></div>
+                </div>
                 <div class="rounded-xl bg-slate-800 border border-white/10 p-3">
                      <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-2 mb-2">
                         <div>
@@ -253,6 +247,184 @@ include __DIR__ . '/../../partials/header.php';
         </div>
     </div>
 </div>
+
+<div id="li-update-modal" class="hidden fixed inset-0 z-[9999] items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4">
+    <div class="w-full max-w-lg rounded-2xl border border-slate-800/80 bg-slate-900/95 p-6 shadow-2xl shadow-black/60">
+        <div class="flex items-center justify-between gap-4 mb-4">
+            <div>
+                <p class="text-xs uppercase tracking-[0.3em] text-slate-400">League Intelligence</p>
+                <h3 class="text-lg font-semibold text-white">Updating this week</h3>
+            </div>
+            <button type="button" id="li-update-close" class="text-slate-400 hover:text-white transition" aria-label="Close update modal">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        <div class="flex items-center gap-3 text-sm text-slate-300 mb-4">
+            <span class="inline-flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            Fetching updates for league fixtures and results.
+        </div>
+        <div id="li-update-status" class="space-y-2 max-h-72 overflow-y-auto pr-2 text-sm"></div>
+        <div id="li-update-footer" class="mt-3 text-xs text-slate-400">This may take a few moments.</div>
+    </div>
+</div>
+
+<?php
+$teamNames = array_values(array_filter(array_map(static function ($row) {
+    $name = $row['team_name'] ?? '';
+    return is_string($name) ? trim($name) : '';
+}, $leagueTable)));
+?>
+<?php if ($flashSuccess || $flashError): ?>
+<script>
+window.addEventListener('DOMContentLoaded', () => {
+    <?php if ($flashSuccess): ?>
+    if (window.Toast) {
+        window.Toast.success(<?= json_encode($flashSuccess) ?>, { duration: 8000 });
+    }
+    <?php endif; ?>
+    <?php if ($flashError): ?>
+    if (window.Toast) {
+        window.Toast.error(<?= json_encode($flashError) ?>, { duration: 8000 });
+    }
+    <?php endif; ?>
+});
+</script>
+<?php endif; ?>
+<script>
+(() => {
+    const form = document.querySelector('form[data-update-week]');
+    const modal = document.getElementById('li-update-modal');
+    const statusList = document.getElementById('li-update-status');
+    const footer = document.getElementById('li-update-footer');
+    const debugPanel = document.getElementById('li-update-debug-panel');
+    const debugLog = document.getElementById('li-update-debug');
+    const closeBtn = document.getElementById('li-update-close');
+    const teamNames = <?php echo json_encode($teamNames); ?>;
+
+    if (!form || !modal || !statusList) return;
+
+    const pushDebug = (message) => {
+        if (!debugLog) return;
+        if (debugPanel) debugPanel.classList.remove('hidden');
+        const line = document.createElement('div');
+        line.textContent = message;
+        debugLog.appendChild(line);
+        debugLog.scrollTop = debugLog.scrollHeight;
+    };
+
+    const buildRow = (name) => {
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between gap-3 rounded-xl border border-slate-800/70 bg-slate-900/70 px-3 py-2';
+        row.innerHTML = `
+            <span class="text-slate-200 truncate">Updating ${name}</span>
+            <span class="text-xs font-semibold text-slate-400" data-status>Queued</span>
+        `;
+        return row;
+    };
+
+    const openModal = () => {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        statusList.innerHTML = '';
+        if (debugLog) debugLog.innerHTML = '';
+        if (debugPanel) debugPanel.classList.remove('hidden');
+        const names = teamNames.length ? teamNames : ['League fixtures'];
+        names.forEach((name) => statusList.appendChild(buildRow(name)));
+        footer.textContent = 'This may take a few moments.';
+        pushDebug('Queued update request.');
+    };
+
+    const closeModal = () => {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    };
+
+    closeBtn?.addEventListener('click', closeModal);
+
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        openModal();
+
+        const rows = Array.from(statusList.querySelectorAll('[data-status]'));
+        let index = 0;
+        const interval = setInterval(() => {
+            if (index >= rows.length) {
+                clearInterval(interval);
+                return;
+            }
+            rows[index].textContent = 'Found team';
+            rows[index].classList.add('text-sky-300');
+            rows[index].classList.remove('text-slate-400');
+            index += 1;
+        }, 300);
+
+        try {
+            const response = await fetch(form.action, {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                },
+                body: new FormData(form),
+            });
+            const result = await response.json();
+            console.log('[league-intelligence update-week]', result);
+            pushDebug(`Server response: ${JSON.stringify(result)}`);
+            if (result.debug) {
+                if (typeof result.debug.total_rows === 'number') {
+                    pushDebug(`Total rows considered: ${result.debug.total_rows}`);
+                }
+                if (typeof result.debug.existing_match_rows === 'number') {
+                    pushDebug(`Rows flagged existing match: ${result.debug.existing_match_rows}`);
+                }
+                const missing = result.debug.missing_team_samples || [];
+                if (missing.length) {
+                    pushDebug('Missing team samples:');
+                    missing.forEach((item) => {
+                        const teams = `${item.home || '?'} vs ${item.away || '?'}`;
+                        const meta = item.competition ? ` · ${item.competition}` : '';
+                        const lookup = `${item.home_lookup_status || '?'} / ${item.away_lookup_status || '?'}`;
+                        const counts = `${item.home_lookup_matches ?? '?'} / ${item.away_lookup_matches ?? '?'}`;
+                        pushDebug(`- ${teams}${meta} @ ${item.date_time || 'TBD'} | lookup ${lookup} (${counts})`);
+                    });
+                }
+                const existing = result.debug.already_exists_samples || [];
+                if (existing.length) {
+                    pushDebug('Already exists samples:');
+                    existing.forEach((item) => {
+                        const teams = `${item.home || '?'} vs ${item.away || '?'}`;
+                        const meta = item.competition ? ` · ${item.competition}` : '';
+                        pushDebug(`- ${teams}${meta} @ ${item.date_time || 'TBD'}`);
+                    });
+                }
+            }
+            if (!response.ok || !result.success) {
+                throw new Error(result.error || 'Update failed');
+            }
+            rows.forEach((row) => {
+                row.textContent = 'Updated';
+                row.classList.add('text-emerald-300');
+                row.classList.remove('text-slate-400');
+            });
+            const message = result.message || 'Update complete.';
+            footer.textContent = message;
+            if (window.Toast) {
+                window.Toast.success(message, { duration: 8000 });
+            }
+            setTimeout(closeModal, 900);
+        } catch (error) {
+            clearInterval(interval);
+            const message = error.message || 'Update failed. Please try again.';
+            footer.textContent = message;
+            footer.classList.add('text-rose-300');
+            pushDebug(`Error: ${message}`);
+            if (window.Toast) {
+                window.Toast.error(message, { duration: 8000 });
+            }
+        }
+    });
+})();
+</script>
 <?php
 $content = ob_get_clean();
 require __DIR__ . '/../../layout.php';

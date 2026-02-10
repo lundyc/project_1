@@ -116,9 +116,9 @@ try {
           AND competition_id <=> :competition_id
           AND kickoff_at <=> :kickoff_at
           AND (
-              (home_team_id = :home_team_id AND away_team_id = :away_team_id)
+              (home_team_id = :home_team_id_a AND away_team_id = :away_team_id_a)
               OR
-              (home_team_id = :away_team_id AND away_team_id = :home_team_id)
+              (home_team_id = :home_team_id_b AND away_team_id = :away_team_id_b)
           )
         LIMIT 1
     ');
@@ -126,8 +126,10 @@ try {
         'club_id' => $requestedClubId,
         'competition_id' => $competitionId,
         'kickoff_at' => $kickoffAt,
-        'home_team_id' => $homeTeamId,
-        'away_team_id' => $awayTeamId,
+        'home_team_id_a' => $homeTeamId,
+        'away_team_id_a' => $awayTeamId,
+        'home_team_id_b' => $awayTeamId,
+        'away_team_id_b' => $homeTeamId,
     ]);
     $existingMatchId = (int)($existingStmt->fetchColumn() ?: 0);
 
@@ -211,7 +213,22 @@ try {
     if (isset($pdo) && $pdo->inTransaction()) {
         $pdo->rollBack();
     }
-    $_SESSION['match_form_error'] = 'Unable to accept fixture';
+    $errorContext = '';
+    if ($e instanceof PDOException && !empty($e->errorInfo)) {
+        $errorContext = sprintf(' SQLSTATE=%s CODE=%s MSG=%s', $e->errorInfo[0] ?? '', $e->errorInfo[1] ?? '', $e->errorInfo[2] ?? '');
+    }
+    error_log(sprintf('[fixtures-accept] match_id=%d club_id=%d user_id=%d error=%s%s',
+        $liMatchId ?? 0,
+        $requestedClubId ?? 0,
+        (int)($user['id'] ?? 0),
+        $e->getMessage(),
+        $errorContext
+    ));
+    if ($isPlatformAdmin) {
+        $_SESSION['match_form_error'] = 'Unable to accept fixture: ' . $e->getMessage();
+    } else {
+        $_SESSION['match_form_error'] = 'Unable to accept fixture';
+    }
 }
 
 redirect($redirectPath);

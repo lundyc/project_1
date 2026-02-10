@@ -63,7 +63,7 @@ function build_match_stats_from_events(array $events, array $eventTypes, array $
           $categories = [
                     'goal' => ['goal'],
                     'shot' => ['shot', 'goal', 'shot_on_target', 'shot_off_target'],
-                    'shot_on_target' => ['shot_on_target'],
+                    'shot_on_target' => ['shot_on_target', 'goal', 'goal_for', 'goal_against'],
                     'shot_off_target' => ['shot_off_target'],
                     'chance' => ['chance', 'big_chance'],
                     'corner' => ['corner'],
@@ -138,7 +138,15 @@ function build_match_stats_from_events(array $events, array $eventTypes, array $
                               $typeKey = guess_type_key_from_label($ev['event_type_label'] ?? null) ?? '';
                     }
                     $outcomeKey = strtolower(trim((string)($ev['outcome'] ?? '')));
-                    if ($typeKey === 'shot' && in_array($outcomeKey, ['on_target', 'off_target'], true)) {
+                    if ($typeId === 16) {
+                              $typeKey = 'goal';
+                    } elseif ($typeId === 15) {
+                              if (in_array($outcomeKey, ['on_target', 'off_target'], true)) {
+                                        $typeKey = 'shot_' . $outcomeKey;
+                              } else {
+                                        $typeKey = 'shot';
+                              }
+                    } elseif ($typeKey === 'shot' && in_array($outcomeKey, ['on_target', 'off_target'], true)) {
                               $typeKey = 'shot_' . $outcomeKey;
                     }
                     if ($typeKey === '') {

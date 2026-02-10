@@ -3863,6 +3863,16 @@ button:active::after {
    height: 300px;
 }
 
+/* Login page overrides */
+[data-page="login"] .login-submit {
+   background-image: linear-gradient(90deg, #0ea5e9, #6366f1, #2563eb) !important;
+}
+
+[data-page="login"] .login-submit:hover {
+   background-image: linear-gradient(90deg, #38bdf8, #818cf8, #3b82f6) !important;
+   filter: brightness(1.05);
+}
+
 /* Skeleton loading animation */
 @keyframes shimmer {
    0% {
