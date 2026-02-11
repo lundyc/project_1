@@ -2721,12 +2721,15 @@ function tryHideDeskSkeleton() {
 
       function renderMatrix(groups, filtered, options = {}) {
             const buckets = [];
-            for (let i = 0; i <= 120; i += 5) {
+            const videoDuration = Number.isFinite(videoDurationSeconds) ? videoDurationSeconds : 0;
+            // Calculate max bucket minute based on video length (reuse videoDuration)
+            const maxBucketMinute = Math.ceil(videoDuration / 60 / 5) * 5;
+            for (let i = 0; i <= maxBucketMinute; i += 5) {
                   if (i === 50 || i === 55) continue; // Hide 50 and 55
                   let start = i * 60;
                   let end = (i + 5) * 60;
                   let label = String(i);
-                  if (i === 120) {
+                  if (i === maxBucketMinute) {
                         end = null;
                   }
                   buckets.push({ label, start, end });
@@ -2963,21 +2966,9 @@ function tryHideDeskSkeleton() {
             }, 0);
             const maxEventSecond = filtered.reduce((max, ev) => Math.max(max, ev.match_second || 0), 0);
             const maxMarkerSecond = Math.max(maxEventSecond, maxClipSecond, maxAnnotationSecond);
-            const videoDuration = Number.isFinite(videoDurationSeconds) ? videoDurationSeconds : 0;
             const minDuration = videoDuration > 0 ? 0 : baseDuration;
             const rawDuration = Math.max(minDuration, maxMarkerSecond, videoDuration);
-            const maxBucketMinute = Math.max(0, Math.ceil(rawDuration / 60 / 5) * 5);
-            const lastBucket = buckets.length ? buckets[buckets.length - 1] : null;
-            const lastStartMinute = lastBucket ? Math.floor(lastBucket.start / 60) : 0;
-            if (maxBucketMinute > lastStartMinute) {
-                  for (let i = lastStartMinute + 5; i <= maxBucketMinute; i += 5) {
-                        let end = (i + 5) * 60;
-                        if (i === maxBucketMinute) {
-                              end = null;
-                        }
-                        buckets.push({ label: String(i), start: i * 60, end });
-                  }
-            }
+            // No need to add extra buckets beyond maxBucketMinute
             const mappedBase = mapSecond(baseDuration);
             timelineMetrics.duration = Math.max(mappedBase, mapSecond(rawDuration));
             const containerWidth = $timelineMatrix.closest('.timeline-scroll').width() || $timelineMatrix.width() || 0;
@@ -3045,6 +3036,7 @@ function tryHideDeskSkeleton() {
             });
             html += '</div>';
             html += '</div>';
+
 
             matrixRowClipMap = new Map();
             typeRows.forEach((row) => {
