@@ -1458,71 +1458,69 @@ ob_start();
                 </div>
             </div>
             <div class="desk-playlist-row">
-                <section class="desk-section desk-playlists-section" aria-label="Playlists">
-                    <div id="playlistsPanel" class="panel-dark playlists-panel p-3">
-                        <div class="playlist-panel-header">
-                            <div class="playlist-panel-heading">
-                                <div>
-                                    <div class="text-sm text-subtle">Playlists</div>
-                                    <div class="text-xs text-muted-alt">Curate clips for replay</div>
-                                </div>
-                            </div>
-                            <div class="playlist-panel-controls">
-                                <div class="playlist-control-buttons">
-                                    <button id="playlistFilterBtn" type="button" class="ghost-btn ghost-btn-sm playlist-filter-btn" aria-label="Filter playlists" aria-expanded="false" style="display: none">
-                                        <i class="fa-solid fa-filter" aria-hidden="true"></i>
-                                    </button>
-                                    <button id="playlistSearchToggle" type="button" class="ghost-btn ghost-btn-sm playlist-toggle-btn" aria-label="Search playlists">
-                                        <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-                                    </button>
-                                    <button id="playlistCreateToggle" type="button" class="ghost-btn ghost-btn-sm playlist-toggle-btn" aria-label="Create playlist">
-                                        <i class="fa-solid fa-plus" aria-hidden="true"></i>
-                                    </button>
-                                </div>
-                                <div id="playlistSearchRow" class="playlist-input-row">
-                                    <div class="playlist-search-wrapper">
-                                        <input id="playlistSearchInput" class="input-dark playlist-search-input" type="text" placeholder="Search playlists…" autocomplete="off">
-                                        <span class="playlist-search-icon" aria-hidden="true"><i class="fa-solid fa-magnifying-glass"></i></span>
-                                    </div>
-                                </div>
-                                <div id="playlistCreateRow" class="playlist-input-row">
-                                    <form id="playlistCreateForm" class="playlist-create-form" autocomplete="off">
-                                        <input id="playlistTitleInput" class="input-dark playlist-title-input" type="text" name="title" placeholder="New playlist title" autocomplete="off" aria-label="New playlist title">
-                                        <button type="submit" class="ghost-btn ghost-btn-sm playlist-create-btn" aria-label="Create playlist">
-                                            <i class="fa-solid fa-plus" aria-hidden="true"></i>
-                                        </button>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-                        <div id="playlistFilterPopover" class="playlist-filter-popover" hidden style="display: none">
-                            <button type="button" class="playlist-filter-option" data-team="">All teams</button>
-                            <button type="button" class="playlist-filter-option" data-team="home">Home - <?= htmlspecialchars($match['home_team'] ?? 'Home') ?></button>
-                            <button type="button" class="playlist-filter-option" data-team="away">Away - <?= htmlspecialchars($match['away_team'] ?? 'Away') ?></button>
-                        </div>
-                        <div id="playlistList" class="playlist-list text-sm text-muted-alt">Loading playlists…</div>
-                    </div>
-                </section>
-                <section class="desk-section desk-clips-section" aria-label="Clips">
-                    <div id="clipsPanel" class="panel-dark playlists-panel p-3 clips-panel">
-                        <div class="playlist-mode">
-                            <div class="playlist-mode-header">
-                                <div>
-                                    <div class="text-sm text-subtle">Clips</div>
-                                    <div id="playlistActiveTitle" class="text-xs text-muted-alt">click on playlist to show clips</div>
-                                </div>
-                                <button id="playlistAddClipBtn" type="button" class="ghost-btn ghost-btn-sm" disabled aria-label="Add clip">
-                                    <i class="fa-solid fa-plus" aria-hidden="true"></i>
-                                </button>
-                            </div>
-                            <div class="playlist-controls">
-                                <button id="playlistPrevBtn" type="button" class="ghost-btn ghost-btn-sm" disabled>Previous clip</button>
-                                <button id="playlistNextBtn" type="button" class="ghost-btn ghost-btn-sm" disabled>Next clip</button>
-                            </div>
-                            <div id="playlistClips" class="playlist-clips text-sm text-muted-alt">No playlist selected.</div>
-                        </div>
-                    </div>
-                </section>
+                <div id="playlistsPanel">
+                                    <section class="desk-section desk-playlists-section" aria-label="Playlists and clips">
+                                        <div class="panel-dark playlist-workspace playlist-workspace-full p-0" style="margin:0 auto;box-shadow:0 4px 32px rgba(0,0,0,0.12);border-radius:14px;overflow:hidden;">
+                                            <div class="flex flex-row gap-0 divide-x divide-slate-800">
+                                                <!-- Left: Playlists -->
+                                                <aside class="flex flex-col w-[340px] min-w-[240px] max-w-[380px] bg-slate-900/90 p-6">
+                                                    <div class="flex items-center justify-between mb-6">
+                                                        <div>
+                                                            <div class="text-xl font-bold text-white tracking-tight">Playlists</div>
+                                                            <div class="text-xs text-slate-400">Curate and manage your video clip playlists</div>
+                                                        </div>
+                                                        <button id="playlistCreateToggle" type="button" class="ghost-btn ghost-btn-sm ml-2" aria-label="Create playlist">
+                                                            <i class="fa-solid fa-plus"></i>
+                                                        </button>
+                                                    </div>
+                                                    <div class="mb-4">
+                                                        <input id="playlistSearchInput" class="input-dark w-full" type="text" placeholder="Search playlists…" autocomplete="off">
+                                                    </div>
+                                                    <div id="playlistList" class="flex-1 overflow-y-auto pr-1">
+                                                        <!-- Playlists will be rendered here -->
+                                                        <div class="text-slate-500 text-sm py-8 text-center">Loading playlists…</div>
+                                                    </div>
+                                                    <form id="playlistCreateForm" class="mt-4 flex gap-2" autocomplete="off" style="display:none;">
+                                                        <input id="playlistTitleInput" class="input-dark flex-1" type="text" name="title" placeholder="New playlist title" autocomplete="off" aria-label="New playlist title">
+                                                        <button type="submit" class="ghost-btn ghost-btn-sm" aria-label="Create playlist">
+                                                            <i class="fa-solid fa-plus"></i>
+                                                        </button>
+                                                    </form>
+                                                </aside>
+                                                <!-- Right: Clips -->
+                                                <main class="flex-1 min-w-0 bg-slate-800/80 p-8">
+                                                    <div class="flex items-center justify-between mb-6">
+                                                        <div>
+                                                            <div id="playlistActiveTitle" class="text-lg font-semibold text-white">Select a playlist</div>
+                                                            <div id="playlistActiveNotes" class="text-xs text-slate-400"></div>
+                                                        </div>
+                                                        <div class="flex gap-2">
+                                                            <button id="playlistEditBtn" type="button" class="ghost-btn ghost-btn-sm" aria-label="Edit playlist" style="display:none;">
+                                                                <i class="fa-solid fa-pen"></i>
+                                                            </button>
+                                                            <button id="playlistDeleteBtn" type="button" class="ghost-btn ghost-btn-sm" aria-label="Delete playlist" style="display:none;">
+                                                                <i class="fa-solid fa-trash"></i>
+                                                            </button>
+                                                            <button id="playlistAddClipBtn" type="button" class="ghost-btn ghost-btn-sm" aria-label="Add clip" disabled>
+                                                                <i class="fa-solid fa-plus"></i>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    <div class="flex items-center gap-4 mb-4">
+                                                        <button id="playlistPrevBtn" type="button" class="ghost-btn ghost-btn-sm" disabled>Previous</button>
+                                                        <button id="playlistNextBtn" type="button" class="ghost-btn ghost-btn-sm" disabled>Next</button>
+                                                        <div class="flex-1"></div>
+                                                        <span id="playlistClipCount" class="text-xs text-slate-400"></span>
+                                                    </div>
+                                                    <div id="playlistClips" class="playlist-clips grid grid-cols-1 gap-4">
+                                                        <!-- Clips will be rendered here -->
+                                                        <div class="text-slate-500 text-sm py-12 text-center">No playlist selected.</div>
+                                                    </div>
+                                                </main>
+                                            </div>
+                                        </div>
+                                    </section>
+                </div>
             </div>
                 </div>
         </div>
