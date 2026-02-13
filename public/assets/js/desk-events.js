@@ -37,6 +37,7 @@ function tryHideDeskSkeleton() {
             delete: endpoints.playlistDelete,
             show: (id) => (endpoints.playlistsList ? `${endpoints.playlistsList}/${id}` : null),
             download: endpoints.playlistDownload,
+            regenerateAll: endpoints.clipRegenerateAll,
       };
       const playlistState = {
             playlists: [],
@@ -141,6 +142,7 @@ function tryHideDeskSkeleton() {
       let $playlistSearchToggle;
       let $playlistSearchRow;
       let $playlistSearchInput;
+      let $playlistRegenerateClipsBtn;
       let $playlistCreateToggle;
       let $playlistCreateRow;
       let playlistTitleEditor = null;
@@ -449,6 +451,24 @@ function tryHideDeskSkeleton() {
       let matrixRowClipMap = new Map();
       let playlistRowDropMessageTimer = null;
 
+      function setPlaylistRowDropArmed(armed) {
+            if ($playlistList && $playlistList.length) {
+                  $playlistList.toggleClass('is-row-drop-armed', armed);
+            }
+            if ($playlistPanel && $playlistPanel.length) {
+                  $playlistPanel.toggleClass('is-row-drop-armed', armed);
+            }
+      }
+
+      function setPlaylistRowDropTarget(active) {
+            if ($playlistList && $playlistList.length) {
+                  $playlistList.toggleClass('is-row-drop-target', active);
+            }
+            if ($playlistPanel && $playlistPanel.length) {
+                  $playlistPanel.toggleClass('is-row-drop-target', active);
+            }
+      }
+
       function setPlaylistRowDropPending(pending, message) {
             playlistRowDropPending = pending;
             if (!$playlistList || !$playlistList.length) return;
@@ -493,8 +513,8 @@ function tryHideDeskSkeleton() {
       function buildColorStyle(color) {
             const base = color || EVENT_NEUTRAL;
             const rgb = hexToRgb(base);
-            const soft = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.18)`;
-            const strong = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.6)`;
+            const soft = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.35)`;
+            const strong = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.65)`;
             const glow = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.35)`;
             return `--event-color:${base};--event-color-soft:${soft};--event-color-strong:${strong};--event-color-glow:${glow};`;
       }
@@ -712,6 +732,9 @@ function tryHideDeskSkeleton() {
       }
 
       function formatGameClockFromPeriods(totalSeconds) {
+            if (!hasCanonicalPeriods) {
+                  return '—';
+            }
             const normalized = Math.max(0, Math.floor(Number(totalSeconds) || 0));
             const state = typeof periodState !== 'undefined' ? periodState : window.DeskPeriodState;
             const firstHalf = state && state.first_half ? state.first_half : null;
@@ -835,6 +858,7 @@ function tryHideDeskSkeleton() {
                   positionMatrixTooltip(this, tooltip);
             });
             $timelineMatrix.on('mouseleave', '.matrix-dot', function () {
+                  // Removed matrix-period-marker-label span; tooltip only
                   if (matrixTooltip) {
                         matrixTooltip.classList.remove('is-visible');
                   }
@@ -2506,7 +2530,7 @@ function tryHideDeskSkeleton() {
             if (playerF) filtered = filtered.filter((e) => String(e.match_player_id) === String(playerF));
 
             // Always include period events if present in the DB, even if filtered out
-            if (events && events.length) {
+            if (hasCanonicalPeriods && events && events.length) {
                   const periodCandidates = events.filter(
                         (ev) => isPeriodEvent(ev) && ev.match_second !== null && ev.match_second !== undefined
                   );
@@ -2721,8 +2745,9 @@ function tryHideDeskSkeleton() {
 
       function renderMatrix(groups, filtered, options = {}) {
             const buckets = [];
-            const videoDuration = Number.isFinite(videoDurationSeconds) ? videoDurationSeconds : 0;
-            // Calculate max bucket minute based on video length (reuse videoDuration)
+            // Use fallback duration if videoDurationSeconds is not set
+            const fallbackDuration = 3600; // 60 min default
+            const videoDuration = Number.isFinite(videoDurationSeconds) && videoDurationSeconds > 0 ? videoDurationSeconds : fallbackDuration;
             const maxBucketMinute = Math.ceil(videoDuration / 60 / 5) * 5;
             for (let i = 0; i <= maxBucketMinute; i += 5) {
                   if (i === 50 || i === 55) continue; // Hide 50 and 55
@@ -2843,15 +2868,55 @@ function tryHideDeskSkeleton() {
                   if (aIdx !== bIdx) return aIdx - bIdx;
                   return String(a.label).localeCompare(String(b.label));
             }).filter((row) => (row.events || []).length > 0);
-            const periodMarkers = (filtered || [])
-                  .filter((ev) => (ev.event_type_key === 'period_start' || ev.event_type_key === 'period_end') && ev.match_second !== null && ev.match_second !== undefined)
-                  .map((ev) => ({
-                        id: ev.id,
-                        label: displayEventLabel(ev, ev.event_type_label || 'Period'),
-                        second: Number(ev.match_second) || 0,
-                        edge: ev.event_type_key === 'period_start' ? 'start' : 'end',
-                  }))
-                  .sort((a, b) => a.second - b.second);
+            // Build periodMarkers from DeskConfig.periods (all period boundaries)
+            let periodMarkers = [];
+            if (Array.isArray(cfg.periods) && cfg.periods.length > 0) {
+                  cfg.periods.forEach((period, idx) => {
+                        // Add marker for start (except very first if undesired)
+                        if (idx > 0) {
+                              periodMarkers.push({
+                                    id: `period_${period.id}_start`,
+                                    label: `${period.label} Start`,
+                                    second: Number(period.start_second) || 0,
+                                    edge: 'start',
+                              });
+                        } else {
+                              // Optionally include first period start marker
+                              periodMarkers.push({
+                                    id: `period_${period.id}_start`,
+                                    label: `${period.label} Start`,
+                                    second: Number(period.start_second) || 0,
+                                    edge: 'start',
+                              });
+                        }
+                        // Always add marker for end
+                        periodMarkers.push({
+                              id: `period_${period.id}_end`,
+                              label: `${period.label} End`,
+                              second: Number(period.end_second) || 0,
+                              edge: 'end',
+                        });
+                  });
+                  periodMarkers = periodMarkers.filter(m => Number.isFinite(m.second)).sort((a, b) => a.second - b.second);
+            } else if (hasCanonicalPeriods) {
+                  // fallback to old event-based logic if periods missing
+                  periodMarkers = (filtered || [])
+                        .filter(
+                              (ev) =>
+                                    (ev.event_type_key === 'period_start' || ev.event_type_key === 'period_end') &&
+                                    ev.match_second !== null &&
+                                    ev.match_second !== undefined
+                        )
+                        .map((ev) => ({
+                              id: ev.id,
+                              label: displayEventLabel(ev, ev.event_type_label || 'Period'),
+                              second: Number(ev.match_second) || 0,
+                              edge: ev.event_type_key === 'period_start' ? 'start' : 'end',
+                        }))
+                        .sort((a, b) => a.second - b.second);
+            } else {
+                  periodMarkers = [];
+            }
 
             const markerPeriodKey = (label) => {
                   const normalized = normalizePeriodLabel(label)
@@ -2870,7 +2935,7 @@ function tryHideDeskSkeleton() {
                   }
             }
 
-            if (!Number.isFinite(firstHalfEndSecond)) {
+            if (!Number.isFinite(firstHalfEndSecond) && hasCanonicalPeriods) {
                   (filtered || []).forEach((ev) => {
                         const key = canonicalizePeriodKey(ev.period_key, ev.period_label);
                         if (key !== 'first_half') return;
@@ -2882,7 +2947,7 @@ function tryHideDeskSkeleton() {
                   });
             }
 
-            if (Number.isFinite(firstHalfEndSecond)) {
+            if (Number.isFinite(firstHalfEndSecond) && hasCanonicalPeriods) {
                   const halfLabel = (periodState && periodState.first_half && periodState.first_half.label)
                         ? periodState.first_half.label
                         : 'First Half';
@@ -2914,20 +2979,22 @@ function tryHideDeskSkeleton() {
                   if (gap <= breakGapSeconds) return;
                   breaks.push({ start: safeStart, end: safeEnd, gap: breakGapSeconds });
             };
-            for (let i = 0; i < periodMarkers.length - 1; i += 1) {
-                  const current = periodMarkers[i];
-                  const next = periodMarkers[i + 1];
-                  if (current.edge === 'end' && next.edge === 'start') {
-                        addBreak(current.second, next.second);
+            if (hasCanonicalPeriods) {
+                  for (let i = 0; i < periodMarkers.length - 1; i += 1) {
+                        const current = periodMarkers[i];
+                        const next = periodMarkers[i + 1];
+                        if (current.edge === 'end' && next.edge === 'start') {
+                              addBreak(current.second, next.second);
+                        }
                   }
-            }
-            const state = typeof periodState !== 'undefined' ? periodState : window.DeskPeriodState;
-            if (state) {
-                  for (let i = 0; i < PERIOD_SEQUENCE.length - 1; i += 1) {
-                        const current = state[PERIOD_SEQUENCE[i]];
-                        const next = state[PERIOD_SEQUENCE[i + 1]];
-                        if (!current || !next) continue;
-                        addBreak(current.endMatchSecond, next.startMatchSecond);
+                  const state = typeof periodState !== 'undefined' ? periodState : window.DeskPeriodState;
+                  if (state) {
+                        for (let i = 0; i < PERIOD_SEQUENCE.length - 1; i += 1) {
+                              const current = state[PERIOD_SEQUENCE[i]];
+                              const next = state[PERIOD_SEQUENCE[i + 1]];
+                              if (!current || !next) continue;
+                              addBreak(current.endMatchSecond, next.startMatchSecond);
+                        }
                   }
             }
             if (breaks.length > 1) {
@@ -2993,17 +3060,19 @@ function tryHideDeskSkeleton() {
             timelineZoom.scale = Math.min(timelineZoom.max, targetScale);
             const timelineWidth = timelineMetrics.duration * timelineZoom.pixelsPerSecond * timelineZoom.scale;
             // Calculate bucket positions and widths using mapped seconds for perfect alignment
-            const bucketRects = buckets.map((bucket) => {
-                  const bucketEnd = bucket.end === null ? rawDuration : bucket.end;
-                  const startDisplay = mapSecond(bucket.start);
-                  const endDisplay = Math.min(mapSecond(bucketEnd), timelineMetrics.duration);
-                  const width = Math.max(24, (endDisplay - startDisplay) * timelineZoom.pixelsPerSecond * timelineZoom.scale);
-                  const left = startDisplay * timelineZoom.pixelsPerSecond * timelineZoom.scale;
-                  return { left, width };
-            });
-            const bucketWidths = bucketRects.map((rect) => rect.width);
+            // --- DEMO: Show 50 and 55 columns in viewport ---
+            // To toggle, set desiredBucketCount to 50 or 55
+            const desiredBucketCount = 50; // Change to 55 to show 55 columns
+            const numBuckets = desiredBucketCount;
+            const equalBucketWidth = timelineWidth / numBuckets;
+            const bucketWidths = Array(numBuckets).fill(equalBucketWidth);
             const bucketColumns = bucketWidths.map((width) => `${width}px`).join(' ');
             const gridColumnsStyle = `grid-template-columns: ${MATRIX_TYPE_WIDTH}px ${timelineWidth}px;`;
+            // For label positioning, also update bucketRects
+            const bucketRects = bucketWidths.map((width, idx) => {
+                  const left = idx * equalBucketWidth;
+                  return { left, width };
+            });
 
             const markerOffset = MATRIX_TYPE_WIDTH + MATRIX_GAP;
             let html = `<div class="matrix-viewport" data-scale="${timelineZoom.scale}">`;
@@ -3012,12 +3081,47 @@ function tryHideDeskSkeleton() {
                   periodMarkers.forEach((marker) => {
                         const displaySecond = timelineMetrics.mapSecond ? timelineMetrics.mapSecond(marker.second) : marker.second;
                         const position = Math.min(Math.max(0, displaySecond * timelineZoom.pixelsPerSecond * timelineZoom.scale), timelineWidth);
-                        const periodLabel = typeof marker.label === 'string' ? marker.label.toLowerCase() : '';
-                        html += `<button type="button" class="matrix-period-marker" data-period-id="${marker.id}" data-period-edge="${marker.edge}" data-period-label="${h(
-                              periodLabel
-                        )}" data-second="${marker.second}" data-tooltip="${h(marker.label)}" style="left:${position}px">`;
+                        // Short label logic
+                        let shortLabel = '';
+                        if (marker.label.toLowerCase().includes('first')) {
+                              shortLabel = marker.edge === 'start' ? 'First_half start' : 'First_half end';
+                        } else if (marker.label.toLowerCase().includes('second')) {
+                              shortLabel = marker.edge === 'start' ? 'Second_half start' : 'Second_half end';
+                        } else {
+                              shortLabel = marker.label;
+                        }
+                        // Find period info for tooltip
+                        let tooltipLabel = '';
+                        let periodInfo = null;
+                        if (Array.isArray(cfg.periods)) {
+                              periodInfo = cfg.periods.find(p => {
+                                    // Match by start or end second and label
+                                    return (
+                                          (marker.edge === 'start' && Number(p.start_second) === marker.second) ||
+                                          (marker.edge === 'end' && Number(p.end_second) === marker.second)
+                                    );
+                              });
+                        }
+                        if (periodInfo) {
+                              const prettyLabel = periodInfo.label || '';
+                              const startTime = formatMatchSecond(periodInfo.start_second).text;
+                              const endTime = formatMatchSecond(periodInfo.end_second).text;
+                              tooltipLabel = `${prettyLabel}\nStart: ${startTime}\nFinish: ${endTime}`;
+                        } else {
+                              tooltipLabel = shortLabel;
+                        }
+                        html += `<button type="button" class="matrix-period-marker" data-period-id="${marker.id}" data-period-edge="${marker.edge}" data-period-label="${h(shortLabel)}" data-second="${marker.second}" style="left:${position}px">`;
                         html += `<span class="matrix-period-marker-line"></span>`;
+                        html += `<span class="matrix-period-marker-tooltip">${h(tooltipLabel)}</span>`;
                         html += '</button>';
+                        // Tooltip show/hide for matrix-period-marker
+                        $timelineMatrix.off('mouseenter mouseleave focus blur', '.matrix-period-marker');
+                        $timelineMatrix.on('mouseenter focus', '.matrix-period-marker', function () {
+                              $(this).addClass('show-tooltip');
+                        });
+                        $timelineMatrix.on('mouseleave blur', '.matrix-period-marker', function () {
+                              $(this).removeClass('show-tooltip');
+                        });
                   });
                   html += '</div>';
             }
@@ -3025,21 +3129,27 @@ function tryHideDeskSkeleton() {
             html += `<div class="matrix-type-spacer" style="width:${MATRIX_TYPE_WIDTH}px;position:relative;z-index:1;"></div>`;
             html += `<div class="matrix-bucket-labels" style="position:absolute;top:0;left:${axisPad}px;width:${timelineWidth}px;height:30px;">`;
             const bucketLabelMinWidth = 100; // px, adjust as needed for visual consistency
-            buckets.forEach((b, idx) => {
+            // For 50/55 buckets, show time range for each bucket
+            for (let idx = 0; idx < bucketRects.length; idx++) {
                   const rect = bucketRects[idx];
-                  const periodKey =
-                        resolveMatrixPeriodKey((b.start + ((b.end === null ? rawDuration : b.end) - b.start) / 2)) ||
-                        (b.start >= 5400 ? 'extra_time' : b.start >= 2700 ? 'second_half' : 'first_half');
                   const labelWidth = Math.max(bucketLabelMinWidth, rect.width);
                   const labelLeft = rect.left + Math.max(0, (rect.width - labelWidth) / 2);
-                  html += `<div class="matrix-bucket-label" data-period-key="${h(periodKey)}" style="min-width:${bucketLabelMinWidth}px;text-align:center;width:${labelWidth}px;left:${labelLeft}px;position:absolute;">${h(b.label)}</div>`;
-            });
+                  // Calculate time range for this bucket
+                  const bucketStart = (idx / bucketRects.length) * timelineMetrics.duration;
+                  const bucketEnd = ((idx + 1) / bucketRects.length) * timelineMetrics.duration;
+                  const startLabel = formatMatchSecond(bucketStart).text;
+                  const endLabel = formatMatchSecond(bucketEnd).text;
+                  const label = `${startLabel} - ${endLabel}`;
+                  html += `<div class="matrix-bucket-label" style="min-width:${bucketLabelMinWidth}px;text-align:center;width:${labelWidth}px;left:${labelLeft}px;position:absolute;">${h(label)}</div>`;
+            }
             html += '</div>';
             html += '</div>';
 
 
             matrixRowClipMap = new Map();
             typeRows.forEach((row) => {
+                  // DEBUG: Log row and events for matrixRowClipMap
+                  console.log('[MATRIX] Row', row.id, row.label, row.events);
                   const accentColor = eventTypeAccents[String(row.id)] || EVENT_NEUTRAL;
                   const accentStyle = buildColorStyle(accentColor);
                   const rowTypeKey = (row.typeKey || '').toLowerCase();
@@ -3052,19 +3162,17 @@ function tryHideDeskSkeleton() {
                         )
                   );
                   matrixRowClipMap.set(String(row.id), rowClipIds);
+                  // DEBUG: Log rowClipIds for this row
+                  console.log('[MATRIX] matrixRowClipMap.set', String(row.id), rowClipIds);
                   html += `<div class="matrix-grid" data-event-type-key="${h(rowTypeKey)}" style="${gridColumnsStyle}">`;
-                  html += `<div class="matrix-type matrix-type--draggable" draggable="true" data-row-type-id="${h(
+                  html += `<div class="matrix-type matrix-type--draggable" draggable="true" tabindex="0" data-row-type-id="${h(
                         row.id
-                  )}" data-row-label="${h(row.label)}" style="${accentStyle}">${h(row.label)}</div>`;
+                  )}" data-row-label="${h(row.label)}" style="${accentStyle};transform:translateZ(0);will-change:transform;">${h(row.label)}</div>`;
                   html += `<div class="matrix-track" style="width:${timelineWidth}px">`;
-                  html += `<div class="matrix-row-buckets" style="grid-template-columns:${bucketColumns}; width:${timelineWidth}px">`;
-                  buckets.forEach((bucket, idx) => {
-                        const bucketEnd = bucket.end === null ? rawDuration : bucket.end;
-                        const bucketMid = bucket.start + (bucketEnd - bucket.start) / 2;
-                        const periodKey =
-                              resolveMatrixPeriodKey(bucketMid) ||
-                              (bucket.start >= 5400 ? 'extra_time' : bucket.start >= 2700 ? 'second_half' : 'first_half');
-                        html += `<div class="matrix-cell" data-bucket="${idx}" data-period-key="${h(periodKey)}" style="width:${bucketWidths[idx]}px"></div>`;
+                  html += `<div class="matrix-row-buckets" style="position:absolute;top:0;left:0;width:${timelineWidth}px;height:100%;">`;
+                  // Use bucketRects for both labels and buckets to ensure sync
+                  bucketRects.forEach((rect, idx) => {
+                        html += `<div class="matrix-cell" data-bucket="${idx}" style="position:absolute;left:${rect.left}px;width:${rect.width}px;height:100%;"></div>`;
                   });
                   html += '</div>';
                   html += `<div class="matrix-row-events" style="width:${timelineWidth}px">`;
@@ -3130,6 +3238,8 @@ function tryHideDeskSkeleton() {
 
             $timelineMatrix.html(html);
             bindMatrixTooltipHandlers();
+            // --- FORCE PLAYLIST PANEL INIT (fix race/timing issues) ---
+            // (Removed forced re-initialization of playlist panel/controls here)
             const debugCounts = {
                   dots: $timelineMatrix.find('.matrix-dot').length,
                   dotsWithClip: $timelineMatrix.find('.matrix-dot[data-clip-id]').length,
@@ -3849,6 +3959,9 @@ function tryHideDeskSkeleton() {
       }
 
       function refreshPeriodStateFromEvents() {
+            if (!hasCanonicalPeriods) {
+                  return;
+            }
             const hasExisting = periodState && Object.keys(periodState).length > 0;
             const nextState = hasExisting ? JSON.parse(JSON.stringify(periodState)) : createBasePeriodState();
             if (!hasExisting && Array.isArray(cfg.periods)) {
@@ -4001,6 +4114,10 @@ function tryHideDeskSkeleton() {
 
       function updatePeriodStatusLabel() {
             if (!currentPeriodStatusEl) return;
+            if (!hasCanonicalPeriods) {
+                  currentPeriodStatusEl.textContent = '';
+                  return;
+            }
             const label = deriveStatusLabel(periodState);
             const active = getActivePeriod(periodState);
             let text = `Current period: ${label}`;
@@ -4040,7 +4157,7 @@ function tryHideDeskSkeleton() {
       }
 
       function getMatchStateKey(state) {
-            if (!state) return 'not_started';
+            if (!state || Object.values(state).every(p => !p || !p.started)) return 'not_started';
             const first = state.first_half;
             const second = state.second_half;
             const et1 = state.extra_time_1;
@@ -4114,8 +4231,25 @@ function tryHideDeskSkeleton() {
       // Ownership: STRATEGY A (Server embeds all required tags as JSON in window.DeskConfig; client reads from cfg.tags)
       // Rationale: Avoids duplicate DB/API fetches on load, ensures single source of truth for initial render
       const tags = Array.isArray(cfg.tags) ? cfg.tags : [];
+      const hasCanonicalPeriods = Array.isArray(cfg.periods) && cfg.periods.length > 0;
+      window.DeskPeriodsAvailable = hasCanonicalPeriods;
+      const showMissingPeriodsWarning = () => {
+            if (!$status || !$status.length) {
+                  return;
+            }
+            $status.text(
+                  'No period timing data available for this match. Please define periods in the match setup.'
+            );
+      };
       let periodsBootstrapped = false;
       function refreshPeriodStateFromApi() {
+            if (!hasCanonicalPeriods) {
+                  periodState = {};
+                  window.DeskPeriodState = periodState;
+                  updatePeriodControlsUI();
+                  showMissingPeriodsWarning();
+                  return;
+            }
             // Use embedded periods for initial load only
             if (!periodsBootstrapped && Array.isArray(cfg.periods)) {
                   const nextState = createBasePeriodState();
@@ -4855,10 +4989,7 @@ function tryHideDeskSkeleton() {
                         const endLabel = formatMatchSecondWithExtra(clip.end_second, 0);
                         const durationText = clip.duration_seconds ? `${clip.duration_seconds}s` : '—';
                         const clipName = clip.clip_name || `Clip #${clipLabel}`;
-                        const showRegenerate = clipIdAttr && !!clip.is_legacy_auto_clip;
-                        const regenerateButton = showRegenerate
-                              ? `<button type="button" class="playlist-clip-regenerate playlist-clip-action" data-clip-id="${clipIdAttr}" aria-label="Regenerate clip"><i class="fa-solid fa-rotate-right" aria-hidden="true"></i></button>`
-                              : '';
+                        const regenerateButton = '';
                         let statusHtml = '';
                         if (!clipIdAttr) {
                               statusHtml = '<span class="playlist-clip-status creating">Creating...</span>';
@@ -5108,33 +5239,54 @@ function tryHideDeskSkeleton() {
             return false;
       }
 
-      function handlePlaylistSelection() {
-            const id = $(this).data('playlistId');
-            if (id) {
-                  loadPlaylist(id);
+      function handlePlaylistSelection(event) {
+            if (!playlistEnabled()) {
+                  return;
             }
-      }
-
-      function handlePlaylistItemAction(event) {
-            event.stopPropagation();
-            const $button = $(event.currentTarget);
-            const playlistId = Number($button.data('playlistId'));
+            if (event && $(event.target).closest('.playlist-item-action').length) {
+                  return;
+            }
+            const playlistId = $(this).data('playlistId');
             if (!playlistId) {
                   return;
             }
-            const action = ($button.data('playlistAction') || '').toString();
+            if (playlistState.activePlaylistId === playlistId) {
+                  return;
+            }
+            loadPlaylist(playlistId);
+      }
+
+      function handlePlaylistItemAction(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (!playlistEnabled()) {
+                  return;
+            }
+            const $button = $(event.currentTarget);
+            const playlistId = $button.data('playlistId');
+            const action = $button.data('playlistAction');
+            if (!playlistId || !action) {
+                  return;
+            }
             if (action === 'download') {
-                  const downloadUrl = playlistConfig.download;
-                  if (!downloadUrl) {
-                        showError('Unable to download playlist', 'Download endpoint unavailable');
+                  const url = playlistConfig.download;
+                  if (!url) {
+                        showError('Unable to download playlist', 'Missing download endpoint');
                         return;
                   }
-                  const separator = downloadUrl.includes('?') ? '&' : '?';
-                  const url = `${downloadUrl}${separator}playlist_id=${encodeURIComponent(playlistId)}`;
-                  window.location.href = url;
+                  const downloadUrl = `${url}?playlist_id=${encodeURIComponent(playlistId)}`;
+                  const link = document.createElement('a');
+                  link.href = downloadUrl;
+                  link.download = '';
+                  document.body.appendChild(link);
+                  link.click();
+                  link.remove();
                   return;
             }
             if (action !== 'delete') {
+                  return;
+            }
+            if (!cfg.canEditRole) {
                   return;
             }
             const entry = playlistState.playlists.find((pl) => pl.id === playlistId);
@@ -5189,6 +5341,44 @@ function tryHideDeskSkeleton() {
 
       function handlePlaylistRefresh() {
             fetchPlaylists();
+      }
+
+      function handlePlaylistRegenerateClips() {
+            if (!playlistEnabled() || !cfg.canEditRole) {
+                  return;
+            }
+            const url = playlistConfig.regenerateAll;
+            if (!url) {
+                  showError('Unable to regenerate clips', 'Missing regenerate endpoint');
+                  return;
+            }
+            if (!confirm('Regenerate clips for all events in this match?')) {
+                  return;
+            }
+            if ($playlistRegenerateClipsBtn && $playlistRegenerateClipsBtn.length) {
+                  $playlistRegenerateClipsBtn.prop('disabled', true).text('Regenerating…');
+            }
+            postJson(url, {})
+                  .done((res) => {
+                        if (!res || res.ok === false) {
+                              showError('Unable to regenerate clips', res ? res.error : 'Unknown');
+                              return;
+                        }
+                        const created = Number(res.created || 0);
+                        const updated = Number(res.updated || 0);
+                        const skipped = Number(res.skipped || 0);
+                        showToast(`Clips regenerated. Created ${created}, updated ${updated}, skipped ${skipped}.`);
+                        fetchPlaylists();
+                        loadEvents(true);
+                  })
+                  .fail((xhr, status, error) => {
+                        showError('Unable to regenerate clips', xhr.responseText || error || status);
+                  })
+                  .always(() => {
+                        if ($playlistRegenerateClipsBtn && $playlistRegenerateClipsBtn.length) {
+                              $playlistRegenerateClipsBtn.prop('disabled', false).text('Regenerate clips');
+                        }
+                  });
       }
 
       function handleAddClipToPlaylist() {
@@ -5356,6 +5546,8 @@ function tryHideDeskSkeleton() {
                   return;
             }
             const clipIds = matrixRowClipMap.get(String(rowTypeId)) || [];
+            // DEBUG: Log clipIds for playlist creation
+            console.log('[PLAYLIST] Attempt to create playlist for rowTypeId', rowTypeId, 'clipIds:', clipIds);
             if (!clipIds.length) {
                   showToast('No clips in this row yet', true);
                   return;
@@ -5409,6 +5601,28 @@ function tryHideDeskSkeleton() {
 
       function handleMatrixRowDragStart(event) {
             const $el = $(event.currentTarget);
+            console.log('[DRAG] matrix-type--draggable dragstart', $el[0]);
+            // Debug: Check playlist drop target DOM presence and bounding rects
+            setTimeout(function () {
+                  var $playlistList = $('#playlistList');
+                  if ($playlistList.length) {
+                        var rect = $playlistList[0].getBoundingClientRect();
+                        console.log('[DEBUG] #playlistList present. Bounding rect:', rect);
+                        var $firstItem = $playlistList.find('.playlist-item').first();
+                        if ($firstItem.length) {
+                              var itemRect = $firstItem[0].getBoundingClientRect();
+                              console.log('[DEBUG] .playlist-item present. Bounding rect:', itemRect);
+                        } else {
+                              console.log('[DEBUG] No .playlist-item found in #playlistList');
+                        }
+                  } else {
+                        console.log('[DEBUG] #playlistList NOT present in DOM');
+                  }
+            }, 100);
+            // Force setData for Chrome/Edge drag-and-drop bug
+            if (event.originalEvent && event.originalEvent.dataTransfer) {
+                  event.originalEvent.dataTransfer.setData('text/plain', $el.data('rowLabel') || 'matrix-row');
+            }
             const rowTypeId = $el.data('rowTypeId');
             const rowLabel = ($el.data('rowLabel') || '').toString();
             if (playlistRowDropPending) {
@@ -5435,13 +5649,13 @@ function tryHideDeskSkeleton() {
                   transfer.setData('text/plain', `row:${rowTypeId}`);
                   transfer.effectAllowed = 'copy';
             }
-            $playlistList.addClass('is-row-drop-armed');
+            setPlaylistRowDropArmed(true);
       }
 
       function handleMatrixRowDragEnd() {
             draggingMatrixRow = null;
-            $playlistList.removeClass('is-row-drop-armed');
-            $playlistList.removeClass('is-row-drop-target');
+            setPlaylistRowDropArmed(false);
+            setPlaylistRowDropTarget(false);
       }
 
       function handleMatrixItemDragStart(event) {
@@ -5478,6 +5692,7 @@ function tryHideDeskSkeleton() {
             if (!draggingClipId) {
                   return;
             }
+            console.log('[PLAYLIST] dragover playlist item', event);
             const $target = $(event.currentTarget);
             dropTargetElement = $target[0];
             $target.addClass('is-drop-target');
@@ -5491,6 +5706,7 @@ function tryHideDeskSkeleton() {
             if (!draggingClipId) {
                   return;
             }
+            console.log('[PLAYLIST] dragenter playlist item', event);
             const $target = $(event.currentTarget);
             dropTargetElement = $target[0];
             $target.addClass('is-drop-target');
@@ -5501,6 +5717,7 @@ function tryHideDeskSkeleton() {
             if (!draggingClipId) {
                   return;
             }
+            console.log('[PLAYLIST] dragleave playlist item', event);
             const $target = $(event.currentTarget);
             const related = event.originalEvent && event.originalEvent.relatedTarget;
             if (related && $target[0] && $target[0].contains(related)) {
@@ -5513,22 +5730,38 @@ function tryHideDeskSkeleton() {
       }
 
       function handlePlaylistDrop(event) {
+            console.log('[PLAYLIST] drop playlist item', event);
             event.preventDefault();
             event.stopPropagation();
             const $target = $(event.currentTarget);
             $target.removeClass('is-drop-target');
             const playlistId = $target.data('playlistId');
             const transfer = event.originalEvent && event.originalEvent.dataTransfer;
-            const transferredClipId = transfer ? transfer.getData('text/plain') : null;
-            const rawClipId = transferredClipId || draggingClipId;
-            const hasClipId = rawClipId !== undefined && rawClipId !== null && rawClipId !== '';
-            const clipId = hasClipId ? String(rawClipId) : null;
-            const clipNumeric = clipId !== null ? Number(clipId) : NaN;
+            const transferredData = transfer ? transfer.getData('text/plain') : null;
             draggingClipId = null;
             clearPlaylistDropHighlight();
             if (!playlistId) {
                   return;
             }
+            // If dropping a matrix row, add all clips for that row
+            if (transferredData && /^row:(\d+)$/.test(transferredData)) {
+                  const rowTypeId = transferredData.match(/^row:(\d+)$/)[1];
+                  const clipIds = matrixRowClipMap.get(String(rowTypeId)) || [];
+                  if (!clipIds.length) {
+                        showToast('No clips available for this row', true);
+                        return;
+                  }
+                  // Add all clips for this row to the playlist
+                  clipIds.forEach(function (clipId) {
+                        addClipToPlaylistById(playlistId, clipId, { setActivePlaylist: true });
+                  });
+                  return;
+            }
+            // Otherwise, treat as a single clip ID
+            const rawClipId = transferredData || draggingClipId;
+            const hasClipId = rawClipId !== undefined && rawClipId !== null && rawClipId !== '';
+            const clipId = hasClipId ? String(rawClipId) : null;
+            const clipNumeric = clipId !== null ? Number(clipId) : NaN;
             if (!clipId || !Number.isFinite(clipNumeric) || clipNumeric <= 0) {
                   showToast('No clip available to add', true);
                   return;
@@ -5540,8 +5773,9 @@ function tryHideDeskSkeleton() {
             if (!draggingMatrixRow || draggingClipId || playlistRowDropPending) {
                   return;
             }
+            console.log('[PLAYLIST] dragover playlist list', event);
             event.preventDefault();
-            $playlistList.addClass('is-row-drop-target');
+            setPlaylistRowDropTarget(true);
             if (event.originalEvent && event.originalEvent.dataTransfer) {
                   event.originalEvent.dataTransfer.dropEffect = 'copy';
             }
@@ -5551,25 +5785,28 @@ function tryHideDeskSkeleton() {
             if (!draggingMatrixRow || draggingClipId || playlistRowDropPending) {
                   return;
             }
+            console.log('[PLAYLIST] dragenter playlist list', event);
             event.preventDefault();
-            $playlistList.addClass('is-row-drop-target');
+            setPlaylistRowDropTarget(true);
       }
 
       function handlePlaylistListDragLeave(event) {
             if (!draggingMatrixRow || draggingClipId || playlistRowDropPending) {
                   return;
             }
+            console.log('[PLAYLIST] dragleave playlist list', event);
             const related = event.originalEvent && event.originalEvent.relatedTarget;
             if (related && $playlistList[0] && $playlistList[0].contains(related)) {
                   return;
             }
-            $playlistList.removeClass('is-row-drop-target');
+            setPlaylistRowDropTarget(false);
       }
 
       function handlePlaylistListDrop(event) {
             if (!draggingMatrixRow || draggingClipId) {
                   return;
             }
+            console.log('[PLAYLIST] drop playlist list', event);
             event.preventDefault();
             event.stopPropagation();
             if (playlistRowDropPending) {
@@ -5578,8 +5815,8 @@ function tryHideDeskSkeleton() {
             }
             const row = draggingMatrixRow;
             draggingMatrixRow = null;
-            $playlistList.removeClass('is-row-drop-target');
-            $playlistList.removeClass('is-row-drop-armed');
+            setPlaylistRowDropTarget(false);
+            setPlaylistRowDropArmed(false);
             if ($(event.target).closest('.playlist-item').length) {
                   return;
             }
@@ -5595,7 +5832,7 @@ function tryHideDeskSkeleton() {
                   return;
             }
             $playlistList.find('.playlist-item.is-drop-target').removeClass('is-drop-target');
-            $playlistList.removeClass('is-row-drop-target');
+            setPlaylistRowDropTarget(false);
       }
 
       function handleDownloadClip(event) {
@@ -6114,6 +6351,9 @@ function tryHideDeskSkeleton() {
                   if ($playlistSearchInput.length) {
                         $playlistSearchInput.on('input', handlePlaylistSearchInput);
                   }
+                  if ($playlistRegenerateClipsBtn && $playlistRegenerateClipsBtn.length) {
+                        $playlistRegenerateClipsBtn.on('click', handlePlaylistRegenerateClips);
+                  }
                   if ($playlistCreateToggle.length) {
                         $playlistCreateToggle.attr('aria-pressed', 'false');
                         $playlistCreateToggle.on('click', togglePlaylistCreateRow);
@@ -6293,6 +6533,7 @@ function tryHideDeskSkeleton() {
                   $playlistSearchToggle = $('#playlistSearchToggle');
                   $playlistSearchRow = $('#playlistSearchRow');
                   $playlistSearchInput = $('#playlistSearchInput');
+                  $playlistRegenerateClipsBtn = $('#playlistRegenerateClipsBtn');
                   $playlistCreateToggle = $('#playlistCreateToggle');
                   $playlistCreateRow = $('#playlistCreateRow');
                   if ($playlistFilterPopover.length) {

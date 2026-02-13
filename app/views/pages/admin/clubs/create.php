@@ -17,7 +17,13 @@ ob_start();
                     <h1 class="mb-1">Create Club</h1>
                     <p class="text-muted-alt text-sm mb-0">Add a new club and start managing teams.</p>
           </div>
-          <a href="<?= htmlspecialchars($base) ?>/admin/clubs" class="btn btn-secondary-soft btn-sm">Back to clubs</a>
+          <?php
+          $label = 'Back to clubs';
+          $href = $base . '/admin/clubs';
+          $variant = 'secondary';
+          $size = 'sm';
+          include __DIR__ . '/../../../partials/ui-button.php';
+          ?>
 </div>
 
 <?php if ($flashError): ?>
@@ -35,7 +41,14 @@ ob_start();
 
                     <div class="d-flex justify-content-between align-items-center mt-4">
                               <span class="text-muted-alt text-sm">You can add teams after the club is created.</span>
-                              <button type="submit" class="btn btn-primary-soft btn-sm">Create club</button>
+                              <?php
+                              $label = 'Create club';
+                              $href = null;
+                              $variant = 'primary';
+                              $size = 'sm';
+                              $type = 'submit';
+                              include __DIR__ . '/../../../partials/ui-button.php';
+                              ?>
                     </div>
           </form>
 </div>

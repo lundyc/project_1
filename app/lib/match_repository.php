@@ -153,12 +153,15 @@ function get_matches_for_user(array $user): array
                   JOIN teams at ON at.id = m.away_team_id
                   LEFT JOIN competitions c ON c.id = m.competition_id
                   LEFT JOIN clubs cl ON cl.id = m.club_id
-                  LEFT JOIN match_videos mv ON mv.id = (
-                            SELECT id FROM match_videos
-                            WHERE match_id = m.id
-                            ORDER BY id DESC
-                            LIMIT 1
-                  )';
+                  LEFT JOIN (
+                            SELECT mv1.*
+                            FROM match_videos mv1
+                            INNER JOIN (
+                                      SELECT match_id, MAX(id) AS max_id
+                                      FROM match_videos
+                                      GROUP BY match_id
+                            ) latest ON latest.max_id = mv1.id
+                  ) mv ON mv.match_id = m.id';
 
           $params = [];
 
@@ -177,6 +180,286 @@ function get_matches_for_user(array $user): array
           $stmt->execute($params);
 
           return $stmt->fetchAll();
+}
+
+function get_user_club_id_by_id(int $userId): ?int
+{
+          if ($userId <= 0) {
+                    return null;
+          }
+
+          $stmt = db()->prepare('SELECT club_id FROM users WHERE id = :id LIMIT 1');
+          $stmt->execute(['id' => $userId]);
+          $clubId = $stmt->fetchColumn();
+          if ($clubId === false || $clubId === null) {
+                    return null;
+          }
+
+          return (int)$clubId;
+}
+
+function get_match_status_counts_for_user(int $userId): array
+{
+          $roles = $_SESSION['roles'] ?? [];
+          $isPlatformAdmin = in_array('platform_admin', $roles, true);
+          $params = [];
+
+          $where = [];
+          if (!$isPlatformAdmin) {
+                    $clubId = get_user_club_id_by_id($userId);
+                    if (!$clubId) {
+                              return [];
+                    }
+                    $where[] = 'm.club_id = :club_id';
+                    $params['club_id'] = $clubId;
+          }
+
+          $whereSql = $where ? (' WHERE ' . implode(' AND ', $where)) : '';
+          $sql = '
+                    SELECT COALESCE(NULLIF(LOWER(TRIM(m.status)), ""), "draft") AS status_key,
+                           COUNT(*) AS status_count
+                    FROM matches m' . $whereSql . '
+                    GROUP BY COALESCE(NULLIF(LOWER(TRIM(m.status)), ""), "draft")
+          ';
+          $stmt = db()->prepare($sql);
+          foreach ($params as $key => $value) {
+                    $stmt->bindValue(':' . $key, $value, \PDO::PARAM_INT);
+          }
+          $stmt->execute();
+          $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+          $counts = [];
+          foreach ($rows as $row) {
+                    $key = (string)($row['status_key'] ?? '');
+                    if ($key === '') {
+                              $key = 'draft';
+                    }
+                    $counts[$key] = (int)($row['status_count'] ?? 0);
+          }
+
+          return $counts;
+}
+
+function get_match_opponents_for_user(int $userId): array
+{
+          $roles = $_SESSION['roles'] ?? [];
+          $isPlatformAdmin = in_array('platform_admin', $roles, true);
+          $params = [];
+
+          $where = [];
+          if (!$isPlatformAdmin) {
+                    $clubId = get_user_club_id_by_id($userId);
+                    if (!$clubId) {
+                              return [];
+                    }
+                    $where[] = 'm.club_id = :club_id';
+                    $params['club_id'] = $clubId;
+          }
+
+          $whereSql = $where ? (' WHERE ' . implode(' AND ', $where)) : '';
+          $sql = '
+                    SELECT DISTINCT name FROM (
+                              SELECT ht.name AS name
+                              FROM matches m
+                              JOIN teams ht ON ht.id = m.home_team_id' . $whereSql . '
+                              UNION
+                              SELECT at.name AS name
+                              FROM matches m
+                              JOIN teams at ON at.id = m.away_team_id' . $whereSql . '
+                    ) t
+                    WHERE name IS NOT NULL AND name <> ""
+          ';
+          $stmt = db()->prepare($sql);
+          if (!empty($params)) {
+                    $stmt->bindValue(':club_id', $params['club_id'], \PDO::PARAM_INT);
+          }
+          $stmt->execute();
+          $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+          $opponents = [];
+          foreach ($rows as $row) {
+                    $name = trim((string)($row['name'] ?? ''));
+                    if ($name !== '') {
+                              $opponents[] = $name;
+                    }
+          }
+
+          return $opponents;
+}
+
+function get_match_ids_for_user(int $userId): array
+{
+          $roles = $_SESSION['roles'] ?? [];
+          $isPlatformAdmin = in_array('platform_admin', $roles, true);
+          $params = [];
+
+          $where = [];
+          if (!$isPlatformAdmin) {
+                    $clubId = get_user_club_id_by_id($userId);
+                    if (!$clubId) {
+                              return [];
+                    }
+                    $where[] = 'm.club_id = :club_id';
+                    $params['club_id'] = $clubId;
+          }
+
+          $whereSql = $where ? (' WHERE ' . implode(' AND ', $where)) : '';
+          $sql = 'SELECT m.id FROM matches m' . $whereSql;
+          $stmt = db()->prepare($sql);
+          if (!empty($params)) {
+                    $stmt->bindValue(':club_id', $params['club_id'], \PDO::PARAM_INT);
+          }
+          $stmt->execute();
+          $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+          return array_map(static fn($row) => (int)($row['id'] ?? 0), $rows);
+}
+
+function get_paginated_matches_for_user(
+          int $userId,
+          array $filters,
+          int $limit,
+          int $offset
+): array {
+          $roles = $_SESSION['roles'] ?? [];
+          $isPlatformAdmin = in_array('platform_admin', $roles, true);
+          $params = [];
+          $paramTypes = [];
+          $where = [];
+
+          if (!$isPlatformAdmin) {
+                    $clubId = get_user_club_id_by_id($userId);
+                    if (!$clubId) {
+                              return ['data' => [], 'total' => 0];
+                    }
+                    $where[] = 'm.club_id = :club_id';
+                    $params['club_id'] = $clubId;
+                    $paramTypes['club_id'] = \PDO::PARAM_INT;
+          }
+
+          $statusFilter = strtolower(trim((string)($filters['status'] ?? '')));
+          if ($statusFilter !== '') {
+                    if ($statusFilter === 'draft') {
+                              $where[] = '(m.status IS NULL OR m.status = "" OR m.status = :status_draft)';
+                              $params['status_draft'] = 'draft';
+                              $paramTypes['status_draft'] = \PDO::PARAM_STR;
+                    } else {
+                              $where[] = 'm.status = :status';
+                              $params['status'] = $statusFilter;
+                              $paramTypes['status'] = \PDO::PARAM_STR;
+                    }
+          }
+
+          $opponentFilter = trim((string)($filters['opponent'] ?? ''));
+          if ($opponentFilter !== '') {
+                    $where[] = '(ht.name = :opponent OR at.name = :opponent)';
+                    $params['opponent'] = $opponentFilter;
+                    $paramTypes['opponent'] = \PDO::PARAM_STR;
+          }
+
+          $competitionTypeFilter = strtolower(trim((string)($filters['competition_type'] ?? '')));
+          if ($competitionTypeFilter === 'league') {
+                    $where[] = 'c.name LIKE :competition_like';
+                    $params['competition_like'] = '%league%';
+                    $paramTypes['competition_like'] = \PDO::PARAM_STR;
+          } elseif ($competitionTypeFilter === 'cups') {
+                    $where[] = 'c.name LIKE :competition_like';
+                    $params['competition_like'] = '%cup%';
+                    $paramTypes['competition_like'] = \PDO::PARAM_STR;
+          }
+
+          $dateFrom = trim((string)($filters['date_from'] ?? ''));
+          $dateTo = trim((string)($filters['date_to'] ?? ''));
+          if ($dateFrom !== '') {
+                    $where[] = 'm.kickoff_at IS NOT NULL AND m.kickoff_at >= :date_from';
+                    $params['date_from'] = $dateFrom . ' 00:00:00';
+                    $paramTypes['date_from'] = \PDO::PARAM_STR;
+          }
+          if ($dateTo !== '') {
+                    $where[] = 'm.kickoff_at IS NOT NULL AND m.kickoff_at <= :date_to';
+                    $params['date_to'] = $dateTo . ' 23:59:59';
+                    $paramTypes['date_to'] = \PDO::PARAM_STR;
+          }
+
+          $searchQuery = strtolower(trim((string)($filters['search'] ?? '')));
+          if ($searchQuery !== '') {
+                    $where[] = 'CONCAT_WS(" ", ht.name, at.name, c.name, m.venue, m.notes) LIKE :search';
+                    $params['search'] = '%' . $searchQuery . '%';
+                    $paramTypes['search'] = \PDO::PARAM_STR;
+          }
+
+          $whereSql = $where ? (' WHERE ' . implode(' AND ', $where)) : '';
+
+          $countSql = '
+                    SELECT COUNT(*) AS total
+                    FROM matches m
+                    JOIN teams ht ON ht.id = m.home_team_id
+                    JOIN teams at ON at.id = m.away_team_id
+                    LEFT JOIN competitions c ON c.id = m.competition_id' . $whereSql;
+          $countStmt = db()->prepare($countSql);
+          foreach ($params as $key => $value) {
+                    $type = $paramTypes[$key] ?? \PDO::PARAM_STR;
+                    $countStmt->bindValue(':' . $key, $value, $type);
+          }
+          $countStmt->execute();
+          $total = (int)$countStmt->fetchColumn();
+
+          $availableCols = ensure_match_video_columns();
+          $videoColumns = [
+                    'mv.id AS video_id',
+                    'mv.source_type AS video_source_type',
+                    'mv.source_path AS video_source_path',
+          ];
+          if (in_array('thumbnail_path', $availableCols, true)) {
+                    $videoColumns[] = 'mv.thumbnail_path AS video_thumbnail_path';
+          }
+          if (in_array('duration_seconds', $availableCols, true)) {
+                    $videoColumns[] = 'mv.duration_seconds AS video_duration_seconds';
+          }
+          $videoSelect = implode(",\n                         ", $videoColumns);
+
+          $dataSql = 'SELECT m.id,
+                         m.club_id,
+                         m.home_team_id,
+                         m.away_team_id,
+                         m.kickoff_at,
+                         m.status,
+                         m.venue,
+                         m.notes,
+                         ht.name AS home_team,
+                         at.name AS away_team,
+                         c.name AS competition,
+                         cl.name AS club_name,
+                         ' . $videoSelect . ',
+                         mv.id IS NOT NULL AS has_video
+                  FROM matches m
+                  JOIN teams ht ON ht.id = m.home_team_id
+                  JOIN teams at ON at.id = m.away_team_id
+                  LEFT JOIN competitions c ON c.id = m.competition_id
+                  LEFT JOIN clubs cl ON cl.id = m.club_id
+                  LEFT JOIN (
+                            SELECT mv1.*
+                            FROM match_videos mv1
+                            INNER JOIN (
+                                      SELECT match_id, MAX(id) AS max_id
+                                      FROM match_videos
+                                      GROUP BY match_id
+                            ) latest ON latest.max_id = mv1.id
+                  ) mv ON mv.match_id = m.id' . $whereSql . '
+                  ORDER BY m.kickoff_at DESC, m.id DESC
+                  LIMIT :limit OFFSET :offset';
+
+          $dataStmt = db()->prepare($dataSql);
+          foreach ($params as $key => $value) {
+                    $type = $paramTypes[$key] ?? \PDO::PARAM_STR;
+                    $dataStmt->bindValue(':' . $key, $value, $type);
+          }
+          $dataStmt->bindValue(':limit', max(1, (int)$limit), \PDO::PARAM_INT);
+          $dataStmt->bindValue(':offset', max(0, (int)$offset), \PDO::PARAM_INT);
+          $dataStmt->execute();
+          $data = $dataStmt->fetchAll();
+
+          return ['data' => $data, 'total' => $total];
 }
 
 function get_li_scheduled_fixtures_for_club(int $clubId, int $limit = 10): array

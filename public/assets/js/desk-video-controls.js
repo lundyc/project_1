@@ -6,13 +6,15 @@
     const playPauseBtn = document.getElementById('deskPlayPause');
     const rewindBtn = document.getElementById('deskRewind');
     const forwardBtn = document.getElementById('deskForward');
-    const muteBtn = document.getElementById('deskMuteToggle');
+    const volumeBtn = document.getElementById('deskVolumeButton');
+    const volumeSlider = document.getElementById('deskVolumeSlider');
+    const muteBtn = document.getElementById('deskMute');
+    const muteIcon = muteBtn ? muteBtn.querySelector('i') : null;
     const fullscreenBtn = document.getElementById('deskFullscreen');
     const speedToggle = document.getElementById('deskSpeedToggle');
     const speedOptions = document.getElementById('deskSpeedOptions');
     const speedSelector = speedToggle ? speedToggle.closest('.speed-selector') : null;
     const playPauseIcon = playPauseBtn ? playPauseBtn.querySelector('i') : null;
-    const muteIcon = muteBtn ? muteBtn.querySelector('i') : null;
     const fullscreenIcon = fullscreenBtn ? fullscreenBtn.querySelector('i') : null;
     const detachBtn = document.getElementById('deskDetachVideo');
     const timelineTrack = document.getElementById('deskTimelineTrack');
@@ -55,16 +57,37 @@
       !playPauseBtn ||
       !rewindBtn ||
       !forwardBtn ||
-      !muteBtn ||
       !fullscreenBtn ||
       !speedToggle ||
       !speedOptions ||
       !playPauseIcon ||
-      !muteIcon ||
-      !fullscreenIcon
+      !fullscreenIcon ||
+      !volumeBtn ||
+      !volumeSlider
     ) {
       return;
     }
+    // Volume button/slider logic
+    volumeBtn.addEventListener('click', () => {
+      volumeSlider.style.display = volumeSlider.style.display === 'none' ? 'inline-block' : 'none';
+    });
+    volumeSlider.addEventListener('input', (e) => {
+      video.volume = parseFloat(e.target.value);
+      updateVolumeIcon();
+    });
+    function updateVolumeIcon() {
+      const icon = volumeBtn.querySelector('i');
+      if (!icon) return;
+      if (video.volume === 0) {
+        icon.className = 'fa-solid fa-volume-off';
+      } else if (video.volume < 0.5) {
+        icon.className = 'fa-solid fa-volume-low';
+      } else {
+        icon.className = 'fa-solid fa-volume-high';
+      }
+    }
+    video.addEventListener('volumechange', updateVolumeIcon);
+    updateVolumeIcon();
 
     const IDLE_HIDE_DELAY = 2000;
     let hideTimeoutId = null;
@@ -223,6 +246,9 @@
     };
 
     const updateMuteIcon = () => {
+      if (!muteBtn || !muteIcon) {
+        return;
+      }
       muteIcon.classList.remove('fa-volume-high', 'fa-volume-xmark');
       muteIcon.classList.add(video.muted ? 'fa-volume-xmark' : 'fa-volume-high');
       muteBtn.setAttribute('aria-label', video.muted ? 'Unmute video' : 'Mute video');
@@ -482,6 +508,10 @@
     };
 
     const getScorebugMinuteText = (currentTime) => {
+      const hasCanonicalPeriods = Array.isArray(window.DeskConfig?.periods) && window.DeskConfig.periods.length > 0;
+      if (window.DeskPeriodsAvailable === false || !hasCanonicalPeriods) {
+        return '—';
+      }
       const state = window.DeskPeriodState || null;
       const current = Number.isFinite(currentTime) ? currentTime : 0;
       const pad = (num) => String(num).padStart(2, '0');
@@ -1009,11 +1039,13 @@
       showSeekFeedback('forward');
     });
 
-    muteBtn.addEventListener('click', () => {
-      video.muted = !video.muted;
-      updateMuteIcon();
-      syncDetachedWindow(getSessionState());
-    });
+    if (muteBtn) {
+      muteBtn.addEventListener('click', () => {
+        video.muted = !video.muted;
+        updateMuteIcon();
+        syncDetachedWindow(getSessionState());
+      });
+    }
 
     fullscreenBtn.addEventListener('click', () => {
       const target = getFullscreenTarget();

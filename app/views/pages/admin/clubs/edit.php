@@ -51,7 +51,13 @@ ob_start();
                     <h1 class="mb-1">Edit Club</h1>
                     <p class="text-muted-alt text-sm mb-0">Update club details and manage team assignments.</p>
           </div>
-          <a href="<?= htmlspecialchars($base) ?>/admin/clubs" class="btn btn-secondary-soft btn-sm">Back to clubs</a>
+          <?php
+          $label = 'Back to clubs';
+          $href = $base . '/admin/clubs';
+          $variant = 'secondary';
+          $size = 'sm';
+          include __DIR__ . '/../../../partials/ui-button.php';
+          ?>
 </div>
 
 <?php if ($flashError): ?>
@@ -92,7 +98,14 @@ ob_start();
                                         </div>
                                         <div class="d-flex justify-content-between align-items-center mt-4">
                                                   <span class="text-muted-alt text-sm">Changes apply immediately.</span>
-                                                  <button type="submit" class="btn btn-primary-soft btn-sm">Update club</button>
+                                                  <?php
+                                                  $label = 'Update club';
+                                                  $href = null;
+                                                  $variant = 'primary';
+                                                  $size = 'sm';
+                                                  $type = 'submit';
+                                                  include __DIR__ . '/../../../partials/ui-button.php';
+                                                  ?>
                                         </div>
                               </form>
                     </div>
@@ -159,7 +172,15 @@ ob_start();
                                                             </select>
                                                   </div>
                                                   <div class="col-md-4">
-                                                            <button type="submit" class="btn btn-primary-soft btn-sm w-100">Assign to club</button>
+                                                            <?php
+                                                            $label = 'Assign to club';
+                                                            $href = null;
+                                                            $variant = 'primary';
+                                                            $size = 'sm';
+                                                            $type = 'submit';
+                                                            $class = 'w-100';
+                                                            include __DIR__ . '/../../../partials/ui-button.php';
+                                                            ?>
                                                   </div>
                                         </form>
                                         <p class="text-muted-alt text-sm mt-2">Assigning a team moves it from its current club to this club.</p>

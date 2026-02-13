@@ -449,31 +449,74 @@
                     state.currentMarkers = annotations;
                     markersEl.innerHTML = '';
 
-                    // Add period markers (vertical line + dot)
+                    // Add period markers (vertical line + dot) at both start and end of each period (except very first start)
                     const periods = getTimelinePeriods();
                     const duration = getTimelineDuration();
+                    // Collect all unique boundary seconds (start and end of each period)
+                    let boundaries = [];
                     periods.forEach((p, idx) => {
-                              // Only show ET1/ET2 if started (already filtered by getTimelinePeriods)
-                              // Place marker at start of each period except first
-                              if (idx === 0) return;
+                              if (idx === 0) {
+                                        // Always include the start of the first period
+                                        boundaries.push({
+                                                  second: p.start,
+                                                  label: (p.label || p.type) + ' start',
+                                                  edge: 'start',
+                                                  period: p
+                                        });
+                              }
+                              // Always include the end of every period
+                              boundaries.push({
+                                        second: p.end,
+                                        label: (p.label || p.type) + ' end',
+                                        edge: 'end',
+                                        period: p
+                              });
+                    });
+                    // Remove duplicate seconds (e.g., end of one == start of next)
+                    const seen = new Set();
+                    boundaries = boundaries.filter(b => {
+                              if (b.second == null || seen.has(b.second)) return false;
+                              seen.add(b.second);
+                              return true;
+                    });
+                    boundaries.forEach((b) => {
+                              // Map real time to compressed timeline
                               let timelineTime = 0;
-                              for (let i = 0; i < idx; i++) {
-                                        if (periods[i].type === 'HT') {
-                                                  timelineTime += 2;
+                              for (const p of periods) {
+                                        if (b.second >= p.start && b.second <= p.end) {
+                                                  if (p.type === 'HT') {
+                                                            timelineTime += 2 * (b.second - p.start) / (p.end - p.start);
+                                                  } else {
+                                                            timelineTime += (b.second - p.start);
+                                                  }
+                                                  break;
                                         } else {
-                                                  timelineTime += (periods[i].end - periods[i].start);
+                                                  if (p.type === 'HT') {
+                                                            timelineTime += 2;
+                                                  } else {
+                                                            timelineTime += (p.end - p.start);
+                                                  }
                                         }
                               }
                               const percent = duration > 0 ? Math.min(100, Math.max(0, (timelineTime / duration) * 100)) : 0;
-                              const markerLine = document.createElement('div');
+                              const markerBtn = document.createElement('button');
+                              markerBtn.type = 'button';
+                              markerBtn.className = 'matrix-period-marker';
+                              markerBtn.setAttribute('data-period-id', b.period.period_key || 'period');
+                              markerBtn.setAttribute('data-period-edge', b.edge);
+                              markerBtn.setAttribute('data-period-label', b.label);
+                              markerBtn.setAttribute('data-second', b.second);
+                              markerBtn.setAttribute('data-tooltip', b.label);
+                              markerBtn.style.left = `${percent}%`;
+                              // Line and dot
+                              const markerLine = document.createElement('span');
                               markerLine.className = 'matrix-period-marker-line';
-                              markerLine.style.left = `${percent}%`;
-                              markerLine.tabIndex = 0;
-                              markerLine.title = p.label || p.type;
-                              const dot = document.createElement('div');
-                              dot.className = 'matrix-period-marker-dot';
-                              markerLine.appendChild(dot);
-                              markersEl.appendChild(markerLine);
+                              markerBtn.appendChild(markerLine);
+                              const dot = document.createElement('span');
+                              dot.className = 'matrix-period-marker-label';
+                              dot.textContent = b.label;
+                              markerBtn.appendChild(dot);
+                              markersEl.appendChild(markerBtn);
                     });
 
                     if (!annotations.length) {

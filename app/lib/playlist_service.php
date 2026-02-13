@@ -81,6 +81,24 @@ function playlist_service_update_playlist(int $playlistId, int $matchId, array $
 function playlist_service_soft_delete_playlist(int $playlistId, int $matchId): array
 {
           playlist_service_require_playlist_for_match($playlistId, $matchId);
+
+          $clips = playlist_get_clips($playlistId);
+          foreach ($clips as $clip) {
+                    $clipId = (int)($clip['id'] ?? $clip['clip_id'] ?? 0);
+                    $clipMatchId = (int)($clip['match_id'] ?? $matchId);
+                    if ($clipId > 0) {
+                              try {
+                                        clip_file_helper_remove_clip_files(
+                                                  $clipMatchId,
+                                                  $clipId,
+                                                  $clip['clip_name'] ?? null
+                                        );
+                              } catch (\Throwable $e) {
+                                        error_log(sprintf('[playlist] failed removing clip files clip=%d playlist=%d err=%s', $clipId, $playlistId, $e->getMessage()));
+                              }
+                    }
+          }
+
           return playlist_soft_delete($playlistId);
 }
 
@@ -91,9 +109,25 @@ function playlist_service_get_with_clips(int $playlistId, int $matchId): array
 {
           $playlist = playlist_service_require_playlist_for_match($playlistId, $matchId);
           $clips = playlist_get_clips($playlistId);
+          $eventCache = [];
 
-          $clips = array_map(function ($clip) {
+          $clips = array_map(function ($clip) use ($matchId, &$eventCache) {
                     $clip['is_legacy_auto_clip'] = is_legacy_auto_clip($clip);
+                    if ($clip['is_legacy_auto_clip'] && !empty($clip['event_id'])) {
+                              $eventId = (int)$clip['event_id'];
+                              if (!isset($eventCache[$eventId])) {
+                                        require_once __DIR__ . '/event_repository.php';
+                                        $eventCache[$eventId] = event_get_by_id($eventId) ?: null;
+                              }
+                              $event = $eventCache[$eventId];
+                              if ($event) {
+                                        $nextName = generate_clip_name_from_event($event, $matchId);
+                                        $currentName = (string)($clip['clip_name'] ?? '');
+                                        if ($nextName !== '' && $nextName !== $currentName) {
+                                                  $clip = playlist_service_update_clip_name($clip, $nextName);
+                                        }
+                              }
+                    }
                     $clip['mp4_path'] = clip_mp4_service_get_clip_web_path($clip);
                     return $clip;
           }, $clips);
@@ -102,6 +136,26 @@ function playlist_service_get_with_clips(int $playlistId, int $matchId): array
                     'playlist' => $playlist,
                     'clips' => $clips,
           ];
+}
+
+function playlist_service_update_clip_name(array $clip, string $clipName): array
+{
+          $clipId = (int)($clip['id'] ?? $clip['clip_id'] ?? 0);
+          if ($clipId <= 0 || trim($clipName) === '') {
+                    return $clip;
+          }
+          $pdo = db();
+          $stmt = $pdo->prepare('UPDATE clips SET clip_name = :clip_name WHERE id = :id');
+          $stmt->execute(['clip_name' => $clipName, 'id' => $clipId]);
+          $clip['clip_name'] = $clipName;
+
+          try {
+                    ensure_clip_mp4_exists($clip);
+          } catch (\Throwable $e) {
+                    error_log(sprintf('[playlist] failed renaming clip mp4 clip=%d err=%s', $clipId, $e->getMessage()));
+          }
+
+          return $clip;
 }
 
 /**
@@ -127,8 +181,8 @@ function playlist_service_add_clip(int $playlistId, int $matchId, int $clipId, ?
                     // Build clip name from event details
                     $clipName = generate_clip_name_from_event($event, $matchId);
                     $matchSecond = (int)($event['match_second'] ?? 0);
-                    $startSecond = max(0, $matchSecond - 30);
-                    $endSecond = $matchSecond + 30;
+                    $startSecond = max(0, $matchSecond - 15);
+                    $endSecond = $matchSecond + 15;
                     $currentUser = current_user();
                     $userId = (int)($currentUser['id'] ?? 0);
 
@@ -213,6 +267,19 @@ function playlist_service_remove_clip(int $playlistId, int $matchId, int $clipId
           }
 
           playlist_remove_clip($playlistId, $clipId);
+          $entryClipId = (int)($entry['id'] ?? $entry['clip_id'] ?? $clipId);
+          $entryMatchId = (int)($entry['match_id'] ?? $matchId);
+          if ($entryClipId > 0) {
+                    try {
+                              clip_file_helper_remove_clip_files(
+                                        $entryMatchId,
+                                        $entryClipId,
+                                        $entry['clip_name'] ?? null
+                              );
+                    } catch (\Throwable $e) {
+                              error_log(sprintf('[playlist] failed removing clip files clip=%d playlist=%d err=%s', $entryClipId, $playlistId, $e->getMessage()));
+                    }
+          }
           return $entry;
 }
 
@@ -303,14 +370,29 @@ function playlist_service_parse_order_input(array $orderInput): array
  */
 function generate_clip_name_from_event(array $event, int $matchId): string
 {
-           $eventLabel = playlist_service_slugify_clip_component($event['event_type_label'] ?? $event['event_type_key'] ?? '', 'Event');
-           $playerLabel = playlist_service_slugify_clip_component($event['match_player_name'] ?? '', 'Unknown_Player');
-           $timeLabel = playlist_service_format_event_time_label($event);
+          $eventLabel = playlist_service_slugify_clip_component($event['event_type_label'] ?? $event['event_type_key'] ?? '', 'Event');
+          $playerLabel = playlist_service_slugify_clip_component($event['match_player_name'] ?? '', 'Unknown_Player');
+          $timeLabel = playlist_service_format_event_time_label($event);
+          $minuteValue = playlist_service_event_minute_value($event);
+          $minutePrefix = str_pad((string)$minuteValue, 2, '0', STR_PAD_LEFT);
 
-          $prefixParts = array_filter([$eventLabel, $playerLabel]);
-          $prefix = $prefixParts !== [] ? implode('_', $prefixParts) . '_' : 'clip_';
+          $prefixParts = array_filter([$minutePrefix, $eventLabel, $playerLabel]);
+          $prefix = $prefixParts !== [] ? implode('_', $prefixParts) : 'clip';
 
-          return $prefix . '(' . $timeLabel . ')';
+          return $prefix . '_(' . $timeLabel . ')';
+}
+
+function playlist_service_event_minute_value(array $event): int
+{
+          $minute = isset($event['minute']) ? (int)$event['minute'] : null;
+          if ($minute !== null && $minute >= 0) {
+                    return $minute;
+          }
+          $matchSecond = isset($event['match_second']) ? (int)$event['match_second'] : null;
+          if ($matchSecond !== null && $matchSecond >= 0) {
+                    return (int)floor($matchSecond / 60);
+          }
+          return 0;
 }
 
 function playlist_service_slugify_clip_component(string $value, string $fallback): string

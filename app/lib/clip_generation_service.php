@@ -5,6 +5,7 @@ require_once __DIR__ . '/clip_repository.php';
 require_once __DIR__ . '/phase3.php';
 require_once __DIR__ . '/video_lab_repository.php';
 require_once __DIR__ . '/match_version_service.php';
+require_once __DIR__ . '/playlist_service.php';
 
 function clip_generation_service_handle_event_save(array $match, array $event): void
 {
@@ -83,8 +84,8 @@ function clip_generation_service_handle_event_save(array $match, array $event): 
 
 function clip_generation_service_compute_bounds(int $matchSecond, int $durationSeconds): ?array
 {
-          $start = max(0, $matchSecond - 30);
-          $end = min($durationSeconds, $matchSecond + 30);
+          $start = max(0, $matchSecond - 15);
+          $end = min($durationSeconds, $matchSecond + 15);
 
           if ($end <= $start) {
                     return null;
@@ -95,21 +96,15 @@ function clip_generation_service_compute_bounds(int $matchSecond, int $durationS
 
 function clip_generation_service_build_clip_name(array $event): string
 {
-          $label = $event['event_type_label'] ?? ($event['event_type_key'] ?? 'Event');
-          $matchSecond = isset($event['match_second']) ? (int)$event['match_second'] : 0;
-          $name = trim($label);
+          $matchId = isset($event['match_id']) ? (int)$event['match_id'] : 0;
+          $name = generate_clip_name_from_event($event, $matchId);
 
-          if ($matchSecond > 0) {
-                    $name .= ' @ ' . $matchSecond . 's';
-          }
-
-          $name = $name !== '' ? $name : 'Auto clip';
           $maxLength = 110;
           if (mb_strlen($name) > $maxLength) {
                     $name = mb_substr($name, 0, $maxLength);
           }
 
-          return 'Auto clip – ' . $name;
+          return $name;
 }
 
 function clip_generation_service_record_snapshot(PDO $pdo, int $matchId, array $event): void
@@ -148,42 +143,48 @@ function clip_generation_service_insert_or_update_clip(
            $existing = get_clip_for_event($eventId);
            $createdBy = isset($event['created_by']) ? (int)$event['created_by'] : 0;
 
-            if ($existing) {
-                      if (($existing['generation_source'] ?? 'event_auto') !== 'event_auto') {
-                                return ['clip_id' => null, 'was_inserted' => false];
-                      }
+               if ($existing) {
+                    if (($existing['generation_source'] ?? 'event_auto') !== 'event_auto') {
+                         return ['clip_id' => null, 'was_inserted' => false];
+                    }
 
-                      clip_generation_service_update_clip($pdo, (int)$existing['id'], $startSecond, $endSecond, $createdBy);
-                      bump_clips_version((int)$match['id']);
-                      return ['clip_id' => (int)$existing['id'], 'was_inserted' => false];
-            }
+                    clip_generation_service_update_clip($pdo, (int)$existing['id'], $startSecond, $endSecond, $createdBy);
+                    bump_clips_version((int)$match['id']);
+                    // Update events.clip_id to point to this clip
+                    $stmt = $pdo->prepare('UPDATE events SET clip_id = :clip_id WHERE id = :event_id');
+                    $stmt->execute(['clip_id' => (int)$existing['id'], 'event_id' => $eventId]);
+                    return ['clip_id' => (int)$existing['id'], 'was_inserted' => false];
+               }
 
-            $result = create_clip(
-                    (int)$match['id'],
-                    (int)$match['club_id'],
-                    $createdBy,
-                    $eventId,
-                    [
-                              'clip_name' => $clipName,
-                              'start_second' => $startSecond,
-                              'end_second' => $endSecond,
-                    ],
-                    'event_auto'
-          );
+               $result = create_clip(
+                  (int)$match['id'],
+                  (int)$match['club_id'],
+                  $createdBy,
+                  $eventId,
+                  [
+                       'clip_name' => $clipName,
+                       'start_second' => $startSecond,
+                       'end_second' => $endSecond,
+                  ],
+                  'event_auto'
+             );
 
-          if (isset($result['clip']['id'])) {
-                    phase3_log_metrics([
-                              'clips_generated' => 1,
-                              'match_id' => (int)$match['id'],
-                              'event_id' => $eventId,
-                              'context' => 'auto-generation',
-                    ]);
-          }
+             if (isset($result['clip']['id'])) {
+                  // Update events.clip_id to point to this clip
+                  $stmt = $pdo->prepare('UPDATE events SET clip_id = :clip_id WHERE id = :event_id');
+                  $stmt->execute(['clip_id' => (int)$result['clip']['id'], 'event_id' => $eventId]);
+                  phase3_log_metrics([
+                       'clips_generated' => 1,
+                       'match_id' => (int)$match['id'],
+                       'event_id' => $eventId,
+                       'context' => 'auto-generation',
+                  ]);
+             }
 
-                      return [
-                                'clip_id' => isset($result['clip']['id']) ? (int)$result['clip']['id'] : null,
-                                'was_inserted' => isset($result['clip']['id']),
-                      ];
+             return [
+                  'clip_id' => isset($result['clip']['id']) ? (int)$result['clip']['id'] : null,
+                  'was_inserted' => isset($result['clip']['id']),
+             ];
 }
 
 function clip_generation_service_update_clip(PDO $pdo, int $clipId, int $startSecond, int $endSecond, int $userId): void

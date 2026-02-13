@@ -33,6 +33,7 @@ function add_csp_nonce_to_inline_scripts(string $html, string $nonce): string
           <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">
           <link href="<?= htmlspecialchars($base) ?>/assets/css/tailwind.css<?= asset_version('/assets/css/tailwind.css') ?>" rel="stylesheet">
           <link href="<?= htmlspecialchars($base) ?>/assets/css/app.css<?= asset_version('/assets/css/app.css') ?>" rel="stylesheet">
+          <link href="<?= htmlspecialchars($base) ?>/assets/css/ui-system.css<?= asset_version('/assets/css/ui-system.css') ?>" rel="stylesheet">
           <link href="<?= htmlspecialchars($base) ?>/assets/css/toast.css<?= asset_version('/assets/css/toast.css') ?>" rel="stylesheet">
           <!-- Removed missing forms.css to avoid 404 -->
           <?= add_csp_nonce_to_inline_scripts($headExtras ?? '', $cspNonce) ?>

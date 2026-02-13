@@ -132,15 +132,29 @@ foreach ($h2hMatches as $match) {
                     $h2hStats['draws']++;
           }
 }
-$h2hPlayed = max(1, $h2hStats['played']);
+ $h2hPlayed = max(1, $h2hStats['played']);
 $teamWinPct = (int)round(($h2hStats['team']['wins'] / $h2hPlayed) * 100);
 $teamHomeWinPct = (int)round(($h2hStats['team']['home_wins'] / $h2hPlayed) * 100);
 $teamAwayWinPct = (int)round(($h2hStats['team']['away_wins'] / $h2hPlayed) * 100);
 $oppWinPct = (int)round(($h2hStats['opponent']['wins'] / $h2hPlayed) * 100);
 $oppHomeWinPct = (int)round(($h2hStats['opponent']['home_wins'] / $h2hPlayed) * 100);
 $oppAwayWinPct = (int)round(($h2hStats['opponent']['away_wins'] / $h2hPlayed) * 100);
+
+$headerTitle = 'Team Intelligence';
+$headerDescription = $teamInsights['team_name'] ?? '';
+$headerButtons = [];
+if (!empty($currentTeamId)) {
+    $headerButtons[] = '<a href="/api/league-intelligence/team_report_pdf.php?team_id=' . urlencode($currentTeamId)
+        . ($selectedSeasonId ? '&season_id=' . urlencode($selectedSeasonId) : '')
+        . ($selectedCompetitionId ? '&competition_id=' . urlencode($selectedCompetitionId) : '')
+        . ($clubContextId ? '&club_id=' . urlencode($clubContextId) : '')
+        . '" class="justify-start text-left px-4 py-2.5 text-sm font-medium rounded-lg border transition-all duration-200 bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20 flex">Export PDF</a>';
+}
+
 ?>
-<?php ob_start(); ?>
+<?php ob_start(); 
+
+include __DIR__ . '/../../partials/header.php';?>
 <div class="w-full mt-4 text-slate-200">
     <div class="max-w-full">
         <div class="grid grid-cols-12 gap-2 px-4 md:px-6 lg:px-8 w-full">
@@ -149,7 +163,7 @@ $oppAwayWinPct = (int)round(($h2hStats['opponent']['away_wins'] / $h2hPlayed) * 
                 <div class="space-y-2">
                     <a href="<?= htmlspecialchars($overviewLink) ?>" class="btn-flat text-xs uppercase tracking-[0.3em] w-full block mb-2">League overview</a>
                     <label class="block text-slate-400 text-xs mb-1">Team
-                        <select class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs" onchange="if (this.value) window.location.href = this.value;">
+                        <select class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs" data-team-select>
                             <?php foreach ($teamNavigation as $team): ?>
                                 <option value="<?= htmlspecialchars($base . '/league-intelligence/team/' . $team['team_id'] . $filterQuery) ?>" <?= (isset($teamInsights['team_id']) && $teamInsights['team_id'] == $team['team_id']) ? 'selected' : '' ?>>
                                     <?= sprintf('#%d %s', (int)$team['position'], htmlspecialchars($team['team_name'])) ?>
@@ -180,13 +194,6 @@ $oppAwayWinPct = (int)round(($h2hStats['opponent']['away_wins'] / $h2hPlayed) * 
             </aside>
             <!-- Main Content -->
             <main class="col-span-7 space-y-5 min-w-0">
-                <header class="flex flex-col gap-3">
-                    <p class="text-xs font-semibold tracking-[0.3em] uppercase text-slate-500">Team profile</p>
-                    <h1 class="text-3xl font-semibold text-white"><?= htmlspecialchars($teamInsights['team_name'] ?? 'Team') ?></h1>
-                    <p class="text-sm text-slate-400">
-                        <?= htmlspecialchars($selectedCompetition['name'] ?? 'League view') ?> · <?= htmlspecialchars($selectedSeason['name'] ?? 'Season overview') ?>
-                    </p>
-                </header>
                               <section class="rounded-xl border border-border-soft bg-bg-secondary p-5 shadow space-y-4">
                                         <p class="text-xs uppercase tracking-[0.3em] text-slate-500">Form &amp; momentum</p>
                                         <div class="space-y-4">
@@ -317,7 +324,7 @@ $oppAwayWinPct = (int)round(($h2hStats['opponent']['away_wins'] / $h2hPlayed) * 
                                                             <?php foreach ($activeFilters as $key => $value): ?>
                                                                       <input type="hidden" name="<?= htmlspecialchars($key) ?>" value="<?= htmlspecialchars((string)$value) ?>">
                                                             <?php endforeach; ?>
-                                                            <select name="h2h_team_id" class="rounded-md bg-slate-900/60 border border-white/20 px-2 py-1" onchange="this.form.submit()">
+                                                            <select name="h2h_team_id" class="rounded-md bg-slate-900/60 border border-white/20 px-2 py-1" data-h2h-select>
                                                                       <?php foreach ($h2hTeams as $team): ?>
                                                                                 <option value="<?= (int)$team['team_id'] ?>" <?= $h2hTeamId === (int)$team['team_id'] ? 'selected' : '' ?>><?= htmlspecialchars($team['team_name']) ?></option>
                                                                       <?php endforeach; ?>
@@ -538,24 +545,24 @@ $oppAwayWinPct = (int)round(($h2hStats['opponent']['away_wins'] / $h2hPlayed) * 
                         </div>
                     </div>
                     <div>
-                        <p class="text-xs uppercase tracking-[0.3em] text-slate-500">Performance profile</p>
-                        <div class="mt-3 grid grid-cols-1 gap-3">
-                            <article class="rounded-2xl border border-white/5 bg-white/5 p-4">
-                                <p class="text-xs text-slate-400">Goals for</p>
+                        <p class="text-xs uppercase tracking-[0.3em] text-slate-500 mb-2">Performance profile</p>
+                        <div class="rounded-2xl border border-white/5 bg-white/10 p-4 grid grid-cols-2 gap-4 text-center">
+                            <div>
+                                <p class="text-xs text-slate-400 mb-1">Goals for</p>
                                 <p class="text-2xl font-semibold text-white"><?= (int)($teamInsights['goals_for'] ?? 0) ?></p>
-                            </article>
-                            <article class="rounded-2xl border border-white/5 bg-white/5 p-4">
-                                <p class="text-xs text-slate-400">Goals against</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-slate-400 mb-1">Goals against</p>
                                 <p class="text-2xl font-semibold text-white"><?= (int)($teamInsights['goals_against'] ?? 0) ?></p>
-                            </article>
-                            <article class="rounded-2xl border border-white/5 bg-white/5 p-4">
-                                <p class="text-xs text-slate-400">Clean sheets</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-slate-400 mb-1">Clean sheets</p>
                                 <p class="text-2xl font-semibold text-white"><?= (int)($teamInsights['clean_sheets'] ?? 0) ?></p>
-                            </article>
-                            <article class="rounded-2xl border border-white/5 bg-white/5 p-4">
-                                <p class="text-xs text-slate-400">Avg goals / match</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-slate-400 mb-1">Avg goals / match</p>
                                 <p class="text-2xl font-semibold text-white"><?= number_format((float)($teamInsights['average_goals_per_match'] ?? 0), 2) ?></p>
-                            </article>
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -566,68 +573,5 @@ $oppAwayWinPct = (int)round(($h2hStats['opponent']['away_wins'] / $h2hPlayed) * 
 <?php
 $content = ob_get_clean();
 require __DIR__ . '/../../layout.php';
-
 ?>
-<script>
-(function() {
-    function initPager(key) {
-        const body = document.querySelector(`[data-pager="${key}"]`);
-        const controls = document.querySelector(`[data-pager-controls="${key}"]`);
-        if (!body || !controls) {
-            return;
-        }
-
-        const perPage = parseInt(body.getAttribute('data-per-page'), 10) || 6;
-        const rows = Array.from(body.querySelectorAll('tr'));
-        const totalPages = Math.max(1, Math.ceil(rows.length / perPage));
-        let currentPage = 1;
-
-        const info = controls.querySelector(`[data-pager-info="${key}"]`);
-        const prev = controls.querySelector(`[data-pager-prev="${key}"]`);
-        const next = controls.querySelector(`[data-pager-next="${key}"]`);
-
-        function render() {
-            const start = (currentPage - 1) * perPage;
-            const end = start + perPage;
-            rows.forEach((row, index) => {
-                row.classList.toggle('hidden', index < start || index >= end);
-            });
-            if (info) {
-                info.textContent = `Page ${currentPage} of ${totalPages}`;
-            }
-            if (prev) {
-                prev.disabled = currentPage === 1;
-                prev.classList.toggle('opacity-50', currentPage === 1);
-                prev.classList.toggle('pointer-events-none', currentPage === 1);
-            }
-            if (next) {
-                next.disabled = currentPage === totalPages;
-                next.classList.toggle('opacity-50', currentPage === totalPages);
-                next.classList.toggle('pointer-events-none', currentPage === totalPages);
-            }
-        }
-
-        if (prev) {
-            prev.addEventListener('click', () => {
-                if (currentPage > 1) {
-                    currentPage--;
-                    render();
-                }
-            });
-        }
-        if (next) {
-            next.addEventListener('click', () => {
-                if (currentPage < totalPages) {
-                    currentPage++;
-                    render();
-                }
-            });
-        }
-
-        render();
-    }
-
-    initPager('results');
-    initPager('fixtures');
-})();
-</script>
+<script src="/assets/js/league-intel-team.js"></script>

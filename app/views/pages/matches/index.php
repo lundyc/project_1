@@ -7,7 +7,6 @@ require_once __DIR__ . '/../../../lib/csrf.php';
 
 $user = current_user();
 $roles = $_SESSION['roles'] ?? [];
-$matches = get_matches_for_user($user);
 $canManage = can_manage_matches($user, $roles);
 $base = base_path();
 
@@ -82,15 +81,8 @@ $competitionTypeFilter = trim((string)($_GET['competition_type'] ?? ''));
 $dateFrom = trim((string)($_GET['date_from'] ?? ''));
 $dateTo = trim((string)($_GET['date_to'] ?? ''));
 
-$totalMatches = count($matches);
-$statusCounts = [];
-foreach ($matches as $match) {
-    $matchStatus = strtolower(trim((string)($match['status'] ?? '')));
-    if ($matchStatus === '') {
-        $matchStatus = 'draft';
-    }
-    $statusCounts[$matchStatus] = ($statusCounts[$matchStatus] ?? 0) + 1;
-}
+$statusCounts = get_match_status_counts_for_user((int)$user['id']);
+$totalMatches = array_sum($statusCounts);
 
 $statusOrder = ['ready', 'draft'];
 $orderedStatuses = [];
@@ -106,74 +98,26 @@ foreach ($statusCounts as $status => $count) {
     $orderedStatuses[$status] = $count;
 }
 
-$searchNormalized = strtolower($searchQuery);
-$filteredMatches = array_values(
-    array_filter($matches, function (array $match) use ($searchNormalized, $statusFilter, $opponentFilter, $competitionTypeFilter, $dateFrom, $dateTo) {
-        // Status filter
-        if ($statusFilter !== '') {
-            $matchStatus = strtolower(trim((string)($match['status'] ?? '')));
-            if ($matchStatus === '') {
-                $matchStatus = 'draft';
-            }
-            if ($matchStatus !== $statusFilter) {
-                return false;
-            }
-        }
-        // Opponent filter
-        if ($opponentFilter !== '') {
-            $home = strtolower(trim((string)($match['home_team'] ?? '')));
-            $away = strtolower(trim((string)($match['away_team'] ?? '')));
-            if ($opponentFilter !== $home && $opponentFilter !== $away) {
-                return false;
-            }
-        }
-        // Competition type filter
-        if ($competitionTypeFilter !== '') {
-            $competition = strtolower(trim((string)($match['competition'] ?? '')));
-            if ($competitionTypeFilter === 'league' && strpos($competition, 'league') === false) {
-                return false;
-            }
-            if ($competitionTypeFilter === 'cups' && strpos($competition, 'cup') === false) {
-                return false;
-            }
-        }
-        // Date range filter
-        if ($dateFrom !== '' || $dateTo !== '') {
-            $kickoff = $match['kickoff_at'] ?? null;
-            if ($kickoff) {
-                $kickoffDate = date('Y-m-d', strtotime($kickoff));
-                if ($dateFrom !== '' && $kickoffDate < $dateFrom) {
-                    return false;
-                }
-                if ($dateTo !== '' && $kickoffDate > $dateTo) {
-                    return false;
-                }
-            } else {
-                return false;
-            }
-        }
-        // Search query
-        if ($searchNormalized === '') {
-            return true;
-        }
-        $haystack = strtolower(implode(' ', [
-            $match['home_team'] ?? '',
-            $match['away_team'] ?? '',
-            $match['competition'] ?? '',
-            $match['venue'] ?? '',
-            $match['notes'] ?? '',
-        ]));
-        return str_contains($haystack, $searchNormalized);
-    })
-);
-$filteredMatchesCount = count($filteredMatches);
-
 $matchesPerPage = 10;
 $matchesPage = max(1, (int)($_GET['matches_page'] ?? 1));
-$matchesTotalPages = max(1, (int)ceil($filteredMatchesCount / $matchesPerPage));
-$matchesPage = min($matchesPage, $matchesTotalPages);
+$filters = [
+    'status' => $statusFilter,
+    'opponent' => $opponentFilter,
+    'competition_type' => $competitionTypeFilter,
+    'date_from' => $dateFrom,
+    'date_to' => $dateTo,
+    'search' => $searchQuery,
+];
 $matchesOffset = ($matchesPage - 1) * $matchesPerPage;
-$pagedMatches = array_slice($filteredMatches, $matchesOffset, $matchesPerPage);
+$matchResult = get_paginated_matches_for_user((int)$user['id'], $filters, $matchesPerPage, $matchesOffset);
+$filteredMatchesCount = (int)($matchResult['total'] ?? 0);
+$matchesTotalPages = max(1, (int)ceil($filteredMatchesCount / $matchesPerPage));
+if ($matchesPage > $matchesTotalPages) {
+    $matchesPage = $matchesTotalPages;
+    $matchesOffset = ($matchesPage - 1) * $matchesPerPage;
+    $matchResult = get_paginated_matches_for_user((int)$user['id'], $filters, $matchesPerPage, $matchesOffset);
+}
+$pagedMatches = $matchResult['data'] ?? [];
 
 $fixturesPerPage = 5;
 $fixturesPage = max(1, (int)($_GET['fixtures_page'] ?? 1));
@@ -257,13 +201,7 @@ include __DIR__ . '/../../partials/header.php';
                             <select id="opponent-filter" name="opponent" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs">
                                 <option value="">All Opponents</option>
                                 <?php
-                                $opponents = [];
-                                foreach ($matches as $m) {
-                                    $home = trim($m['home_team'] ?? '');
-                                    $away = trim($m['away_team'] ?? '');
-                                    if ($home !== '' && !in_array($home, $opponents, true)) $opponents[] = $home;
-                                    if ($away !== '' && !in_array($away, $opponents, true)) $opponents[] = $away;
-                                }
+                                $opponents = get_match_opponents_for_user((int)$user['id']);
                                 sort($opponents, SORT_NATURAL | SORT_FLAG_CASE);
                                 foreach ($opponents as $opponent): ?>
                                     <option value="<?= htmlspecialchars($opponent) ?>" <?= $opponentFilter === $opponent ? 'selected' : '' ?>><?= htmlspecialchars($opponent) ?></option>
@@ -490,8 +428,9 @@ include __DIR__ . '/../../partials/header.php';
                             <?php
                             // Build set of existing match IDs to check against
                             $existingMatchIds = [];
-                            foreach ($matches as $match) {
-                                $existingMatchIds[(int)$match['id']] = true;
+                            $matchIds = get_match_ids_for_user((int)$user['id']);
+                            foreach ($matchIds as $matchIdValue) {
+                                $existingMatchIds[(int)$matchIdValue] = true;
                             }
                             ?>
                             <div class="space-y-2">

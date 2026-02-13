@@ -226,22 +226,21 @@ class StatsService
                 COALESCE(ht.name, "Home") AS home_team,
                 COALESCE(at.name, "Away") AS away_team,
                 COALESCE(c.name, "") AS competition,
-                COALESCE((
-                    SELECT COUNT(*) FROM events e
-                    WHERE e.match_id = m.id
-                      AND e.team_side = "home"
-                      AND e.event_type_id = :goal_type_id
-                ), 0) AS home_goals,
-                COALESCE((
-                    SELECT COUNT(*) FROM events e
-                    WHERE e.match_id = m.id
-                      AND e.team_side = "away"
-                      AND e.event_type_id = :goal_type_id2
-                ), 0) AS away_goals
+                COALESCE(eg.home_goals, 0) AS home_goals,
+                COALESCE(eg.away_goals, 0) AS away_goals
             FROM matches m
             LEFT JOIN teams ht ON ht.id = m.home_team_id
             LEFT JOIN teams at ON at.id = m.away_team_id
             LEFT JOIN competitions c ON c.id = m.competition_id
+            LEFT JOIN (
+                SELECT 
+                    e.match_id,
+                    SUM(CASE WHEN e.team_side = "home" THEN 1 ELSE 0 END) AS home_goals,
+                    SUM(CASE WHEN e.team_side = "away" THEN 1 ELSE 0 END) AS away_goals
+                FROM events e
+                WHERE e.event_type_id = :goal_type_id
+                GROUP BY e.match_id
+            ) eg ON eg.match_id = m.id
             WHERE m.club_id = :club_id AND m.status = "ready"
             ORDER BY m.kickoff_at DESC, m.id DESC
             LIMIT :limit
@@ -249,7 +248,6 @@ class StatsService
         $stmt = $this->pdo->prepare($sql);
         $stmt->bindValue(':club_id', $this->clubId, \PDO::PARAM_INT);
         $stmt->bindValue(':goal_type_id', $goalTypeId, \PDO::PARAM_INT);
-        $stmt->bindValue(':goal_type_id2', $goalTypeId, \PDO::PARAM_INT);
         $stmt->bindValue(':limit', $limit, \PDO::PARAM_INT);
         $stmt->execute();
         $matches = $stmt->fetchAll(\PDO::FETCH_ASSOC);

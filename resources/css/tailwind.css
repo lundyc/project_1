@@ -1,3 +1,20 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Fix for drag-and-drop bug: ensure draggable matrix types are always on top */
+.matrix-type--draggable {
+          position: relative;
+          z-index: 1000 !important;
+          pointer-events: auto !important;
+          user-select: none !important;
+          -webkit-user-drag: element !important;
+          min-height: 32px !important;
+          min-width: 80px !important;
+          background: rgba(0, 0, 0, 0.01) !important;
+          border: 2px dashed #f59e42 !important;
+          /* DEBUG: orange border */
+          transform: translateZ(0) !important;
+          will-change: transform;
+}
+}

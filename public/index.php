@@ -97,18 +97,9 @@ route('/league-intelligence/(\d+)/match-preview', function ($matchId) {
     require __DIR__ . '/../app/views/pages/league-intelligence/match-preview.php';
 });
 
-require_once __DIR__ . '/../app/lib/auth.php';
-require_once __DIR__ . '/../app/lib/router.php';
-require_once __DIR__ . '/../app/lib/phase3.php';
-require_once __DIR__ . '/../app/middleware/require_admin.php';
-
-auth_boot();
-require_once __DIR__ . '/../app/routes/admin_players.php';
-require_once __DIR__ . '/../app/routes/admin_playlists.php';
-
 route('/', function () {
-    require_auth();
-    redirect('/matches');
+          require_auth();
+          redirect('/matches');
 });
 
 route('/login', function () {
@@ -888,6 +879,11 @@ route('/api/matches/(\d+)/clips/create', function ($matchId) {
 
 route('/api/matches/(\d+)/clips/delete', function ($matchId) {
           require __DIR__ . '/../app/api/matches/clips_delete.php';
+          return true;
+});
+
+route('/api/matches/(\d+)/clips/regenerate_all', function ($matchId) {
+          require __DIR__ . '/../app/api/matches/clips/regenerate_all.php';
           return true;
 });
 

@@ -1,0 +1,119 @@
+.ui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-soft);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-weight: 600;
+  line-height: 1;
+  padding: 0.55rem 1rem;
+  transition: transform 0.08s ease, border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+
+.ui-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.ui-btn:disabled,
+.ui-btn[aria-disabled="true"] {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.ui-btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0b1020;
+}
+
+.ui-btn--primary:hover {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+  color: #0b1020;
+}
+
+.ui-btn--secondary {
+  background: var(--bg-surface);
+  border-color: var(--border-soft);
+  color: var(--text-primary);
+}
+
+.ui-btn--danger {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #fecdd3;
+}
+
+.ui-btn--danger:hover {
+  color: #ffe4e6;
+  border-color: rgba(239, 68, 68, 0.75);
+}
+
+.ui-btn--ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-primary);
+}
+
+.ui-btn--sm {
+  font-size: 0.875rem;
+  padding: 0.4rem 0.8rem;
+}
+
+.ui-btn--lg {
+  font-size: 1rem;
+  padding: 0.7rem 1.2rem;
+}
+
+.ui-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+}
+
+.ui-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.ui-card__title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.ui-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.ui-table th,
+.ui-table td {
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid var(--border-soft);
+  text-align: left;
+  font-size: 0.9rem;
+}
+
+.ui-table th {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.ui-table tr:last-child td {
+  border-bottom: none;
+}

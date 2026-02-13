@@ -20,10 +20,10 @@
   if (!video.hasAttribute('poster')) {
     video.setAttribute('poster', '/assets/img/video-poster.png'); // Use a default poster if available
   }
-  if (!video.hasAttribute('muted')) {
-    video.setAttribute('muted', '');
-    video.muted = true;
+  if (video.hasAttribute('muted')) {
+    video.removeAttribute('muted');
   }
+  video.muted = false;
   if (!video.hasAttribute('playsinline')) {
     video.setAttribute('playsinline', '');
   }

@@ -222,6 +222,7 @@ $deskConfig = [
         'periodsList' => $base . '/api/matches/' . (int)$match['id'] . '/periods', // For deferred/interactive fetches only
         'clipCreate' => $base . '/api/matches/' . (int)$match['id'] . '/clips/create',
         'clipDelete' => $base . '/api/matches/' . (int)$match['id'] . '/clips/delete',
+        'clipRegenerateAll' => $base . '/api/matches/' . (int)$match['id'] . '/clips/regenerate_all',
         'playlistsList' => $base . '/api/matches/' . (int)$match['id'] . '/playlists',
         'playlistCreate' => $base . '/api/matches/' . (int)$match['id'] . '/playlists/create',
         'playlistClipsAdd' => $base . '/api/matches/' . (int)$match['id'] . '/playlists/clips/add',
@@ -744,10 +745,11 @@ ob_start();
                                             <ul id="deskSpeedOptions" class="speed-options" role="menu"></ul>
                                         </div>
                                         <span class="control-btn-shell">
-                                            <button id="deskMuteToggle" class="control-btn" aria-label="Toggle mute" aria-describedby="tooltip-deskMuteToggle">
-                                                <i class="fa-solid fa-volume-high" aria-hidden="true"></i>
+                                            <button id="deskVolumeButton" class="control-btn" aria-label="Volume" aria-describedby="tooltip-deskVolumeButton">
+                                                <i class="fa-solid fa-volume-off" aria-hidden="true"></i>
                                             </button>
-                                            <div id="tooltip-deskMuteToggle" role="tooltip" class="video-control-tooltip">Mute</div>
+                                            <div id="tooltip-deskVolumeButton" role="tooltip" class="video-control-tooltip">Volume</div>
+                                            <input id="deskVolumeSlider" type="range" min="0" max="1" step="0.01" value="1" style="width:80px;vertical-align:middle;display:none;">
                                         </span>
                                         <span class="control-btn-shell">
                                             <button id="deskFullscreen" class="control-btn" aria-label="Toggle fullscreen" aria-describedby="tooltip-deskFullscreen">
@@ -1473,10 +1475,10 @@ ob_start();
                                                             <i class="fa-solid fa-plus"></i>
                                                         </button>
                                                     </div>
-                                                    <div class="mb-4">
+                                                    <div id="playlistSearchRow" class="mb-4">
                                                         <input id="playlistSearchInput" class="input-dark w-full" type="text" placeholder="Search playlists…" autocomplete="off">
                                                     </div>
-                                                    <div id="playlistList" class="flex-1 overflow-y-auto pr-1">
+                                                    <div id="playlistList" class="playlist-list flex-1 overflow-y-auto pr-1">
                                                         <!-- Playlists will be rendered here -->
                                                         <div class="text-slate-500 text-sm py-8 text-center">Loading playlists…</div>
                                                     </div>

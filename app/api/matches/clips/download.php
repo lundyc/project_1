@@ -66,8 +66,8 @@ try {
                     $event = event_get_by_id((int)$clip['event_id']);
                     if ($event) {
                               $eventSecond = (int)($event['match_second'] ?? 0);
-                              $start = max(0, $eventSecond - 30);
-                              $end = $eventSecond + 30;
+                              $start = max(0, $eventSecond - 15);
+                              $end = $eventSecond + 15;
                               $duration = $end - $start;
                     }
           }

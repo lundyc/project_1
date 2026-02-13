@@ -42,8 +42,8 @@ class ClipJobService
                               self::logClipJobDecision($matchId, $eventId, 'non_positive_match_second');
                               return;
                     }
-                    $startSecond = max(0, $matchSecond - 30);
-                    $durationSeconds = 60;
+                    $startSecond = max(0, $matchSecond - 15);
+                    $durationSeconds = 30;
 
                     $pdo = db();
                     if (self::clipJobExists($pdo, $eventId)) {
