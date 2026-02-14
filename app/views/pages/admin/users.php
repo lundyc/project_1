@@ -22,10 +22,36 @@ ob_start();
     $pageDescription = 'Create users, assign clubs, and grant roles.';
     include __DIR__ . '/../../partials/club_context_header.php';
 ?>
-<div class="flex items-center justify-end mb-6 gap-2 flex-wrap">
-    <button type="button" class="btn btn-secondary-soft btn-sm">List view</button>
-    <button type="button" class="btn btn-secondary-soft btn-sm">Segment</button>
-    <button type="button" class="btn btn-primary-soft btn-sm">+ Add user</button>
+        <div class="flex justify-end mb-4 px-4 md:px-6 lg:px-8">
+            <a href="#user-create" class="btn-primary-soft px-4 py-2 text-sm font-semibold rounded-md">+ Add User</a>
+        </div>
+        <div class="grid grid-cols-12 gap-2 px-4 md:px-6 lg:px-8 w-full">
+            <!-- Left: Filters -->
+            <aside class="col-span-2 space-y-4 min-w-0">
+                <form method="get" class="space-y-4">
+                    <div>
+                        <label class="block text-slate-400 text-xs mb-1">Email</label>
+                        <input type="text" name="email" placeholder="Contains" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-white/30">
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 text-xs mb-1">First name</label>
+                        <input type="text" name="first_name" placeholder="Starts with" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-white/30">
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 text-xs mb-1">Last name</label>
+                        <input type="text" name="last_name" placeholder="Starts with" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-white/30">
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 text-xs mb-1">Tags</label>
+                        <input type="text" name="tags" placeholder="VIP, Finance, Manager" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-white/30">
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 text-xs mb-1">Client ID</label>
+                        <input type="text" name="client_id" placeholder="Exact match" class="block w-full rounded-md bg-slate-900/60 border border-white/20 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-white/30">
+                    </div>
+                    <div class="flex gap-2">
+                        <button type="submit" class="btn btn-primary-soft btn-sm flex-1">Apply</button>
+                        <a href="<?= htmlspecialchars($base) ?>/admin/users" class="btn btn-secondary-soft btn-sm flex-1">Clear</a>
 </div>
 
 <?php if ($error): ?>
