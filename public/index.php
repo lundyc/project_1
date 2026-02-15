@@ -111,6 +111,11 @@ route('/api/login', function () {
           require __DIR__ . '/../app/api/login.php';
 });
 
+route('/api/penalties', function () {
+          require_auth();
+          require __DIR__ . '/../app/api/penalties/create.php';
+});
+
 route('/logout', function () {
           require __DIR__ . '/../app/api/logout.php';
 });

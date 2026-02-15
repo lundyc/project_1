@@ -30,7 +30,7 @@ function get_outcome_options_by_event_type_id(PDO $db): array
                     'period_start' => [],
                     'period_end' => [],
                     'corner' => [],
-                    'free_kick' => [],
+                    'free_kick' => ['won', 'given'],
                     'penalty' => [],
           ];
 

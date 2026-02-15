@@ -214,6 +214,7 @@ $deskConfig = [
         'eventCreate' => $base . '/api/matches/' . (int)$match['id'] . '/events/create',
         'eventUpdate' => $base . '/api/matches/' . (int)$match['id'] . '/events/update',
         'eventDelete' => $base . '/api/matches/' . (int)$match['id'] . '/events/delete',
+        'penaltiesCreate' => $base . '/api/penalties',
         'undoEvent' => $base . '/api/events/undo',
         'redoEvent' => $base . '/api/events/redo',
         'periodsStart' => $base . '/api/matches/' . (int)$match['id'] . '/periods/start',
@@ -749,7 +750,7 @@ ob_start();
                                                 <i class="fa-solid fa-volume-off" aria-hidden="true"></i>
                                             </button>
                                             <div id="tooltip-deskVolumeButton" role="tooltip" class="video-control-tooltip">Volume</div>
-                                            <input id="deskVolumeSlider" type="range" min="0" max="1" step="0.01" value="1" style="width:80px;vertical-align:middle;display:none;">
+                                            <input id="deskVolumeSlider" type="range" min="0" max="1" step="0.01" value="1" style="height:80px;vertical-align:middle;display:none;">
                                         </span>
                                         <span class="control-btn-shell">
                                             <button id="deskFullscreen" class="control-btn" aria-label="Toggle fullscreen" aria-describedby="tooltip-deskFullscreen">
@@ -820,27 +821,28 @@ ob_start();
                                     <div class="panel-dark tagging-panel">
 
                                         <div class="period-controls period-controls-collapsed">
-                                            <div style="display:flex;flex-direction:column;gap:6px; width:100%;">
+                                            <div style="display:flex;flex-direction:row;gap:6px; width:100%;">
                                                 <button type="button"
                                                     class="ghost-btn ghost-btn-sm lineup-toggle-btn"
                                                     data-stats-modal-open
                                                     aria-haspopup="dialog"
                                                     aria-expanded="false"
-                                                    style="width:100%;">Stats</button>
-                                                <button type="button" 
-                                                    class="ghost-btn ghost-btn-sm lineup-toggle-btn" 
+                                                    style="flex:1 1 0;">Stats</button>
+                                                <button type="button"
+                                                    class="ghost-btn ghost-btn-sm lineup-toggle-btn"
                                                     data-lineup-modal-open
                                                     aria-haspopup="dialog"
                                                     aria-expanded="false"
                                                     aria-controls="lineupModal"
-                                                    style="width:100%;">Lineup</button>
+                                                    style="flex:1 1 0;">Lineup</button>
                                                 <button
                                                     class="ghost-btn ghost-btn-sm lineup-toggle-btn desk-editable period-modal-toggle"
                                                     type="button"
                                                     aria-haspopup="dialog"
                                                     aria-expanded="false"
                                                     aria-controls="periodsModal"
-                                                    aria-label="Open period controls" style="width:100%;">
+                                                    aria-label="Open period controls"
+                                                    style="flex:1 1 0;">
                                                     Periods
                                                 </button>
                                             </div>
@@ -848,6 +850,7 @@ ob_start();
 
                                         <div class="desk-event-groups">
                                             <div class="desk-section-label">Event Groups</div>
+                        
                                             <div id="quickTagBoard" class="qt-board"></div>
                                         </div>
 
@@ -948,6 +951,133 @@ ob_start();
                                         $awayStarters = array_values(array_filter($awayPlayers ?? [], fn($p) => (int)($p['is_starting'] ?? 0) === 1));
                                         $awayBench = array_values(array_filter($awayPlayers ?? [], fn($p) => (int)($p['is_starting'] ?? 0) !== 1));
                                         ?>
+                                        <!-- Free Kick Modal -->
+                                        <div id="freeKickModal" class="goal-player-modal free-kick-modal" role="dialog" aria-modal="true" aria-hidden="true" hidden>
+                                            <div class="goal-player-modal-backdrop" data-freekick-modal-close></div>
+                                            <div class="panel-dark goal-player-modal-card shot-modal-advanced free-kick-modal-card" role="document" style="max-width:90vw;width:90vw;min-width:600px;">
+                                                <div class="goal-player-modal-header">
+                                                    <div>
+                                                        <div class="text-sm text-subtle">Free Kick</div>
+                                                        <div class="text-xs text-muted-alt">Select player and outcome</div>
+                                                    </div>
+                                                    <div class="goal-player-modal-header-actions">
+                                                        <button type="button" class="editor-modal-close" data-freekick-modal-close aria-label="Close free kick modal">✕</button>
+                                                    </div>
+                                                </div>
+                                                <div class="free-kick-modal-body">
+                                                    <div class="shot-modal-columns free-kick-modal-columns" style="display:flex;gap:2.5rem;align-items:flex-start;">
+                                                        <div class="shot-modal-left free-kick-modal-left" style="flex:0 0 25%;min-width:200px;">
+                                                            <div class="mb-3">
+                                                                <label class="block text-xs font-semibold mb-1">Outcome</label>
+                                                                <div id="freeKickOutcomeList" class="shot-outcome-controls free-kick-outcomes">
+                                                                    <button type="button" class="ghost-btn shot-outcome-btn freekick-outcome-btn desk-editable" data-freekick-outcome="won">Won</button>
+                                                                    <button type="button" class="ghost-btn shot-outcome-btn freekick-outcome-btn desk-editable" data-freekick-outcome="given">Given Away</button>
+                                                                </div>
+                                                                <div id="freeKickOutcomeHint" class="free-kick-outcome-hint" hidden>
+                                                                    Select an outcome before choosing a player.
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div class="shot-modal-right free-kick-modal-right" style="flex:1 1 75%;min-width:320px;">
+                                                            <div class="mb-3">
+                                                                <label class="block text-xs font-semibold mb-1">Player</label>
+                                                                <div id="freeKickPlayerList" class="goal-player-modal-list free-kick-player-list"></div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="free-kick-modal-footer">
+                                                    <button type="button" class="btn btn-sm btn-secondary" data-freekick-modal-close>Cancel</button>
+                                                    <button type="button" class="btn btn-sm btn-primary" id="freeKickModalSaveBtn" disabled>Save</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <!-- End Free Kick Modal -->
+                                        <!-- Penalty Modal -->
+                                        <div id="penaltyModal" class="goal-player-modal penalty-modal" role="dialog" aria-modal="true" aria-hidden="true" hidden>
+                                            <div class="goal-player-modal-backdrop" data-penalty-modal-close></div>
+                                            <div class="panel-dark goal-player-modal-card penalty-modal-card" role="document" style="max-width:90vw;width:90vw;min-width:600px;">
+                                                <div class="goal-player-modal-header">
+                                                    <div>
+                                                        <div class="text-sm text-subtle">Penalty</div>
+                                                        <div class="text-xs text-muted-alt">Record taker, outcome, and placement</div>
+                                                    </div>
+                                                    <div class="goal-player-modal-header-actions">
+                                                        <button type="button" class="editor-modal-close" data-penalty-modal-close aria-label="Close penalty modal">✕</button>
+                                                    </div>
+                                                </div>
+                                                <form id="penaltyForm" class="penalty-modal-body">
+                                                    <div class="penalty-modal-grid">
+                                                        <div class="penalty-field">
+                                                            <label class="block text-xs font-semibold mb-1" for="penalty_taker">Taker</label>
+                                                            <select id="penalty_taker" class="input-dark" required></select>
+                                                        </div>
+                                                        <div class="penalty-field">
+                                                            <label class="block text-xs font-semibold mb-1" for="penalty_fouled">Fouled Player</label>
+                                                            <select id="penalty_fouled" class="input-dark"></select>
+                                                        </div>
+                                                        <div class="penalty-field">
+                                                            <label class="block text-xs font-semibold mb-1" for="penalty_fouler">Fouler</label>
+                                                            <select id="penalty_fouler" class="input-dark"></select>
+                                                        </div>
+                                                        <div class="penalty-field">
+                                                            <label class="block text-xs font-semibold mb-1" for="penalty_goalkeeper">Goalkeeper</label>
+                                                            <select id="penalty_goalkeeper" class="input-dark"></select>
+                                                        </div>
+                                                        <div class="penalty-field">
+                                                            <label class="block text-xs font-semibold mb-1" for="penalty_outcome">Outcome</label>
+                                                            <select id="penalty_outcome" class="input-dark" required>
+                                                                <option value="">Select outcome</option>
+                                                                <option value="scored">Scored</option>
+                                                                <option value="saved">Saved</option>
+                                                                <option value="missed">Missed</option>
+                                                                <option value="post">Post</option>
+                                                                <option value="retaken">Retaken</option>
+                                                            </select>
+                                                        </div>
+                                                        <div class="penalty-field">
+                                                            <label class="block text-xs font-semibold mb-1" for="penalty_keeper_dive_direction">Keeper Dive</label>
+                                                            <select id="penalty_keeper_dive_direction" class="input-dark">
+                                                                <option value="">Select direction (optional)</option>
+                                                                <option value="left">Left</option>
+                                                                <option value="center">Center</option>
+                                                                <option value="right">Right</option>
+                                                                <option value="up_left">Up Left</option>
+                                                                <option value="up_center">Up Center</option>
+                                                                <option value="up_right">Up Right</option>
+                                                                <option value="down_left">Down Left</option>
+                                                                <option value="down_center">Down Center</option>
+                                                                <option value="down_right">Down Right</option>
+                                                            </select>
+                                                        </div>
+                                                        <div class="penalty-field penalty-field-full">
+                                                            <label class="block text-xs font-semibold mb-2">Placement Zone</label>
+                                                            <input type="hidden" id="penalty_placement_zone" value="">
+                                                            <div class="penalty-zone-grid">
+                                                                <button type="button" class="ghost-btn penalty-zone-btn" data-penalty-zone="top_left">Top Left</button>
+                                                                <button type="button" class="ghost-btn penalty-zone-btn" data-penalty-zone="top_center">Top Center</button>
+                                                                <button type="button" class="ghost-btn penalty-zone-btn" data-penalty-zone="top_right">Top Right</button>
+                                                                <button type="button" class="ghost-btn penalty-zone-btn" data-penalty-zone="bottom_left">Bottom Left</button>
+                                                                <button type="button" class="ghost-btn penalty-zone-btn" data-penalty-zone="bottom_center">Bottom Center</button>
+                                                                <button type="button" class="ghost-btn penalty-zone-btn" data-penalty-zone="bottom_right">Bottom Right</button>
+                                                            </div>
+                                                        </div>
+                                                        <div class="penalty-field penalty-field-inline">
+                                                            <label class="inline-flex items-center gap-2 text-xs font-semibold" for="penalty_keeper_touched">
+                                                                <input type="checkbox" id="penalty_keeper_touched">
+                                                                Keeper touched ball
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                    <div id="penaltyModalError" class="text-xs text-danger mt-3" hidden></div>
+                                                    <div class="penalty-modal-footer">
+                                                        <button type="button" class="btn btn-sm btn-secondary" data-penalty-modal-close>Cancel</button>
+                                                        <button type="submit" class="btn btn-sm btn-primary" id="penaltyModalSaveBtn">Save</button>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                        </div>
+                                        <!-- End Penalty Modal -->
                                         <div id="lineupModal" class="periods-modal lineup-modal" role="dialog" aria-modal="true" aria-hidden="true" hidden>
                                             <div class="periods-modal-backdrop" data-lineup-modal-close></div>
                                             <div class="panel-dark periods-modal-card lineup-modal-card" role="document">

@@ -407,6 +407,429 @@ function tryHideDeskSkeleton() {
       const $cardPlayerList = $('#cardPlayerList');
       const $offsidePlayerModal = $('#offsidePlayerModal');
       const $offsidePlayerList = $('#offsidePlayerList');
+      // Free Kick Modal
+      const $freeKickModal = $('#freeKickModal');
+      const $freeKickPlayerList = $('#freeKickPlayerList');
+      const $freeKickOutcomeList = $('#freeKickOutcomeList');
+      const $freeKickModalSaveBtn = $('#freeKickModalSaveBtn');
+      const $freeKickOutcomeHint = $('#freeKickOutcomeHint');
+      let freeKickModalState = { playerId: null, outcome: null, payload: null, playerUnknown: false };
+      // Penalty Modal
+      const $penaltyModal = $('#penaltyModal');
+      const $penaltyForm = $('#penaltyForm');
+      const $penaltyTaker = $('#penalty_taker');
+      const $penaltyFouled = $('#penalty_fouled');
+      const $penaltyFouler = $('#penalty_fouler');
+      const $penaltyGoalkeeper = $('#penalty_goalkeeper');
+      const $penaltyOutcome = $('#penalty_outcome');
+      const $penaltyPlacement = $('#penalty_placement_zone');
+      const $penaltyKeeperDive = $('#penalty_keeper_dive_direction');
+      const $penaltyKeeperTouched = $('#penalty_keeper_touched');
+      const $penaltyModalError = $('#penaltyModalError');
+      const $penaltyModalSaveBtn = $('#penaltyModalSaveBtn');
+      let penaltyModalState = { payload: null, label: '', wasPlaying: false };
+      function renderFreeKickPlayerList() {
+            if (!$freeKickPlayerList.length) return;
+
+            const formatPlayerLabel = (player) => {
+                  const name = String(player.display_name || '').trim() || 'Player';
+                  const parts = name.split(/\s+/).filter(Boolean);
+                  const firstName = parts[0] || '';
+                  const surname = parts.length > 1 ? parts.slice(1).join(' ') : '';
+                  const shirtNumber = String(player.shirt_number || '').trim();
+                  const numberPrefix = shirtNumber ? `#${shirtNumber}` : '#';
+                  const fullName = surname ? `${firstName} ${surname}` : firstName;
+                  return `${numberPrefix} ${fullName}`.trim();
+            };
+
+            const allPlayers = Array.isArray(players) ? players : [];
+            const startingXI = allPlayers.filter((p) => p.is_starting === 1 || p.is_starting === true);
+            const substitutes = allPlayers.filter((p) => p.is_starting !== 1 && p.is_starting !== true);
+            const homeXI = startingXI.filter((p) => (p.team_side || 'unknown') === 'home');
+            const awayXI = startingXI.filter((p) => (p.team_side || 'unknown') === 'away');
+            const homeSubs = substitutes.filter((p) => (p.team_side || 'unknown') === 'home');
+            const awaySubs = substitutes.filter((p) => (p.team_side || 'unknown') === 'away');
+
+            const sortByShirt = (list) =>
+                  list.slice().sort((a, b) => {
+                        const shirtA = parseInt(a.shirt_number) || 999;
+                        const shirtB = parseInt(b.shirt_number) || 999;
+                        return shirtA - shirtB;
+                  });
+
+            const buildButtons = (list) =>
+                  sortByShirt(list)
+                        .map((player) => {
+                              const playerId = String(player.id || '');
+                              const label = formatPlayerLabel(player);
+                              return `<button type="button" class="goal-player-option" data-player-id="${h(playerId)}">${h(label)}</button>`;
+                        })
+                        .join('');
+
+            const homeHtml = buildButtons(homeXI);
+            const awayHtml = buildButtons(awayXI);
+            const homeSubsHtml = buildButtons(homeSubs);
+            const awaySubsHtml = buildButtons(awaySubs);
+
+            let html = '';
+            html += '<div class="free-kick-player-group">';
+            html += '<div class="free-kick-player-title">Unknown</div>';
+            html += '<div class="free-kick-player-grid">';
+            html += '<button type="button" class="goal-player-option" data-freekick-unknown>Unknown Player</button>';
+            html += '</div>';
+            html += '</div>';
+            html += '<div class="free-kick-player-group">';
+            html += '<div class="free-kick-player-title">Home XI</div>';
+            html += `<div class="free-kick-player-grid">${homeHtml || ''}</div>`;
+            html += '</div>';
+            html += '<div class="free-kick-player-group">';
+            html += '<div class="free-kick-player-title">Home Subs</div>';
+            html += `<div class="free-kick-player-grid">${homeSubsHtml || ''}</div>`;
+            html += '</div>';
+            html += '<div class="free-kick-player-group">';
+            html += '<div class="free-kick-player-title">Away XI</div>';
+            html += `<div class="free-kick-player-grid">${awayHtml || ''}</div>`;
+            html += '</div>';
+            html += '<div class="free-kick-player-group">';
+            html += '<div class="free-kick-player-title">Away Subs</div>';
+            html += `<div class="free-kick-player-grid">${awaySubsHtml || ''}</div>`;
+            html += '</div>';
+
+            $freeKickPlayerList.html(html);
+      }
+
+      function openFreeKickModal(payload, label) {
+            if (!$freeKickModal.length) return;
+            // Populate player list
+            renderFreeKickPlayerList();
+            // Reset outcome selection
+            $freeKickOutcomeList.find('.freekick-outcome-btn').removeClass('is-active');
+            $freeKickOutcomeList.removeClass('is-required');
+            $freeKickOutcomeHint.attr('hidden', true);
+            freeKickModalState = { playerId: null, outcome: null, payload: payload || {}, playerUnknown: false };
+            $freeKickModalSaveBtn.prop('disabled', true);
+            $freeKickModal.removeAttr('hidden').attr('aria-hidden', 'false').addClass('is-active');
+      }
+
+      function closeFreeKickModal() {
+            if (!$freeKickModal.length) return;
+            $freeKickModal.attr('aria-hidden', 'true').attr('hidden', 'hidden').removeClass('is-active');
+            freeKickModalState = { playerId: null, outcome: null, payload: null, playerUnknown: false };
+            $freeKickOutcomeList.removeClass('is-required');
+            $freeKickOutcomeHint.attr('hidden', true);
+      }
+
+      function buildPenaltyPlayerOptions(includeBlankLabel, { includeUnknown = false, sortByShirt = false } = {}) {
+            let sortedPlayers = getSortedPlayers();
+            if (sortByShirt) {
+                  sortedPlayers = sortedPlayers.slice().sort((a, b) => {
+                        const aNum = parseInt(a.shirt_number, 10);
+                        const bNum = parseInt(b.shirt_number, 10);
+                        if (!isNaN(aNum) && !isNaN(bNum)) {
+                              if (aNum !== bNum) return aNum - bNum;
+                        } else if (!isNaN(aNum)) {
+                              return -1;
+                        } else if (!isNaN(bNum)) {
+                              return 1;
+                        }
+                        return String(a.display_name || '').localeCompare(String(b.display_name || ''));
+                  });
+            }
+            const options = [];
+            const blankLabel = includeBlankLabel || 'Select player';
+            options.push(`<option value="">${h(blankLabel)}</option>`);
+            if (includeUnknown) {
+                  options.push('<option value="unknown">Unknown Player</option>');
+            }
+            sortedPlayers.forEach((player) => {
+                  const teamSide = player.team_side || 'unknown';
+                  const teamLabel = teamSideLabels[teamSide] || teamSideLabels.unknown;
+                  const shirt = player.shirt_number ? `#${player.shirt_number} ` : '';
+                  const name = player.display_name || 'Player';
+                  const label = `${shirt}${name} (${teamLabel})`;
+                  options.push(`<option value="${h(player.id)}">${h(label)}</option>`);
+            });
+            return options.join('');
+      }
+
+      function setPenaltyModalError(message) {
+            if (!$penaltyModalError.length) return;
+            if (!message) {
+                  $penaltyModalError.attr('hidden', true).text('');
+                  return;
+            }
+            $penaltyModalError.text(message).removeAttr('hidden');
+      }
+
+      function resetPenaltyForm() {
+            if (!$penaltyForm.length) return;
+            $penaltyTaker.html(buildPenaltyPlayerOptions('Select taker', { includeUnknown: true }));
+            $penaltyFouled.html(buildPenaltyPlayerOptions('None'));
+            $penaltyFouler.html(buildPenaltyPlayerOptions('None'));
+            $penaltyGoalkeeper.html(buildPenaltyPlayerOptions('None', { sortByShirt: true }));
+            $penaltyOutcome.val('');
+            $penaltyPlacement.val('');
+            $penaltyKeeperDive.val('');
+            $penaltyKeeperTouched.prop('checked', false);
+            $penaltyModal.find('.penalty-zone-btn').removeClass('is-selected');
+            setPenaltyModalError('');
+      }
+
+      function openPenaltyModal(payload, label) {
+            if (!$penaltyModal.length) return;
+            resetPenaltyForm();
+            penaltyModalState = { payload: payload || {}, label: label || 'Penalty', wasPlaying: false };
+            $penaltyModal.removeAttr('hidden').attr('aria-hidden', 'false').addClass('is-active');
+      }
+
+      function closePenaltyModal() {
+            if (!$penaltyModal.length) return;
+            $penaltyModal.attr('aria-hidden', 'true').attr('hidden', 'hidden').removeClass('is-active');
+            penaltyModalState = { payload: null, label: '', wasPlaying: false };
+            setPenaltyModalError('');
+      }
+
+      function resolvePenaltyEventTypeId() {
+            const types = cfg.eventTypes || [];
+            const found = types.find((t) => {
+                  const key = String(t.type_key || '').toLowerCase().replace(/[_\s]/g, '');
+                  return key === 'penalty' || key === 'spotkick';
+            });
+            return found ? found.id : null;
+      }
+
+      function submitPenaltyEvent() {
+            if (!penaltyModalState.payload) return;
+            if (!lockOwned || !cfg.canEditRole) {
+                  showError('Lock required to tag', 'Acquire lock to create events');
+                  return;
+            }
+            const takerValue = String($penaltyTaker.val() || '').trim();
+            const takerId = takerValue && takerValue !== 'unknown' ? parseInt(takerValue, 10) : null;
+            if (!takerValue) {
+                  setPenaltyModalError('Select a penalty taker.');
+                  return;
+            }
+            const outcome = String($penaltyOutcome.val() || '').trim();
+            if (!outcome) {
+                  setPenaltyModalError('Select an outcome.');
+                  return;
+            }
+
+            const eventTypeId = resolvePenaltyEventTypeId();
+            if (!eventTypeId) {
+                  setPenaltyModalError('Penalty event type is missing.');
+                  return;
+            }
+
+            const matchSecond = Number.isFinite(penaltyModalState.payload.match_second)
+                  ? Math.floor(penaltyModalState.payload.match_second)
+                  : getCurrentVideoSecond();
+
+            const eventPayload = {
+                  match_id: cfg.matchId,
+                  event_type_id: eventTypeId,
+                  match_second: matchSecond,
+                  team_side: currentTeam || 'home',
+                  match_player_id: takerId,
+                  importance: penaltyModalState.payload.importance || 3,
+                  phase: penaltyModalState.payload.phase || 'unknown',
+            };
+
+            const penaltiesUrl = endpoint('penaltiesCreate');
+            if (!penaltiesUrl) {
+                  setPenaltyModalError('Missing penalties endpoint.');
+                  return;
+            }
+
+            $penaltyModalSaveBtn.prop('disabled', true);
+            $.post(endpoint('eventCreate'), eventPayload)
+                  .done((res) => {
+                        if (!res || !res.ok || !res.event || !res.event.id) {
+                              setPenaltyModalError(res && res.error ? res.error : 'Unable to create penalty event.');
+                              $penaltyModalSaveBtn.prop('disabled', false);
+                              return;
+                        }
+
+                        const payload = {
+                              event_id: res.event.id,
+                              taker_match_player_id: takerId,
+                              fouled_match_player_id: $penaltyFouled.val() || null,
+                              fouler_match_player_id: $penaltyFouler.val() || null,
+                              goalkeeper_match_player_id: $penaltyGoalkeeper.val() || null,
+                              outcome,
+                              placement_zone: $penaltyPlacement.val() || null,
+                              keeper_dive_direction: $penaltyKeeperDive.val() || null,
+                              keeper_touched_ball: $penaltyKeeperTouched.is(':checked'),
+                        };
+
+                        $.ajax({
+                              url: penaltiesUrl,
+                              method: 'POST',
+                              contentType: 'application/json',
+                              data: JSON.stringify(payload),
+                        })
+                              .done((penRes) => {
+                                    if (!penRes || !penRes.ok) {
+                                          setPenaltyModalError(penRes && penRes.error ? penRes.error : 'Unable to save penalty.');
+                                          $penaltyModalSaveBtn.prop('disabled', false);
+                                          return;
+                                    }
+                                    hideError();
+                                    syncUndoRedoFromMeta(res.meta);
+                                    selectedId = null;
+                                    setEditorCollapsed(true, 'Click a timeline item to edit details', true);
+                                    showToast(`${penaltyModalState.label || 'Penalty'} (${outcome}) tagged at ${formatMatchSecondWithExtra(matchSecond, 0)}`);
+                                    setStatus('Tagged');
+                                    loadEvents(true);
+                                    refreshSummaryPanel();
+                                    closePenaltyModal();
+                                    $penaltyModalSaveBtn.prop('disabled', false);
+                              })
+                              .fail((xhr, status, error) => {
+                                    setPenaltyModalError(xhr.responseText || error || status);
+                                    $penaltyModalSaveBtn.prop('disabled', false);
+                              });
+                  })
+                  .fail((xhr, status, error) => {
+                        setPenaltyModalError(xhr.responseText || error || status);
+                        $penaltyModalSaveBtn.prop('disabled', false);
+                  });
+      }
+
+      function submitFreeKickEvent() {
+            if ((!freeKickModalState.playerId && !freeKickModalState.playerUnknown) || !freeKickModalState.outcome || !freeKickModalState.payload) return;
+            const url = endpoint('eventCreate');
+            if (!url) {
+                  showError('Save failed', 'Missing event endpoint');
+                  return;
+            }
+            const matchSecondOverride = Number.isFinite(freeKickModalState.payload.match_second)
+                  ? Math.floor(freeKickModalState.payload.match_second)
+                  : null;
+            const payload = {
+                  ...freeKickModalState.payload,
+                  match_id: cfg.matchId,
+                  match_player_id: freeKickModalState.playerId,
+                  outcome: freeKickModalState.outcome,
+                  team_side: currentTeam,
+                  match_second: matchSecondOverride !== null ? matchSecondOverride : getCurrentMatchSecond(),
+                  importance: freeKickModalState.payload.importance || 3,
+            };
+            $.post(url, payload)
+                  .done((res) => {
+                        if (!res.ok) {
+                              showError('Save failed', res.error || 'Unknown');
+                              return;
+                        }
+                        hideError();
+                        syncUndoRedoFromMeta(res.meta);
+                        selectedId = null;
+                        setEditorCollapsed(true, 'Click a timeline item to edit details', true);
+                        showToast(`Free Kick (${freeKickModalState.outcome}) tagged at ${formatMatchSecondWithExtra(payload.match_second, 0)}`);
+                        setStatus('Tagged');
+                        loadEvents(true);
+                        refreshSummaryPanel();
+                        closeFreeKickModal();
+                  })
+                  .fail((xhr, status, error) => {
+                        showError('Failed to save free kick', xhr.responseText || error || status);
+                  });
+      }
+
+      function requireFreeKickOutcomeHint() {
+            $freeKickOutcomeList.addClass('is-required');
+            $freeKickOutcomeHint.removeAttr('hidden');
+      }
+
+      // Player selection
+      $(document).on('click', '#freeKickPlayerList .goal-player-option', function (e) {
+            e.preventDefault();
+            $freeKickPlayerList.find('.goal-player-option').removeClass('is-selected');
+            $(this).addClass('is-selected');
+            freeKickModalState.playerId = $(this).data('player-id');
+            freeKickModalState.playerUnknown = false;
+            if (!freeKickModalState.outcome) {
+                  requireFreeKickOutcomeHint();
+                  return;
+            }
+            updateFreeKickModalSaveState();
+            submitFreeKickEvent();
+      });
+
+      $(document).on('click', '[data-freekick-unknown]', function (e) {
+            e.preventDefault();
+            $freeKickPlayerList.find('.goal-player-option').removeClass('is-selected');
+            $(this).addClass('is-selected');
+            freeKickModalState.playerId = null;
+            freeKickModalState.playerUnknown = true;
+            if (!freeKickModalState.outcome) {
+                  requireFreeKickOutcomeHint();
+                  return;
+            }
+            updateFreeKickModalSaveState();
+            submitFreeKickEvent();
+      });
+
+      // Outcome selection
+      $(document).on('click', '#freeKickOutcomeList .freekick-outcome-btn', function (e) {
+            e.preventDefault();
+            $freeKickOutcomeList.find('.freekick-outcome-btn').removeClass('is-active');
+            $(this).addClass('is-active');
+            freeKickModalState.outcome = $(this).data('freekick-outcome');
+            $freeKickOutcomeList.removeClass('is-required');
+            $freeKickOutcomeHint.attr('hidden', true);
+            updateFreeKickModalSaveState();
+            if (freeKickModalState.playerId) {
+                  submitFreeKickEvent();
+            }
+      });
+
+      // Enable save only if both selected
+      function updateFreeKickModalSaveState() {
+            const hasPlayer = !!freeKickModalState.playerId || !!freeKickModalState.playerUnknown;
+            $freeKickModalSaveBtn.prop('disabled', !(hasPlayer && freeKickModalState.outcome));
+      }
+
+      // Close modal handlers
+      $(document).on('click', '[data-freekick-modal-close]', function (e) {
+            e.preventDefault();
+            closeFreeKickModal();
+      });
+
+      $(document).on('click', '[data-penalty-modal-open]', function (e) {
+            e.preventDefault();
+            const typeId = resolvePenaltyEventTypeId();
+            const matchSecond = getCurrentVideoSecond();
+            openPenaltyModal(
+                  {
+                        event_type_id: typeId,
+                        event_type_key: 'penalty',
+                        match_second: matchSecond,
+                        importance: 3,
+                        phase: 'unknown',
+                  },
+                  'Penalty'
+            );
+      });
+
+      $(document).on('click', '[data-penalty-modal-close]', function (e) {
+            e.preventDefault();
+            closePenaltyModal();
+      });
+
+      $(document).on('click', '.penalty-zone-btn', function (e) {
+            e.preventDefault();
+            const zone = $(this).data('penalty-zone');
+            $penaltyModal.find('.penalty-zone-btn').removeClass('is-selected');
+            $(this).addClass('is-selected');
+            $penaltyPlacement.val(zone || '');
+      });
+
+      $penaltyForm.on('submit', function (e) {
+            e.preventDefault();
+            submitPenaltyEvent();
+      });
       let goalModalState = { payload: null, label: '', wasPlaying: false };
       let shotModalState = { payload: null, label: '', baseLabel: '', wasPlaying: false, selectedPlayerId: null, selectedOutcome: null, selectedResult: null };
       let cardModalState = { payload: null, label: '', wasPlaying: false };
@@ -845,6 +1268,12 @@ function tryHideDeskSkeleton() {
             tooltip.style.top = `${top}px`;
       }
 
+      function hideMatrixTooltip() {
+            if (matrixTooltip) {
+                  matrixTooltip.classList.remove('is-visible');
+            }
+      }
+
       let matrixTooltipBound = false;
       function bindMatrixTooltipHandlers() {
             if (matrixTooltipBound) return;
@@ -859,14 +1288,15 @@ function tryHideDeskSkeleton() {
             });
             $timelineMatrix.on('mouseleave', '.matrix-dot', function () {
                   // Removed matrix-period-marker-label span; tooltip only
-                  if (matrixTooltip) {
-                        matrixTooltip.classList.remove('is-visible');
-                  }
+                  hideMatrixTooltip();
             });
             $timelineMatrix.on('mousemove', '.matrix-dot', function () {
                   if (matrixTooltip && matrixTooltip.classList.contains('is-visible')) {
                         positionMatrixTooltip(this, matrixTooltip);
                   }
+            });
+            $timelineMatrix.on('mousedown', '.matrix-dot', function () {
+                  hideMatrixTooltip();
             });
       }
 
@@ -1227,11 +1657,6 @@ function tryHideDeskSkeleton() {
 
       function renderTagGrid() {
             const tiles = quickTagBoard.tiles || [];
-            /*   
-            let html = `<div class="qt-board-head">
-                         <div class="qt-board-title">${h(quickTagBoard.title || 'Quick Tags')}</div>
-               </div>`;
-            */
             let html = '<div class="qt-grid">';
 
             tiles.forEach((tile) => {
@@ -1258,7 +1683,39 @@ function tryHideDeskSkeleton() {
             $tagBoard.html(html);
             filterTagGrid();
             syncFilterOptionsFromBoard();
+
+            // Bind Free Kick quick tag click
+            $tagBoard.off('click', '.qt-tile').on('click', '.qt-tile', function (e) {
+                  const $btn = $(this);
+                  const typeKey = $btn.data('type-key');
+                  const typeId = $btn.data('type-id');
+                  // Always intercept Free Kick and open modal, do not fall through
+                  if (isFreeKickTypeKey(typeKey)) {
+                        e.preventDefault();
+                        e.stopImmediatePropagation();
+                        let videoSecond = 0;
+                        if (window.DeskSession && typeof window.DeskSession.getCurrentSecond === 'function') {
+                              videoSecond = window.DeskSession.getCurrentSecond();
+                        } else {
+                              const $video = $('#deskVideoPlayer');
+                              if ($video.length) {
+                                    const rawSeconds = $video[0].currentTime;
+                                    videoSecond = (typeof rawSeconds === 'number' && !Number.isNaN(rawSeconds))
+                                          ? Math.max(0, Math.floor(rawSeconds))
+                                          : 0;
+                              }
+                        }
+                        quickTag(typeKey, typeId, $btn, videoSecond);
+                        return false;
+                  }
+                  // ...existing quick tag logic for other types...
+            });
       }
+      // Save Free Kick event
+      $(document).on('click', '#freeKickModalSaveBtn', function (e) {
+            e.preventDefault();
+            submitFreeKickEvent();
+      });
 
       function getSortedPlayers() {
             if (!Array.isArray(players) || players.length === 0) {
@@ -1494,6 +1951,18 @@ function tryHideDeskSkeleton() {
       function isShotTypeKey(key) {
             if (!key) return false;
             return SHOT_EVENT_KEYS.has(String(key).toLowerCase());
+      }
+
+      function isFreeKickTypeKey(key) {
+            if (!key) return false;
+            const normalized = String(key).toLowerCase().replace(/[_\s]/g, '');
+            return normalized.startsWith('freekick');
+      }
+
+      function isPenaltyTypeKey(key) {
+            if (!key) return false;
+            const normalized = String(key).toLowerCase().replace(/[_\s]/g, '');
+            return normalized === 'penalty' || normalized === 'spotkick';
       }
 
       function shouldShowEditorShotMap(typeKey) {
@@ -2299,6 +2768,33 @@ function tryHideDeskSkeleton() {
             }
             if (isShotTypeKey(key)) {
                   openShotPlayerModal(payload, quickTagLabel);
+                  return;
+            }
+            if (isFreeKickTypeKey(key)) {
+                  openFreeKickModal(
+                        {
+                              event_type_id: type.id,
+                              event_type_key: key,
+                              event_type_label: quickTagLabel,
+                              match_second: normalizedSecond,
+                              importance: payload.importance,
+                        },
+                        quickTagLabel
+                  );
+                  return;
+            }
+            if (isPenaltyTypeKey(key)) {
+                  openPenaltyModal(
+                        {
+                              event_type_id: type.id,
+                              event_type_key: key,
+                              event_type_label: quickTagLabel,
+                              match_second: normalizedSecond,
+                              importance: payload.importance,
+                              phase: payload.phase,
+                        },
+                        quickTagLabel
+                  );
                   return;
             }
             if (isCardTypeKey(key)) {
@@ -6437,6 +6933,7 @@ function tryHideDeskSkeleton() {
                   }
             });
             $timelineMatrix.on('click', '.matrix-dot', function () {
+                  hideMatrixTooltip();
                   const $dot = $(this);
                   const sec = $dot.data('second');
                   // Seek to 5 seconds before the event
@@ -6476,6 +6973,7 @@ function tryHideDeskSkeleton() {
             }
             $timelineMatrix.on('contextmenu', '.matrix-dot', function (e) {
                   e.preventDefault();
+                  hideMatrixTooltip();
                   const id = $(this).data('event-id');
                   if (id) {
                         selectEvent(id);

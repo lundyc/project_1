@@ -113,6 +113,52 @@
     let scrubTime = null;
     let scrubAllowed = false;
 
+    const MIN_ZOOM = 1;
+    const MAX_ZOOM = 3;
+    let zoomScale = 1;
+    let zoomTranslateX = 0;
+    let zoomTranslateY = 0;
+
+    const clampZoom = (value) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
+
+    const applyVideoTransform = () => {
+      if (!videoTransformLayer) {
+        return;
+      }
+      videoTransformLayer.style.transform = `translate(${zoomTranslateX}px, ${zoomTranslateY}px) scale(${zoomScale})`;
+    };
+
+    const handleVideoWheelZoom = (event) => {
+      if (!videoTransformLayer || !video) {
+        return;
+      }
+      if (getActiveTool()) {
+        return;
+      }
+      event.preventDefault();
+      const rect = videoTransformLayer.getBoundingClientRect();
+      if (!rect.width || !rect.height) {
+        return;
+      }
+      const delta = -event.deltaY * 0.0025;
+      const nextScale = clampZoom(zoomScale * (1 + delta));
+      if (Math.abs(nextScale - zoomScale) < 1e-5) {
+        return;
+      }
+      const focusX = event.clientX - rect.left;
+      const focusY = event.clientY - rect.top;
+      const prevScale = zoomScale;
+      zoomScale = nextScale;
+      if (zoomScale === 1) {
+        zoomTranslateX = 0;
+        zoomTranslateY = 0;
+      } else {
+        zoomTranslateX += focusX / zoomScale - focusX / prevScale;
+        zoomTranslateY += focusY / zoomScale - focusY / prevScale;
+      }
+      applyVideoTransform();
+    };
+
     function setAllowIdleHide(val) {
       allowIdleHide = val;
       if (!allowIdleHide) {
@@ -904,11 +950,23 @@
       speedOptions.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
     };
 
+    const updateSpeedLabel = (rate) => {
+      if (!speedToggle || rate === null || rate === undefined) {
+        return;
+      }
+      const speedLabel = speedToggle.querySelector('.speed-label');
+      if (!speedLabel) {
+        return;
+      }
+      speedLabel.textContent = `${rate}×`;
+    };
+
     const handleSpeedSelect = (rate) => {
       if (controlsDisabled) {
         return;
       }
       session?.setRate(rate);
+      updateSpeedLabel(rate);
       speedOptions.classList.remove('is-open');
       speedToggle.setAttribute('aria-expanded', 'false');
       speedOptions.setAttribute('aria-hidden', 'true');
@@ -1172,6 +1230,7 @@
     registerInteractionListeners();
     if (videoTransformLayer) {
       videoTransformLayer.addEventListener('pointerdown', handleVideoSurfaceToggle, { passive: false });
+      videoTransformLayer.addEventListener('wheel', handleVideoWheelZoom, { passive: false });
     }
 
     const handleSessionReady = (event) => {
@@ -1190,11 +1249,8 @@
       if (detail) {
         state = state ? { ...state, ...detail } : detail;
       }
-      if (state?.rate && speedToggle) {
-        const speedLabel = speedToggle.querySelector('.speed-label');
-        if (speedLabel) {
-          speedLabel.textContent = `${state.rate}×`;
-        }
+      if (state && 'rate' in state) {
+        updateSpeedLabel(state.rate);
       }
       updateControlAvailability(state);
       updatePlayPauseIcon();

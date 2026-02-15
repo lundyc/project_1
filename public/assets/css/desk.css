@@ -776,6 +776,14 @@ body {
   margin-left: 4px;
 }
 
+#deskVolumeSlider {
+  writing-mode: bt-lr;
+  -webkit-appearance: slider-vertical;
+  appearance: slider-vertical;
+  width: 18px;
+  height: 80px;
+}
+
 .speed-options {
   position: absolute;
   bottom: 100%;
@@ -4539,9 +4547,122 @@ body.editor-modal-open {
   color: var(--accent-primary);
 }
 
+.goal-player-option.is-selected,
 .shot-player-option.is-selected {
   border-color: var(--accent-primary);
   box-shadow: 0 0 0 1px rgba(46, 196, 182, 0.25);
+}
+
+.free-kick-modal-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.free-kick-modal-body {
+  flex: 1 1 auto;
+}
+
+.free-kick-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.free-kick-outcomes {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.free-kick-outcomes.is-required {
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  padding: 8px;
+  border-radius: 12px;
+}
+
+.free-kick-outcome-hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.free-kick-player-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.free-kick-player-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.free-kick-player-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.desk-event-toolbar {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0 6px;
+}
+
+.penalty-modal-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.penalty-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.penalty-modal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.penalty-field-full {
+  grid-column: 1 / -1;
+}
+
+.penalty-field-inline {
+  grid-column: 1 / -1;
+}
+
+.penalty-zone-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.penalty-zone-btn.is-selected {
+  border-color: var(--accent-primary);
+  background: rgba(46, 196, 182, 0.18);
+  color: var(--accent-primary);
+}
+
+.penalty-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+@media (max-width: 720px) {
+  .penalty-modal-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 #editorPanel {

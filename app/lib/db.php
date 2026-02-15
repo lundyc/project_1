@@ -16,7 +16,7 @@ function db(): PDO
           $port = getenv('DB_PORT') ?: 3306;
           $name = getenv('DB_NAME') ?: null;
           $user = getenv('DB_USER') ?: null;
-          $pass = getenv('DB_PASS') ?: null;
+          $pass = getenv('DB_PASS') ?: (getenv('DB_PASSWORD') ?: null);
           $charset = getenv('DB_CHARSET') ?: 'utf8mb4';
 
           // Fallback to config file if env vars not set
