@@ -162,71 +162,7 @@ header('Content-Type: text/html; charset=utf-8');
 <head>
     <meta charset="utf-8" />
     <title>Match Report</title>
-    <style>
-        table { border-collapse: collapse; width: 100%; font-size: 13px; }
-        th { background: #e3e6f3; text-align: left; padding: 4px; }
-        td { padding: 4px; vertical-align: middle; }
-        body { font-size: 13px;font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
-        .marker-font { font-family: "DejaVu Sans", "Arial Unicode MS", Arial, sans-serif; font-size: 11px; }
-        h1, h2, h3 { margin: 1em 0 0.5em; font-family: inherit; }
-        .divider { height: 1px; margin: 1em 0; background: #ccc; }
-        .section-table td { border-bottom: 1px solid #e3e6f3; }
-        .match-score td { border: none; }
-        .info-table td { border: none; }
-        .event-list { margin: 0; padding-left: 1.1em; }
-        .center-cols th:nth-child(n+2),
-        .center-cols td:nth-child(n+2) { text-align: center !important; }
-        .starting-xi-table th:nth-child(3),
-        .starting-xi-table th:nth-child(4),
-        .starting-xi-table th:nth-child(5),
-        .starting-xi-table th:nth-child(6),
-        .starting-xi-table td:nth-child(3),
-        .starting-xi-table td:nth-child(4),
-        .starting-xi-table td:nth-child(5),
-        .starting-xi-table td:nth-child(6) { text-align: center; }
-        .svg-block { display: block; }
-
-        /* Tailwind-style utility classes used in this template */
-        .text-xl { font-size: 1.25rem; }
-        .text-lg { font-size: 1.125rem; }
-        .text-base { font-size: 1rem; }
-        .text-sm { font-size: 0.875rem; }
-        .text-xs { font-size: 0.75rem; }
-        .text-center { text-align: center; }
-        .text-right { text-align: right; }
-        .text-text-primary { color: #111827; }
-        .text-text-muted { color: #6b7280; }
-        .text-gray-700 { color: #374151; }
-        .font-semibold { font-weight: 600; }
-        .font-medium { font-weight: 500; }
-        .uppercase { text-transform: uppercase; }
-
-        .w-full { width: 100%; }
-        .min-w-full { min-width: 100%; }
-        .w-1\/3 { width: 33.3333%; }
-
-        .my-6 { margin-top: 1.5rem; margin-bottom: 1.5rem; }
-        .my-8 { margin-top: 2rem; margin-bottom: 2rem; }
-        .mb-2 { margin-bottom: 0.5rem; }
-        .mb-4 { margin-bottom: 1rem; }
-        .px-4 { padding-left: 1rem; padding-right: 1rem; }
-        .px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
-        .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
-        .py-3 { padding-top: 0.75rem; padding-bottom: 0.75rem; }
-        .pl-6 { padding-left: 1.5rem; }
-        .pr-2 { padding-right: 0.5rem; }
-
-        .list-disc { list-style-type: disc; }
-        .rounded-xl { border-radius: 0.75rem; }
-        .overflow-hidden { overflow: hidden; }
-
-        .bg-bg-tertiary { background: #f9fafb; }
-        .bg-bg-secondary { background: #eef1f7; }
-        .border-b { border-bottom: 1px solid #e3e6f3; }
-        .border-border-soft { border-color: #e3e6f3; }
-        .transition-colors { transition: color 0.2s ease, background-color 0.2s ease; }
-        .hover\:bg-bg-secondary\/60:hover { background: #f3f4f6; }
-    </style>
+    <?php require __DIR__ . '/../../partials/pdf_styles.php'; ?>
 </head>
 <body>
 

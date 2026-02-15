@@ -146,60 +146,74 @@ function get_player_appearances(int $playerId, int $clubId): array
                 'club_id' => $clubId,
         ]);
 
-        $appearances = $stmt->fetchAll();
-        if (!$appearances) return [];
+                $appearances = $stmt->fetchAll();
+                if (!$appearances) return [];
 
-        // Get all match_player_ids and match_ids
-        $mpIds = array_column($appearances, 'id');
-        $matchIds = array_column($appearances, 'match_id');
+                // Get all match_player_ids and match_ids
+                $mpIds = array_column($appearances, 'id');
+                $matchIds = array_column($appearances, 'match_id');
 
-        // Get substitutions for these matches
-        $subsByMatch = [];
-        if ($matchIds) {
-                $placeholders = implode(',', array_fill(0, count($matchIds), '?'));
-                $subsStmt = db()->prepare(
-                        'SELECT match_id, player_off_match_player_id, player_on_match_player_id, minute, minute_extra
-                         FROM match_substitutions
-                         WHERE match_id IN (' . $placeholders . ')'
-                );
-                $subsStmt->execute($matchIds);
-                foreach ($subsStmt->fetchAll() as $row) {
-                        $mid = (int)$row['match_id'];
-                        $subsByMatch[$mid][] = $row;
-                }
-        }
-
-        // Compute minutes played for each appearance
-        $matchLength = 90;
-        $minutesByMpId = [];
-        foreach ($appearances as $appearance) {
-                $mpId = (int)$appearance['id'];
-                $mid = (int)$appearance['match_id'];
-                $isStarting = (int)$appearance['is_starting'] === 1;
-                $minutes = 0;
-                $onMap = [];
-                $offMap = [];
-                foreach ($subsByMatch[$mid] ?? [] as $sub) {
-                        $minute = (int)$sub['minute'] + (int)$sub['minute_extra'];
-                        if (!empty($sub['player_on_match_player_id'])) {
-                                $onMap[(int)$sub['player_on_match_player_id']] = $minute;
-                        }
-                        if (!empty($sub['player_off_match_player_id'])) {
-                                $offMap[(int)$sub['player_off_match_player_id']] = $minute;
+                // Get substitutions for these matches
+                $subsByMatch = [];
+                $subbedOnMpIds = [];
+                if ($matchIds) {
+                        $placeholders = implode(',', array_fill(0, count($matchIds), '?'));
+                        $subsStmt = db()->prepare(
+                                'SELECT match_id, player_on_match_player_id, player_off_match_player_id, minute, minute_extra
+                                 FROM match_substitutions
+                                 WHERE match_id IN (' . $placeholders . ')'
+                        );
+                        $subsStmt->execute($matchIds);
+                        foreach ($subsStmt->fetchAll() as $row) {
+                                $mid = (int)$row['match_id'];
+                                $subsByMatch[$mid][] = $row;
+                                if (!empty($row['player_on_match_player_id'])) {
+                                        $subbedOnMpIds[] = (int)$row['player_on_match_player_id'];
+                                }
                         }
                 }
-                if ($isStarting) {
-                        $minutes = $matchLength;
-                        if (isset($offMap[$mpId])) {
-                                $minutes = max(0, min($matchLength, $offMap[$mpId]));
-                        }
-                } else {
-                        if (isset($onMap[$mpId])) {
-                                $minutes = max(0, $matchLength - $onMap[$mpId]);
+
+                // Only count as appearance if started or was subbed on
+                $actualAppearances = [];
+                foreach ($appearances as $appearance) {
+                        $mpId = (int)$appearance['id'];
+                        $isStarting = (int)$appearance['is_starting'] === 1;
+                        if ($isStarting || in_array($mpId, $subbedOnMpIds, true)) {
+                                $actualAppearances[] = $appearance;
                         }
                 }
-                $minutesByMpId[$mpId] = $minutes;
-        }
+
+                // Compute minutes played for each appearance
+                $matchLength = 90;
+                $minutesByMpId = [];
+                foreach ($actualAppearances as $appearance) {
+                        $mpId = (int)$appearance['id'];
+                        $mid = (int)$appearance['match_id'];
+                        $isStarting = (int)$appearance['is_starting'] === 1;
+                        $minutes = 0;
+                        $onMap = [];
+                        $offMap = [];
+                        foreach ($subsByMatch[$mid] ?? [] as $sub) {
+                                $minute = (int)$sub['minute'] + (int)$sub['minute_extra'];
+                                if (!empty($sub['player_on_match_player_id'])) {
+                                        $onMap[(int)$sub['player_on_match_player_id']] = $minute;
+                                }
+                                if (!empty($sub['player_off_match_player_id'])) {
+                                        $offMap[(int)$sub['player_off_match_player_id']] = $minute;
+                                }
+                        }
+                        if ($isStarting) {
+                                $minutes = $matchLength;
+                                if (isset($offMap[$mpId])) {
+                                        $minutes = max(0, min($matchLength, $offMap[$mpId]));
+                                }
+                        } else {
+                                if (isset($onMap[$mpId])) {
+                                        $minutes = max(0, $matchLength - $onMap[$mpId]);
+                                }
+                        }
+                        $minutesByMpId[$mpId] = $minutes;
+                }
 
         // Get yellow/red cards for each match_player_id
         $yellowByMpId = [];

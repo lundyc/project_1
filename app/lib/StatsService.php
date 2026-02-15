@@ -689,10 +689,20 @@ class StatsService
                                 p.first_name,
                                 p.last_name,
                                 p.primary_position as position,
-                        p.is_active as is_active,
-                                COUNT(DISTINCT mp.match_id) as appearances,
+                                p.is_active as is_active,
+                                (
+                                    SUM(CASE WHEN mp.is_starting = 1 THEN 1 ELSE 0 END)
+                                    +
+                                    (
+                                        SELECT COUNT(1) FROM match_substitutions ms
+                                        WHERE ms.player_on_match_player_id = mp.id
+                                    )
+                                ) as appearances,
                                 SUM(CASE WHEN mp.is_starting = 1 THEN 1 ELSE 0 END) as starts,
-                                SUM(CASE WHEN mp.is_starting = 0 THEN 1 ELSE 0 END) as sub_appearances
+                                (
+                                    SELECT COUNT(1) FROM match_substitutions ms
+                                    WHERE ms.player_on_match_player_id = mp.id
+                                ) as sub_appearances
                         FROM players p
                         INNER JOIN match_players mp ON mp.player_id = p.id
                         INNER JOIN matches m ON m.id = mp.match_id

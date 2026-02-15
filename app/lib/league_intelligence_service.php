@@ -402,28 +402,38 @@ class LeagueIntelligenceService
                               return null;
                     }
 
+                    // Build goal_trend: array of goals_for per match (ordered by match_history)
+                    $goal_trend = [];
+                    if (!empty($team['match_history'])) {
+                      foreach ($team['match_history'] as $match) {
+                        if (isset($match['goals_for']) && $match['goals_for'] !== null) {
+                          $goal_trend[] = (int)$match['goals_for'];
+                        }
+                      }
+                    }
                     return [
-                              'team_id' => $team['team_id'],
-                              'team_name' => $team['team_name'],
-                              'position' => $team['position'],
-                              'points' => $team['points'],
-                              'record' => $team['record_label'],
-                              'goal_difference' => $team['goal_difference'],
-                              'streak' => $team['streak_label'],
-                              'form' => $team['form_display'],
-                              'points_per_game' => $team['points_per_game'],
-                              'average_goals_per_match' => $team['average_goals_per_match'],
-                              'goals_for' => $team['goals_for'],
-                              'goals_against' => $team['goals_against'],
-                              'clean_sheets' => $team['clean_sheets'],
-                              'home' => $team['home'],
-                              'away' => $team['away'],
-                              'head_to_head' => $team['head_to_head_list'],
-                              'strength_of_schedule' => $team['strength_of_schedule'],
-                              'points_trend' => $team['points_trend'],
-                              'goal_difference_trend' => $team['goal_difference_trend'],
-                              'recent_matches' => $team['recent_results'],
-                              'match_history' => $team['match_history'],
+                          'team_id' => $team['team_id'],
+                          'team_name' => $team['team_name'],
+                          'position' => $team['position'],
+                          'points' => $team['points'],
+                          'record' => $team['record_label'],
+                          'goal_difference' => $team['goal_difference'],
+                          'streak' => $team['streak_label'],
+                          'form' => $team['form_display'],
+                          'points_per_game' => $team['points_per_game'],
+                          'average_goals_per_match' => $team['average_goals_per_match'],
+                          'goals_for' => $team['goals_for'],
+                          'goals_against' => $team['goals_against'],
+                          'clean_sheets' => $team['clean_sheets'],
+                          'home' => $team['home'],
+                          'away' => $team['away'],
+                          'head_to_head' => $team['head_to_head_list'],
+                          'strength_of_schedule' => $team['strength_of_schedule'],
+                          'points_trend' => $team['points_trend'],
+                          'goal_difference_trend' => $team['goal_difference_trend'],
+                          'goal_trend' => $goal_trend,
+                          'recent_matches' => $team['recent_results'],
+                          'match_history' => $team['match_history'],
                     ];
           }
 
@@ -728,6 +738,7 @@ ORDER BY COALESCE(lim.kickoff_at, "9999-12-31 23:59:59") ASC, lim.match_id ASC
                                         'points' => 0,
                                         'goals_for' => 0,
                                         'goals_against' => 0,
+                                        'clean_sheets' => 0,
                               ],
                               'away' => [
                                         'matches' => 0,
@@ -737,6 +748,7 @@ ORDER BY COALESCE(lim.kickoff_at, "9999-12-31 23:59:59") ASC, lim.match_id ASC
                                         'points' => 0,
                                         'goals_for' => 0,
                                         'goals_against' => 0,
+                                        'clean_sheets' => 0,
                               ],
                               'match_history' => [],
                               'head_to_head' => [],
@@ -791,6 +803,10 @@ ORDER BY COALESCE(lim.kickoff_at, "9999-12-31 23:59:59") ASC, lim.match_id ASC
                     $venueStats['goals_for'] += $goalsFor;
                     $venueStats['goals_against'] += $goalsAgainst;
 
+                    if ($goalsAgainst === 0) {
+                              $venueStats['clean_sheets']++;
+                    }
+
                     if ($result === 'W') {
                               $venueStats['wins']++;
                               $venueStats['points'] += 3;
@@ -838,14 +854,16 @@ ORDER BY COALESCE(lim.kickoff_at, "9999-12-31 23:59:59") ASC, lim.match_id ASC
                     $score = ($goalsFor !== null && $goalsAgainst !== null) ? "{$goalsFor}-{$goalsAgainst}" : null;
 
                     return [
-                              'match_id' => (int)$match['match_id'],
-                              'date' => $match['date'],
-                              'opponent_id' => $opponentId,
-                              'opponent_name' => $opponentName,
-                              'venue' => $isHome ? 'Home' : 'Away',
-                              'score' => $score,
-                              'result' => $result,
-                              'status' => $match['status'],
+                        'match_id' => (int)$match['match_id'],
+                        'date' => $match['date'],
+                        'opponent_id' => $opponentId,
+                        'opponent_name' => $opponentName,
+                        'venue' => $isHome ? 'Home' : 'Away',
+                        'score' => $score,
+                        'result' => $result,
+                        'status' => $match['status'],
+                        'goals_for' => $goalsFor,
+                        'goals_against' => $goalsAgainst,
                     ];
           }
 

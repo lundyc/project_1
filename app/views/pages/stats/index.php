@@ -153,13 +153,68 @@ $formatStatusLabel = static function (string $status): string {
 };
 
 ob_start();
-?>
-<?php
 $headerTitle = 'Stats';
 $headerDescription = 'Description here';
 $headerButtons = [];
+$headerButtons[] = '<a id="export-pdf-btn" href="/stats/export_pdf" class="justify-start text-left px-4 py-2.5 text-sm font-medium rounded-lg border transition-all duration-200 bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20 flex">Export PDF</a>';
 include __DIR__ . '/../../partials/header.php';
 ?>
+<script>
+// Update Export PDF button to include filters
+document.addEventListener('DOMContentLoaded', function() {
+    function getSelectedValue(sel) {
+        var el = document.getElementById(sel);
+        return el ? el.value : '';
+    }
+    function getActiveTabId() {
+        var activeBtn = document.querySelector('[data-tab-id][aria-selected="true"]');
+        if (activeBtn) return activeBtn.getAttribute('data-tab-id');
+        return localStorage.getItem('statsPageActiveTab') || 'overview';
+    }
+    function updateExportPdfUrl() {
+        var tabId = getActiveTabId();
+        var filterMap = {
+            'overview': { season: 'overview-season-filter', type: 'overview-type-filter' },
+            'team-performance': { season: 'team-performance-season-filter', type: 'team-performance-type-filter' },
+            'player-performance': { season: 'player-season-filter', type: 'player-type-filter', position: 'player-position-filter' }
+        };
+        var config = filterMap[tabId] || filterMap['overview'];
+        var season = getSelectedValue(config.season);
+        var type = getSelectedValue(config.type);
+        var position = config.position ? getSelectedValue(config.position) : '';
+        var params = [];
+        if (season) params.push('season_id=' + encodeURIComponent(season));
+        if (type) params.push('type=' + encodeURIComponent(type));
+        if (position) params.push('position=' + encodeURIComponent(position));
+        var urlParams = new URLSearchParams(window.location.search);
+        var clubId = urlParams.get('club_id');
+        if (clubId) params.push('club_id=' + encodeURIComponent(clubId));
+        var url = '/stats/export_pdf';
+        if (params.length) url += '?' + params.join('&');
+        var btn = document.getElementById('export-pdf-btn');
+        if (btn) btn.setAttribute('href', url);
+    }
+    var filterIds = [
+        'overview-season-filter',
+        'overview-type-filter',
+        'team-performance-season-filter',
+        'team-performance-type-filter',
+        'player-season-filter',
+        'player-type-filter',
+        'player-position-filter'
+    ];
+    filterIds.forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('change', updateExportPdfUrl);
+    });
+    document.querySelectorAll('[data-tab-id]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            setTimeout(updateExportPdfUrl, 0);
+        });
+    });
+    updateExportPdfUrl();
+});
+</script>
 
 <link rel="stylesheet" href="/assets/css/stats-table.css">
 <div class="w-full mt-4 text-slate-200">

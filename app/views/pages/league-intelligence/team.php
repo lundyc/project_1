@@ -14,18 +14,24 @@ if ($clubContextId <= 0 && function_exists('current_user')) {
           $currentUser = current_user();
           $clubContextId = (int)($currentUser['club_id'] ?? 0);
 }
+if ($clubContextId <= 0 && isset($_GET['club_id'])) {
+          $clubContextId = (int)$_GET['club_id'];
+}
 require_once __DIR__ . '/../../../lib/team_repository.php';
 $clubTeamId = 0;
+$clubTeamName = '';
 if ($clubContextId > 0) {
           $clubTeams = get_teams_by_club($clubContextId);
           foreach ($clubTeams as $clubTeam) {
                     if (($clubTeam['team_type'] ?? '') === 'club') {
                               $clubTeamId = (int)$clubTeam['id'];
+                              $clubTeamName = (string)($clubTeam['name'] ?? '');
                               break;
                     }
           }
           if ($clubTeamId <= 0 && !empty($clubTeams)) {
                     $clubTeamId = (int)$clubTeams[0]['id'];
+                    $clubTeamName = (string)($clubTeams[0]['name'] ?? '');
           }
 }
 $matchHistory = $teamInsights['match_history'] ?? [];
@@ -85,8 +91,42 @@ $goalTrendHeights = $buildTrendHeights($goalTrend);
 $headToHead = $teamInsights['head_to_head'] ?? [];
 $strengthSchedule = $teamInsights['strength_of_schedule'] ?? [];
 $currentTeamId = (int)($teamInsights['team_id'] ?? 0);
+if ($clubTeamId <= 0 && $currentTeamId > 0) {
+          $currentTeamRow = get_team_by_id($currentTeamId);
+          if (!empty($currentTeamRow['club_id'])) {
+                    $clubContextId = (int)$currentTeamRow['club_id'];
+                    $clubTeams = get_teams_by_club($clubContextId);
+                    foreach ($clubTeams as $clubTeam) {
+                              if (($clubTeam['team_type'] ?? '') === 'club') {
+                                        $clubTeamId = (int)$clubTeam['id'];
+                                        $clubTeamName = (string)($clubTeam['name'] ?? '');
+                                        break;
+                              }
+                    }
+                    if ($clubTeamId <= 0 && !empty($clubTeams)) {
+                              $clubTeamId = (int)$clubTeams[0]['id'];
+                              $clubTeamName = (string)($clubTeams[0]['name'] ?? '');
+                    }
+          }
+}
 $h2hTeamId = isset($_GET['h2h_team_id']) ? (int)$_GET['h2h_team_id'] : 0;
 $h2hTeams = array_values($teamNavigation);
+if ($clubTeamId > 0) {
+          $hasClubTeam = false;
+          foreach ($h2hTeams as $team) {
+                    if ((int)$team['team_id'] === $clubTeamId) {
+                              $hasClubTeam = true;
+                              break;
+                    }
+          }
+          if (!$hasClubTeam) {
+                    $h2hTeams[] = [
+                              'team_id' => $clubTeamId,
+                              'team_name' => $clubTeamName !== '' ? $clubTeamName : 'Club Team',
+                              'position' => null,
+                    ];
+          }
+}
 $defaultH2hTeamId = $clubTeamId > 0 ? $clubTeamId : $currentTeamId;
 if ($h2hTeamId <= 0 && !empty($h2hTeams)) {
           $h2hTeamId = $defaultH2hTeamId;
@@ -209,7 +249,7 @@ include __DIR__ . '/../../partials/header.php';?>
                                                             <?php endif; ?>
                                                   </div>
                                                   <div class="grid gap-4 sm:grid-cols-2">
-                                                            <div class="rounded-xl border border-border-soft bg-bg-secondary p-5">
+                                                            <div class="rounded-2xl border border-white/5 bg-white/5 p-3">
                                                                       <p class="text-xs text-slate-400">Points per game</p>
                                                                       <p class="text-2xl font-semibold text-white"><?= number_format((float)($teamInsights['points_per_game'] ?? 0), 2) ?></p>
                                                             </div>
@@ -244,12 +284,11 @@ include __DIR__ . '/../../partials/header.php';?>
                                                                       <span class="text-xs text-slate-400"><?= count($pointsTrend) ?> matches</span>
                                                             </div>
                                                             <?php if (!empty($pointsTrend)): ?>
-                                                                      <div class="flex items-end gap-1 h-16">
-                                                                                <?php foreach ($pointsTrendHeights as $idx => $height): ?>
-                                                                                          <span class="block h-full w-1.5 rounded-full bg-emerald-500" style="height:<?= $height ?>%;"></span>
-                                                                                <?php endforeach; ?>
-                                                                      </div>
-                                                                      <p class="text-xs text-slate-400">Latest: <?= implode(' · ', array_map(fn ($value) => (float)$value, $pointsTrend)) ?></p>
+                                                                      <canvas id="pointsTrendChart" height="120"></canvas>
+                                                                      <script>
+                                                                          window.pointsTrendData = <?= json_encode(array_map('floatval', $pointsTrend)) ?>;
+                                                                          window.pointsTrendLabels = <?= json_encode(array_map(function($i){return 'M'.($i+1);}, array_keys($pointsTrend))) ?>;
+                                                                      </script>
                                                             <?php else: ?>
                                                                       <p class="text-xs text-slate-500">No points movement yet.</p>
                                                             <?php endif; ?>
@@ -260,12 +299,11 @@ include __DIR__ . '/../../partials/header.php';?>
                                                                       <span class="text-xs text-slate-400"><?= count($goalTrend) ?> matches</span>
                                                             </div>
                                                             <?php if (!empty($goalTrend)): ?>
-                                                                      <div class="flex items-end gap-1 h-16">
-                                                                                <?php foreach ($goalTrendHeights as $height): ?>
-                                                                                          <span class="block h-full w-1.5 rounded-full bg-cyan-400" style="height:<?= $height ?>%;"></span>
-                                                                                <?php endforeach; ?>
-                                                                      </div>
-                                                                      <p class="text-xs text-slate-400">Latest: <?= implode(' · ', array_map(fn ($value) => (int)$value, $goalTrend)) ?></p>
+                                                                      <canvas id="goalTrendChart" height="120"></canvas>
+                                                                      <script>
+                                                                          window.goalTrendData = <?= json_encode(array_map('intval', $goalTrend)) ?>;
+                                                                          window.goalTrendLabels = <?= json_encode(array_map(function($i){return 'M'.($i+1);}, array_keys($goalTrend))) ?>;
+                                                                      </script>
                                                             <?php else: ?>
                                                                       <p class="text-xs text-slate-500">No goal difference data yet.</p>
                                                             <?php endif; ?>
@@ -572,6 +610,5 @@ include __DIR__ . '/../../partials/header.php';?>
 </div>
 <?php
 $content = ob_get_clean();
+$footerScripts = ($footerScripts ?? '') . "\n<script src=\"https://cdn.jsdelivr.net/npm/chart.js\"></script>\n<script src=\"/assets/js/league-intelligence-trends.js?v=" . time() . "\"></script>";
 require __DIR__ . '/../../layout.php';
-?>
-<script src="/assets/js/league-intel-team.js"></script>

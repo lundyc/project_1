@@ -166,9 +166,21 @@ route('/admin/clubs/{id}/edit', function () {
           require __DIR__ . '/../app/views/pages/admin/clubs/edit.php';
 });
 
+
 route('/admin/users', function () {
-          require_role('platform_admin');
-          require __DIR__ . '/../app/views/pages/admin/users.php';
+    require_role('platform_admin');
+    require __DIR__ . '/../app/views/pages/admin/users.php';
+});
+
+route('/admin/users/{id}/edit', function () {
+    require_role('platform_admin');
+    $userId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+    if (!$userId) {
+        http_response_code(404);
+        echo 'User not found.';
+        return;
+    }
+    require __DIR__ . '/../app/views/pages/admin/edit_user.php';
 });
 
 route('/admin/seasons', function () {
@@ -239,6 +251,11 @@ route('/api/admin/teams/delete', function () {
 route('/api/admin/users/create', function () {
           require_role('platform_admin');
           require __DIR__ . '/../app/api/admin/create_user.php';
+});
+
+route('/api/admin/update_user.php', function () {
+          require_role('platform_admin');
+          require __DIR__ . '/../app/api/admin/update_user.php';
 });
 
 route('/api/teams/create', function () {
@@ -924,6 +941,14 @@ route('/api/matches/(\d+)/playlists/notes', function ($matchId) {
 
 route('/api/stats/match/report_pdf', function () {
     require __DIR__ . '/../app/api/stats/match/report_pdf.php';
+    return true;
+});
+
+route('/stats/export_pdf', function () {
+    require_auth();
+    require_once __DIR__ . '/../app/controllers/StatsController.php';
+    $controller = new StatsController();
+    $controller->exportPdf();
     return true;
 });
 route('/api/matches/(\d+)/playlists/delete', function ($matchId) {

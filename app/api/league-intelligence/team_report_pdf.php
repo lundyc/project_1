@@ -57,18 +57,29 @@ if (!$insights) {
 }
 
 ob_start();
+
 $headerTitle = 'Team Intelligence Report';
 $headerDescription = $team['name'] ?? '';
 $headerButtons = [];
 require __DIR__ . '/../../views/pages/league-intelligence/team_pdf.php';
 $html = ob_get_clean();
 
+// Sanitize team name for filename
+$teamNameForFile = preg_replace('/[^a-zA-Z0-9_-]+/', '_', $team['name'] ?? 'team');
+
+
+// If ?debug=1 is set, render as HTML for debugging
+if (isset($_GET['debug']) && $_GET['debug'] == '1') {
+    header('Content-Type: text/html; charset=utf-8');
+    echo $html;
+    exit;
+}
+
 $dompdf = new Dompdf();
 $dompdf->loadHtml($html);
 $dompdf->setPaper('A4', 'portrait');
 $dompdf->render();
-
 header('Content-Type: application/pdf');
-header('Content-Disposition: attachment; filename="team_report_' . $teamId . '.pdf"');
+header('Content-Disposition: attachment; filename="team_report_' . $teamNameForFile . '.pdf"');
 echo $dompdf->output();
 exit;

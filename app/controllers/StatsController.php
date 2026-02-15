@@ -3,8 +3,73 @@
 require_once __DIR__ . '/../lib/stats_context.php';
 require_once __DIR__ . '/../lib/StatsService.php';
 
-class StatsController
-{
+class StatsController {
+    /**
+     * Export the statistics dashboard as PDF
+     */
+    public static function exportPdf(): void
+    {
+        require_once __DIR__ . '/../lib/stats_context.php';
+        require_once __DIR__ . '/../lib/StatsService.php';
+        require_once __DIR__ . '/../lib/pdf_helper.php'; // Dompdf wrapper
+        $context = resolve_club_context_for_stats();
+        $selectedClubId = $context['club_id'];
+        $selectedClub = $context['club'] ?? null;
+        require_once __DIR__ . '/../lib/season_repository.php';
+        require_once __DIR__ . '/../lib/competition_repository.php';
+        $seasons = get_seasons_by_club($selectedClubId);
+        $competitions = get_competitions_by_club($selectedClubId);
+        $seasonId = null;
+        if (isset($_GET['season_id']) && $_GET['season_id'] !== '') {
+            $seasonId = (int)$_GET['season_id'];
+            if ($seasonId <= 0) {
+                $seasonId = null;
+            }
+        }
+        $type = null;
+        if (!empty($_GET['type']) && in_array($_GET['type'], ['league', 'cup'], true)) {
+            $type = $_GET['type'];
+        }
+        $positionFilter = isset($_GET['position']) ? trim((string)$_GET['position']) : null;
+        if ($positionFilter === '') {
+            $positionFilter = null;
+        }
+
+        $filterSummary = [];
+        if ($seasonId !== null) {
+            $seasonLabel = null;
+            foreach ($seasons as $season) {
+                if ((int)($season['id'] ?? 0) === $seasonId) {
+                    $seasonLabel = $season['name'] ?? ('Season ' . $seasonId);
+                    break;
+                }
+            }
+            $filterSummary[] = 'Season: ' . ($seasonLabel ?? ('Season ' . $seasonId));
+        }
+        if ($type !== null) {
+            $filterSummary[] = 'Type: ' . ucfirst($type);
+        }
+        if ($positionFilter !== null) {
+            $filterSummary[] = 'Position: ' . $positionFilter;
+        }
+
+        $statsService = new StatsService($selectedClubId);
+        $matches = $statsService->getMatchList();
+        $overviewStats = $statsService->getOverviewStats($seasonId, $type);
+        $teamPerformance = $statsService->getTeamPerformanceStats($seasonId, $type);
+        $playerPerformance = $statsService->getPlayerPerformanceForClub($seasonId, $type);
+
+        // Render PDF template (one page per section)
+        ob_start();
+        require __DIR__ . '/../views/pages/stats/export_pdf.php';
+        $html = ob_get_clean();
+
+        $clubName = $selectedClub['name'] ?? 'Club';
+        $filename = 'Stats_Report_' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $clubName) . '_' . date('Ymd') . '.pdf';
+
+        pdf_output($html, $filename);
+        exit;
+    }
     /**
      * Display the statistics dashboard
      *

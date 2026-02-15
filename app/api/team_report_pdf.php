@@ -58,12 +58,19 @@ require __DIR__ . '/../views/pages/league-intelligence/team_pdf.php';
 $html = ob_get_clean();
 
 // Generate PDF
+
+// If ?debug=1 is set, render as HTML for debugging
+if (isset($_GET['debug']) && $_GET['debug'] == '1') {
+    header('Content-Type: text/html; charset=utf-8');
+    echo $html;
+    exit;
+}
+
 $dompdf = new Dompdf();
 $dompdf->loadHtml($html);
 $dompdf->setPaper('A4', 'portrait');
 $dompdf->render();
-
 header('Content-Type: application/pdf');
-header('Content-Disposition: attachment; filename="team_report_' . $teamId . '.pdf"');
+header('Content-Disposition: inline; filename="team_report_' . $teamId . '.pdf"');
 echo $dompdf->output();
 exit;

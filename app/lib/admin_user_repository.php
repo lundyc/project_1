@@ -1,5 +1,67 @@
 <?php
 
+function get_user_by_id(int $id): ?array
+{
+        $pdo = db();
+        $stmt = $pdo->prepare('SELECT u.*, c.name AS club_name FROM users u LEFT JOIN clubs c ON c.id = u.club_id WHERE u.id = :id');
+        $stmt->execute(['id' => $id]);
+        $user = $stmt->fetch();
+        if (!$user) {
+                return null;
+        }
+        // Get roles
+        $rolesStmt = $pdo->prepare('SELECT r.role_key FROM user_roles ur JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = :id');
+        $rolesStmt->execute(['id' => $id]);
+        $user['roles'] = $rolesStmt->fetchAll(PDO::FETCH_COLUMN);
+        return $user;
+}
+function update_user(int $id, string $email, string $display_name, ?int $club_id, array $role_keys, ?string $password = null, int $is_active = 1): void
+{
+        $pdo = db();
+        $pdo->beginTransaction();
+        try {
+                $fields = [
+                        'email' => $email,
+                        'display_name' => $display_name,
+                        'club_id' => $club_id,
+                        'is_active' => $is_active,
+                        'updated_at' => date('Y-m-d H:i:s'),
+                        'id' => $id,
+                ];
+                $set = 'email = :email, display_name = :display_name, club_id = :club_id, is_active = :is_active, updated_at = :updated_at';
+                if ($password !== null && $password !== '') {
+                        $fields['password_hash'] = password_hash($password, PASSWORD_DEFAULT);
+                        $set .= ', password_hash = :password_hash';
+                }
+                $stmt = $pdo->prepare("UPDATE users SET $set WHERE id = :id");
+                $stmt->execute($fields);
+
+                // Remove existing roles
+                $pdo->prepare('DELETE FROM user_roles WHERE user_id = :id')->execute(['id' => $id]);
+
+                // Add new roles
+                if (!empty($role_keys)) {
+                        $roleStmt = $pdo->prepare('SELECT id FROM roles WHERE role_key = :role_key');
+                        $insertStmt = $pdo->prepare('INSERT INTO user_roles (user_id, role_id) VALUES (:user_id, :role_id)');
+                        foreach ($role_keys as $roleKey) {
+                                $roleStmt->execute(['role_key' => $roleKey]);
+                                $roleId = $roleStmt->fetchColumn();
+                                if ($roleId) {
+                                        $insertStmt->execute([
+                                                'user_id' => $id,
+                                                'role_id' => $roleId,
+                                        ]);
+                                }
+                        }
+                }
+
+                $pdo->commit();
+        } catch (\Throwable $e) {
+                $pdo->rollBack();
+                throw $e;
+        }
+}
+
 require_once __DIR__ . '/db.php';
 
 function get_roles(): array
